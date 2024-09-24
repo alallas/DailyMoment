@@ -64,8 +64,10 @@ document.getElementById('myLink').addEventListener('click', function(event) {
     event.preventDefault(); // 阻止默认导航行为
     alert('Link clicked, but no navigation');
 });
-  2. 事件传播：在事件处理函数中，你可以使用 event.stopPropagation() 来阻止事件继续传播，这将影响事件的冒泡或捕获行为。
 ```
+
+  2. 事件传播：在事件处理函数中，你可以使用 event.stopPropagation() 来阻止事件继续传播，这将影响事件的冒泡或捕获行为。
+
 
 
 ### MutationObserver
