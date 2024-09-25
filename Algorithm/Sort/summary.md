@@ -195,9 +195,9 @@ if left大于等于right 终止条件
 
 【遍历left小于right】
 
-【遍历右比base值小，停下】（注意left要小于right）
+【遍历右比base值小或等于，停下】（注意left要小于right）（注意要加上【或等于】）
 值给到“停下来的”左
-【遍历左比base值大，停下】（注意left要小于right）
+【遍历左比base值大或等于，停下】（注意left要小于right）（注意要加上【或等于】）
 值给到“停下来的”右
 
 最后左右肯定相同，把base值给到这个位置
@@ -211,15 +211,15 @@ function findBaseIndex(arr, left, right) {
     const base = arr[left]
     while(left < right && left <= arr.length - 1 && right >= 0) {
 
-        // 循环到右边第一个居然比base小的数，就停下来
-        while(arr[right] > base && left < right) {
+        // 循环到右边第一个居然比base小的数，就停下来（注意要加上【或等于】，防止漏了一种情况）
+        while(arr[right] >= base && left < right) {
             right--
         }
         // 到这一步把right的值放到left上面，right可以保证为一个坑
         arr[left] = arr[right]
 
-        // 循环到左边第一个居然比base大的数，就停下来
-        while(arr[left] < base && left < right) {
+        // 循环到左边第一个居然比base大的数，就停下来（注意要加上【或等于】，防止漏了一种情况）
+        while(arr[left] <= base && left < right) {
             left++
         }
         // 到这一步把left的值放到right上面，left可以保证为一个坑
