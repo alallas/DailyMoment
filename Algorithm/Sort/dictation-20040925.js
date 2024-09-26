@@ -59,7 +59,7 @@ function insertSort(arr) {
 // insertSort(arr)
 
 
-// 归并排序--nlogn--不稳定
+// 归并排序--nlogn--稳定
 
 // 在头部收集结果，一层一层return返回,在后序的位置合并左右结果
 function merge(arr1, arr2) {
@@ -98,7 +98,7 @@ function mergeSort(arr) {
 // arr = mergeSort(arr)
 
 
-// 快速排序--nlogn---不稳定
+// 快速排序--nlogn---不稳定（最坏是n平方）
 // 在底层收集结果，改变数组，首先通过找基准值，然后小放左边，大放右边，然后从上往下，更新左右指针，
 function findBaseIndex(arr, left, right) {
   const base = arr[left]
@@ -131,7 +131,7 @@ fastSort(arr, 0, arr.length - 1)
 
 
 
-// 堆排序
+// 堆排序--nlogn--不稳定
 // 找到所有父节点，维护大顶堆，然后遍历所有元素拿出最大的那个值，给到数组的末尾，然后更新数组的长度，
 
 function heapify(arr, len, curIndex) {

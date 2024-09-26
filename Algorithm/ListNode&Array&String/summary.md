@@ -96,7 +96,7 @@ slow所在位置为结果
 #### 滑动窗口
 常用：有固定长度或内容的规则
 
-基本框架：
+- 基本框架：
 ```
 left right map创建指针和对象
 【循环条件是right小于数组长度】
@@ -111,10 +111,10 @@ left right map创建指针和对象
 ```
 
 
-应用场景：
+- 应用场景：
 字符串截取
 
-例子：
+- 例子：
 1. 指定固定长度固定规则子串
 不需要滑动窗口，只需要遍历每个字符，生成固定窗口然后判断规则
 ```
@@ -155,3 +155,82 @@ function backing(startIndex) {
 backing(0);
 console.log(res);
 ```
+
+
+
+## 栈
+
+常用于：
+- "分散"对称性：一对一对，每对的左侧先放进去，右侧后放，右侧的与左侧的末尾往前的值对应起来！
+- 父亲孩子：父亲逐一放进去，找到最后一个父亲的所有孩子，再往前找
+
+### 配对关系——分散对称性
+
+例子：
+- 括号匹配
+
+右侧总是试图与【左侧的最后一个位置】（或者说【与离自己最近的一个左侧】）配对
+
+```
+function isValid(str) {
+    const stack = []
+    const map = new Map()
+    map.set(')', '(')
+    map.set('}', '{')
+    map.set(']', '[')
+
+    for (let i = 0; i < str.length; i++) {
+        if (['(', '{', '['].includes(str[i])) {
+            stack.push(str[i])
+        } else {
+            // 考虑都是左括号，以及最后一个弹出的左侧和右侧对不上
+            if (stack.length === 0 || map.get(str[i]) !== stack.pop()) return false
+        }
+    }
+    if (stack.length === 0) {
+        return true
+    }
+}
+```
+
+
+- 最长括号
+
+栈找最长，关键在于找【满足窗口条件】的左右下标，栈记录下标，符合条件就记录并销毁下标
+```
+var longestValidParentheses = function(s) {
+    const stack = [-1]
+    let maxLen = 0
+    for (let i = 0; i < s.length; i++) {
+        if (s[i] === '(') {
+            stack.push(i)
+        } else {
+            stack.pop()
+            if (stack.length === 0) {
+                stack.push(i)
+            } else {
+                maxLen = Math.max(maxLen, i - stack[stack.length - 1])
+            }
+        }
+    }
+    return maxLen
+};
+```
+
+匹配关系里面，要求右侧与左侧匹配：
+
+- 先存还是先弹出？前者的话存谁？什么时候弹出？
+- 先存：要存的是左半类，等待弹出；配对成功的时候弹出，这样就能够找到前后的下标，累积最大值。
+
+（PS：如果当前栈没有东西，说明没有和右半类匹配的，可以存入，如果到时还是右半类，就把上一次右半类的弹出了）
+
+
+
+### 上下级关系——因果线性链
+
+见二叉树的迭代遍历
+
+关键：
+- 先存还是先弹出？前者的话存谁？什么时候弹出？
+- 先弹出：弹出上级，存当前的下级，等待弹出；
+

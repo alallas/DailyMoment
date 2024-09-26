@@ -370,6 +370,8 @@ var trimBST = function(root, low, high) {
 
 
 ### 数组变树
+- 给不同序遍历的数组
+
 使用return的写法（节点的增删改查），用下一层及其后代更新上一层的左或者右
 
 基本框架：
@@ -402,4 +404,50 @@ var buildTree = function(inorder, postorder) {
     return root
 };
 ```
+
+
+- 后端返回的数组
+
+```
+const nodes = [
+  { id: 3, name: '节点C', parentId: 1 },
+  { id: 6, name: '节点F', parentId: 3 },
+  { id: 0, name: 'root', parentId: null },
+  { id: 1, name: '节点A', parentId: 0 },
+  { id: 8, name: '节点H', parentId: 4 },
+  { id: 4, name: '节点D', parentId: 1 },
+  { id: 2, name: '节点B', parentId: 0 },
+  { id: 5, name: '节点E', parentId: 2 },
+  { id: 7, name: '节点G', parentId: 2 },
+  { id: 9, name: '节点I', parentId: 5 }
+];
+```
+
+遍历，用每个item的父节点去找对应id的节点，找到说明这个id节点的children是item本身
+
+```
+function arrToTree(arr) {
+    const map = {}
+    let res = null
+    arr.forEach(item => {
+        map[item.id] = item;
+    });
+
+    for (let i = 0; i < arr.length; i++) {
+        const item = arr[i]
+        const parent = map[item.parentId]
+        if (parent) {
+            if (parent.children) {
+                parent.children.push(item)
+            } else {
+                parent.children = [item]
+            }
+        } else {
+            res = item
+        }
+    }
+    return res
+}
+```
+
 
