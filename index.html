@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<head>
+    <style>
+        body{
+            margin: 0;
+        }
+        a{
+            color: #00bc9b;
+            color: #d3d3d3
+        }
+        span {
+            width: 100px;
+            height: 100px;
+            padding-left: 20px;
+            margin-left: 20px;
+        }
+        .anim1 {
+            position: relative;
+            margin: 50px;
+            width: 100px;
+            height: 50px;
+            text-align: center;
+            background-color: #d3d3d3;
+            line-height: 50px;
+            transition: all 1s ease-in-out;
+        }
+        .color {
+            position: relative;
+            transition: all 1s ease-in-out;
+            z-index: 1;
+        }
+        .color::before {
+            position: absolute;
+            content: "";
+            top: 0;
+            left: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            transform-origin: 0 50%;
+            transform: scaleX(0);
+            transition: all 1s ease-in-out;
+        }
+        .color:hover::before {
+            background-color: #00bc9b;
+            transform: scaleX(1);
+        }
+        /* .anim1:hover {
+            background-color: #00bc9b;
+        } */
+        .underline::after {
+            position: absolute;
+            content: '';
+            left: 0;
+            bottom: 0;
+            width: 0;
+            height: 5px;
+            background-color: brown;
+            transition: all 1s ease-in-out;
+        }
+        .underline:hover::after {
+            width: 100%;
+        }
+
+
+        /* .heart {
+            border-radius: 5px;
+            animation: identifier 1s ease-in-out infinite;
+        }
+        @keyframes identifier {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        } */
+        /* .shape {
+            transform: skew(15deg);
+        } */
+
+
+
+    </style>
+    <link href="./style.css" rel="stylesheet"/>
+</head>
+<body>
+    <input class="input"/>
+    <button class="button">go other page</button>
+    <div class="anim1 underline heart shape color">hello</div>
+
+
+    <script>
+
+        // const input = document.querySelector('.input')
+        // input.addEventListener('input', () => test())
+        // function test() {
+        //     console.log('on!!')
+        // }
+
+        // window.addEventListener('beforeunload', () => console.log('window beforeunload'))
+
+        // const btn = document.querySelector('.button')
+        // btn.addEventListener('click', () => {
+        //     window.location.href = 'https://www.baidu.com'
+        // })
+
+        // console.log(navigator.userAgent)
+
+        // if ("virtualKeyboard" in navigator) {
+        //     navigator.virtualKeyboard.overlaysContent = true;
+
+        //     navigator.virtualKeyboard.addEventListener("geometrychange", (event) => {
+        //         const { x, y, width, height } = event.target.boundingRect;
+        //     });
+        // }
+
+    </script>
+
+
+
+  <script>
+
+
+
+    // const obj = {
+    //     a:1,
+    //     b:{
+    //         c:2,
+    //         d:4,
+    //     },
+    //     e:{
+    //         f: {
+    //             g:5,
+    //             h:6,
+    //         },
+    //         i:[1, 2, 3],
+    //     },
+    //     j: 8,
+    //     k: {
+    //         l: 9,
+    //     },
+    // }
+
+    // function isObj(obj) {
+    //     if (typeof obj === 'object' && obj !== null) {
+    //         return true
+    //     }
+    //     return false
+    // }
+    // function copy(obj) {
+    //     if (!isObj(obj)) return
+    //     const keys = Object.keys(obj)
+    //     let layer = Array.isArray(obj) ? [] : {}
+    //     for (let i = 0; i < keys.length; i++) {
+    //         const curKey = keys[i]
+    //         if (isObj(obj[curKey])) {
+    //             const nextLayer = copy(obj[curKey])
+    //             layer[curKey] = nextLayer
+    //         } else {
+    //             layer[curKey] = obj[curKey]
+    //         }
+    //     }
+    //     return layer
+    // }
+    // const res = copy(obj)
+
+    // // res.e.i[2] = 10
+
+    // console.log('res', res)
+    // console.log('obj', obj)
+
+
+
+    // function isObj(obj) {
+    //   if (typeof obj === 'object' && obj !== null) {
+    //     return true
+    //   }
+    //   return false
+    // }
+    // function deepDiff(obj1, obj2) {
+    //   if (!isObj(obj1) || !isObj(obj2)) {
+    //     let isSame = false
+    //     if (!isObj(obj1) && !isObj(obj2)) {
+    //       if (obj1 === obj2) {
+    //         isSame = true
+    //       }
+    //     }
+    //     return isSame
+    //   }
+    //   let keys1 = Object.keys(obj1)
+    //   let keys2 = Object.keys(obj2)
+    //   if (keys1.length !== keys2.length) {
+    //     return false
+    //   }
+    //   for (let i of keys1) {
+    //     const res = deepDiff(obj1[i], obj2[i])
+    //     if (!res) {
+    //       return false
+    //     }
+    //   }
+    //   return true
+    // }
+    // const r = deepDiff(obj, res)
+    // console.log('compare', r)
+
+
+    // // 深度对比的useDeepEffect,重写useEffect
+    // function useDeepEffect(callback, arr) {
+    //   if (!Array.isArray(arr)) return new Error('not arr')
+    //   const pre = useRef(arr)
+    //   const init = useRef(false)
+    //   if (!init.current) {
+    //     callback.apply(this, arguments)
+    //     init.current = true
+    //   } else {
+    //     const isSame = deepDiff(arr, pre.current)
+    //     if (!isSame) {
+    //       callback.apply(this, arguments)
+    //       pre.current = arr
+    //     }
+    //   }
+    // }
+
+
+
+    // 返回store
+    // 中间件作为applyMiddleWare的参数传入createStoreconst
+    // store = createStore(reducer, initState={},applyMiddleWare(reduxThunk))
+
+    // const listeners = []
+    // let state = 7
+
+    // function dispatch(x, from) {
+    //     console.log('dispatch from', from)
+    //     console.log('dispatch change', x + 7)
+    //     state = state + x
+
+    //     if (listeners.length) {
+    //         listeners.map((item) => item())
+    //     }
+
+    //     return x + 1
+    // }
+
+    // function subscribe(callback) {
+    //     listeners.push(callback)
+    // }
+
+    // // const add4 = (dp) => (a4) => {
+    // //     // console.log('dp4', dp)
+    // //     // console.log('a4', a4)
+    // //     console.log('4 before state', state)
+    // //     const newAction = dp(a4, '4')
+    // //     console.log('4 after state', state)
+    // //     // console.log('changed a4', newAction)
+    // //     return newAction
+    // // }
+    // const add3 = (dp) => (a3) => {
+    //     // console.log('dp3', dp)
+    //     // console.log('a3', a3)
+    //     console.log('3 before state', state)
+    //     const newAction = dp(a3, '3')
+    //     // console.log('changed a3', newAction)
+    //     console.log('3 after state', state)
+    //     return newAction
+    // }
+    // const add2 = (dp) => (a2) => {
+    //     // console.log('dp2', dp)
+    //     // console.log('a2', a2)
+    //     console.log('2 before state', state)
+    //     const newAction = dp(a2, '2')
+    //     console.log('2 after state', state)
+    //     // console.log('changed a2', newAction)
+    //     return newAction
+    // }
+    // const add1 = (dp) => (a1) => {
+    //     // console.log('dp1', dp)
+    //     // console.log('a1', a1)
+    //     console.log('1 before state', state)
+    //     const newAction = dp(a1, '1')
+    //     console.log('1 after state', state)
+    //     // console.log('changed a1', newAction)
+    //     return newAction
+    // }
+    // let mw = [add1, add2, add3]
+
+    // function compose(...args) {
+    //     return args.reduce((accum, item) => (...args) => accum(item(...args)))
+    // }
+
+    // subscribe(() => console.log('11111'))
+
+    // const res = compose(...mw)(dispatch)
+    // // console.log('res', res)
+    // const e = res(1)
+    // console.log('e', e)
+
+
+
+
+    // // const fn = (...args)=>add1(add2(add3(add4(...args))))
+    // // const res = fn(dispatch)
+    // // console.log('res',res)
+    // // res(2)
+
+
+
+    // let originDispatch = (...args) => {console.log(...args)}
+    // const middleware1 = (dispatch) => {  
+    //     return (...args) => {
+    //         console.log('middleware1 before dispatch')
+    //         dispatch(...args)
+    //         console.log('middleware1 after dispatch')
+    //     }
+    // }
+    // const middleware2 = (dispatch) => {
+    //     return (...args) => {
+    //         console.log('middleware2 before dispatch')
+    //         dispatch(...args)
+    //         console.log('middleware2 before dispatch')
+    //     }
+    // }
+    // originDispatch = middleware2(middleware1(originDispatch))
+    // originDispatch('ruby', 'cool', 'language')
+
+
+
+
+    // // const fn1 = next => a1 => next(a1)
+    // // const fn2 = next => a2 => next(a2)
+    // // const fn3 = next => a3 => next(a3)
+
+
+    // function fn1(next) {
+    //     return function (a1) {
+    //         console.log('1 before dispatch')
+    //         const n = next(a1, '1')
+    //         console.log('1 after dispatch')
+    //         return n
+    //     }
+    // }
+    // function fn2(next) {
+    //     return function (a2) {
+    //         console.log('2 before dispatch')
+    //         const n = next(a2, '2')
+    //         console.log('2 after dispatch')
+    //         return n
+    //     }
+    // }
+    // function fn3(next) {
+    //     return function (a3) {
+    //         console.log('3 before dispatch')
+    //         const n = next(a3, '3')
+    //         console.log('3 after dispatch')
+    //         return n
+    //     }
+    // }
+
+    // const dp = (x, from) => {
+    //     console.log('dp from', x + 1, from)
+    // }
+
+    // const r = fn1(fn2(fn3(dispatch)))
+    // r('hello')
+
+
+
+    // const data = [
+    //     '3',
+    //     '5',
+    //     '16:00 30 90',
+    //     '17:00 15 120',
+    //     '16:20 28 80',
+    //     '10:05 30 120',
+    //     '09:02 50 70',
+    //     '5',
+    //     '16:00 30 90',
+    //     '17:29 15 120',
+    //     '16:20 28 80',
+    //     '10:05 20 120',
+    //     '09:02 10 70',
+    //     '5',
+    //     '16:00 30 90',
+    //     '17:30 15 120',
+    //     '16:20 28 80',
+    //     '10:05 20 120',
+    //     '09:02 10 70',
+    // ]
+
+    // const timeline = []
+    // const rawData = data.slice(1)
+    // for (let i = 0; i < rawData.length; i++) {
+    //     const curLine = rawData[i]
+    //     if (curLine.split(' ').length <= 1) {
+    //         let singleServer = []
+    //         for (let j = i + 1; j < +curLine + i + 1; j++) {
+    //             singleServer.push(rawData[j])
+    //         }
+    //         timeline.push(singleServer)
+    //     } else {
+    //         continue
+    //     }
+    // }
+    // console.log(timeline)
+
+    // function transferHHMMToMM(str) {
+    //     const hour = +str.split(':')[0]
+    //     const minute = +str.split(':')[1]
+    //     return hour*60+minute
+    // }
+
+    // for (let i = 0; i < timeline.length; i++) {
+    //     const curLine = timeline[i]
+    //     let map = {}
+    //     curLine.forEach((item, index) => {
+    //         const arr = item.split(' ')
+    //         const startTime = transferHHMMToMM(arr[0])
+    //         const onlineNum = +arr[1]
+    //         const duration = +arr[2]
+    //         const endTime = startTime + duration
+    //         if (map[startTime]) {
+    //             map[startTime] += onlineNum
+    //         } else {
+    //             map[startTime] = onlineNum
+    //         }
+    //         if (map[endTime]) {
+    //             map[endTime] -= onlineNum
+    //         } else {
+    //             map[endTime] = -onlineNum
+    //         }
+    //     })
+    //     let maxOnlinePlayers = 0, curOnlinePlayer = 0
+    //     for (let i in map) {
+    //         curOnlinePlayer += map[i]
+    //         maxOnlinePlayers = Math.max(maxOnlinePlayers, curOnlinePlayer)
+    //     }
+    //     console.log(maxOnlinePlayers)
+    // }
+
+
+    // function sleep(time) {
+    //     return new Promise((resolve, reject) => {
+    //         setTimeout(() => {
+    //         resolve('time')
+    //         console.log('inner item', new Date().getMilliseconds())
+    //         }, time * 4000)
+    //     })
+    // }
+    // const arr = [1, 2, 3, 4, 5]
+    // const promiseAll = arr.map((item) => {
+    //     console.log('outer item', item, new Date().getMilliseconds())
+    //     return sleep(1)
+    // })
+
+    // Promise.all(promiseAll).then(res => console.log('all done'))
+    
+    // sleep(2).then(res => console.log('sleep 2'))
+
+
+    // const str = '(({{[}}))'
+    // function isValid(str) {
+    //     const stack = []
+    //     const map = new Map()
+    //     map.set(')', '(')
+    //     map.set('}', '{')
+    //     map.set(']', '[')
+
+    //     for (let i = 0; i < str.length; i++) {
+    //         if (['(', '{', '['].includes(str[i])) {
+    //             stack.push(str[i])
+    //         } else {
+    //             if (stack.length === 0 || map.get(str[i]) !== stack.pop()) return false
+    //         }
+    //     }
+    //     if (stack.length === 0) {
+    //         return true
+    //     }
+    // }
+    // const res = isValid(str)
+    // console.log(res)
+
+
+    // function isValid2(str) {
+    //     let left = 0, right = str.length - 1
+    //     while (left <= right && left < str.length && right >= 0) {
+    //         if (str[left] !== str[right]) {
+    //             return false
+    //         }
+    //     }
+    // }
+
+
+
+
+
+    // // 手写promise.all
+    // function promiseAll(promises) {
+    //     return new Promise((resolve, reject) => {
+    //         if (!Array.isArray(promises)) return new Error('not array')
+    //         let result = []
+    //         let resCount = 0
+    //         for (let i = 0; i < promises.length; i++) {
+    //             Promise.resolve(promises[i]).then(res => {
+    //                 resCount++
+    //                 result[i] = res
+    //                 if (resCount === promises.length) {
+    //                     return resolve(result)
+    //                 }
+    //             }).catch(err => {
+    //                 return reject(err)
+    //             })
+    //         }
+    //     })
+    // }
+
+    // const s = 'A man, a plan, a canal: Panama'
+    // const resg = /\W/g
+    // const str = s.toLowerCase().replace(resg, '')
+    // console.log(str)
+
+
+    // const nodes = [
+    //     { id: 3, name: '节点C', parentId: 1 },
+    //     { id: 6, name: '节点F', parentId: 3 },
+    //     { id: 0, name: 'root', parentId: null },
+    //     { id: 1, name: '节点A', parentId: 0 },
+    //     { id: 8, name: '节点H', parentId: 4 },
+    //     { id: 4, name: '节点D', parentId: 1 },
+    //     { id: 2, name: '节点B', parentId: 0 },
+    //     { id: 5, name: '节点E', parentId: 2 },
+    //     { id: 7, name: '节点G', parentId: 2 },
+    //     { id: 9, name: '节点I', parentId: 5 }
+    // ];
+
+    // function arrToTree(arr) {
+    //     const map = {}
+    //     let res = null
+    //     arr.forEach(item => {
+    //         map[item.id] = item;
+    //     });
+    //     console.log('map', map)
+    //     for (let i = 0; i < arr.length; i++) {
+    //         const item = arr[i]
+    //         const parent = map[item.parentId]
+    //         if (parent) {
+    //             if (parent.children) {
+    //                 parent.children.push(item)
+    //             } else {
+    //                 parent.children = [item]
+    //             }
+    //             console.log(map[item.parentId])
+    //         } else {
+    //             res = item
+    //         }
+    //     }
+    //     return res
+    // }
+
+
+    // const a = arrToTree(nodes)
+    // console.log('rrr',a)
+
+
+    // const data = [
+    //     '5',
+    //     '11001'
+    // ]
+    // const arr = data[1].split('')
+    // console.log(arr)
+
+    // function reverse(arr, l, r) {
+    //     let start = l
+    //     let end = r
+    //     while(start < end && start < arr.length && end >= 0) {
+    //         let temp = arr[start]
+    //         arr[start] = arr[end]
+    //         arr[end] = temp
+    //         start++
+    //         end--
+    //     }
+    // }
+
+    // // 不同长度窗口
+    // let minNum = Infinity
+    // for (let i = 1; i < arr.length; i++) {
+    //     let left = 0, right = 0
+    //     while(right < arr.length && left < arr.length) {
+    //         if (right - left === i - 1) {
+    //             reverse(arr, left, right)
+    //             const curNum = Number(arr.join(''))
+    //             if (curNum < minNum) {
+    //                 minNum = arr.join('')
+    //             }
+    //             left++
+    //         }
+    //         right++
+    //     }
+    // }
+    // console.log('min', minNum)
+
+
+
+    // const data = [
+    //     '3',
+    //     '5 10',
+    //     '3 2 3 4 5',
+    //     '3 3',
+    //     '1 1 1',
+    //     '10 10',
+    //     '3 1 2 8 5 4 2 9 12 7',
+    // ]
+    // const groupData = []
+    // for (let i = 1; i < data.length; i = i + 2) {
+    //     groupData.push([data[i].split(' ').map(Number), data[i+1].split(' ').map(Number)])
+    // }
+
+    // for (let i = 0; i < groupData.length; i++) {
+    //     // 每个组数据
+    //     const needCrew = Math.ceil(groupData[i][0][0] / 2)
+    //     const needEnergy = groupData[i][0][1]
+    //     const allCrewEnergy = groupData[i][1].sort((a, b) => a - b)
+
+    //     let path = [], sumEnergy = 0
+    //     function backtracking(startIndex) {
+    //         if (path.length === needCrew) {
+    //             const sum = path.reduce((accum, item) => {
+    //                 return accum + item
+    //             })
+    //             if (sum >= needEnergy) {
+    //                 sumEnergy++
+    //             }
+    //             return
+    //         }
+    //         for (let j = startIndex; j < allCrewEnergy.length; j++) {
+    //             path.push(allCrewEnergy[j])
+    //             backtracking(j+1)
+    //             path.pop()
+    //         }
+    //     }
+    //     backtracking(0)
+    //     console.log(sumEnergy)
+    // }
+
+
+
+
+    //NOTE - promise原理！！！！！
+    const thenable = {
+        then: function(resolve, reject) {
+            reject(1)
+        }
+    }
+
+    const p = new Promise((resolve, reject) => {
+        resolve(thenable)
+    })
+
+    p.then(res => console.log(res), err => console.log(err))
+
+
+
+
+
+  </script>
+</body>
