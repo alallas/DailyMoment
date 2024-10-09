@@ -1,5 +1,23 @@
 ## 微任务
 ### promise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #### Promise.all
 
 `const p=new Promise([p1,p2,p3])`
