@@ -1,22 +1,6 @@
 ## 微任务
 ### promise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+（见promise.js文件）
 
 #### Promise.all
 
@@ -63,7 +47,7 @@ function promiseAll(promises) {
 
 
 ## 异步例子
-
+### 控制线程
 - 题目：现在有一个类，需要写出里面的add方法，要求一次只能同时执行两个任务
 - 信息：入参是一个异步函数，里面要求子函数delay执行完之后打印run
 
@@ -130,4 +114,48 @@ class MacroTaskQueue {
         this.checkAndRunNextTask(data);
     }
 }
+```
+
+
+### 控制前后
+
+2. 题目：有一个事件，点击之后有两个异步函数，要求等前一个执行完，才执行后一个
+
+思路：
+- 写一个顶部开关
+- 在执行中就让顶部开关直接等于new Promise，执行完之后立刻改变此Promise的状态，然后关掉开关
+- 另一个函数，拿到这个new Promise，等他执行完，因为他执行完相当于fetch执行完了
+
+```
+let isFirstLoading = null
+
+function firstClick() {
+    console.log('first click start')
+    const fetch = new Promise((resolve, reject) => {
+        setTimeout(() => {
+            resolve('first click fetched')
+        }, 1000)
+    })
+    isFirstLoading = new Promise((resolve, reject) => {
+        fetch.then(res => {
+            console.log('first click end')
+            isFirstLoading = null
+            resolve(res)
+        })
+    })
+}
+
+function secondClick() {
+    if (isFirstLoading) {
+        isFirstLoading.then(res => {
+            console.log(res)
+            console.log('second click')
+        })
+    } else {
+        console.log('second click')
+    }
+}
+
+firstClick()
+secondClick()
 ```
