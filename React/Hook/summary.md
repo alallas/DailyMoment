@@ -262,6 +262,7 @@ function dispatchAction(queue, action) {
         return;
       }
     }
+  }
 ```
 
 - 第一个条件：需要 render 阶段触发更新

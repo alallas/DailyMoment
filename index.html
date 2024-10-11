@@ -768,37 +768,300 @@
 
 
 
-    let isFirstLoading = null
+    // let isFirstLoading = null
 
-    function firstClick() {
-        console.log('first click start')
-        const fetch = new Promise((resolve, reject) => {
-            setTimeout(() => {
-                resolve('first click fetched')
-            }, 1000)
-        })
-        isFirstLoading = new Promise((resolve, reject) => {
-            fetch.then(res => {
-                console.log('first click end')
-                isFirstLoading = null
-                resolve(res)
-            })
-        })
-    }
+    // function firstClick() {
+    //     console.log('first click start')
+    //     const fetch = new Promise((resolve, reject) => {
+    //         setTimeout(() => {
+    //             resolve('first click fetched')
+    //         }, 1000)
+    //     })
+    //     isFirstLoading = new Promise((resolve, reject) => {
+    //         fetch.then(res => {
+    //             console.log('first click end')
+    //             isFirstLoading = null
+    //             resolve(res)
+    //         })
+    //     })
+    // }
 
-    function secondClick() {
-        if (isFirstLoading) {
-            isFirstLoading.then(res => {
-                console.log(res)
-                console.log('second click')
-            })
-        } else {
-            console.log('second click')
+    // function secondClick() {
+    //     if (isFirstLoading) {
+    //         isFirstLoading.then(res => {
+    //             console.log(res)
+    //             console.log('second click')
+    //         })
+    //     } else {
+    //         console.log('second click')
+    //     }
+    // }
+
+    // firstClick()
+    // secondClick()
+
+
+
+
+
+    // let arr = [4, 8, 1, 0, 9, 7, 6]
+    // console.log('origin arr', arr)
+
+
+    // // 冒泡排序
+    // function bubbleSort(arr) {
+
+    //     for (let i = 0; i < arr.length; i++) {
+    //         let isOk = true
+    //         for (let j = 0; j < arr.length - i; j++) {
+    //             if (arr[j+1] < arr[j]) {
+    //                 isOk = false
+    //                 temp = arr[j]
+    //                 arr[j] = arr[j+1]
+    //                 arr[j+1] = temp
+    //             }
+    //         }
+    //         if (isOk) break
+    //     }
+    // }
+
+    // // bubbleSort(arr)
+
+
+
+    // // 选择排序
+    // function maxSort(arr) {
+    //     for (let i = 0; i < arr.length; i++) {
+    //         let maxIndex = 0
+    //         for (let j = 0; j < arr.length - i; j++) {
+    //             if (arr[j] > arr[maxIndex]) {
+    //                 maxIndex = j
+    //             }
+    //         }
+    //         [arr[maxIndex], arr[arr.length - 1 - i]] = [arr[arr.length - 1 - i], arr[maxIndex]]
+    //     }
+    // }
+
+    // // maxSort(arr)
+
+
+    // // 插入排序
+    // function insertSort(arr) {
+    //     for (let i = 0; i < arr.length; i++) {
+    //         let cur = arr[i]
+    //         let j = i - 1
+    //         while(j >= 0 && cur < arr[j] && j < arr.length) {
+    //             arr[j + 1] = arr[j]
+    //             j--
+    //         }
+    //         arr[j + 1] = cur
+    //     }
+    // }
+
+    // // insertSort(arr)
+
+
+
+    // // 归并排序
+    // function mergeSort(arr) {
+    //     if (arr.length <= 1) return arr
+    //     let mid = Math.floor(arr.length / 2)
+    //     let leftArr = arr.slice(0, mid)
+    //     let rightArr = arr.slice(mid)
+    //     const l = mergeSort(leftArr)
+    //     const r = mergeSort(rightArr)
+    //     return mergeArr(l, r)
+    // }
+
+    // function mergeArr(leftArr, rightArr) {
+    //     let temp = []
+    //     let point1 = 0, point2 = 0
+    //     while(point1 < leftArr.length && point2 < rightArr.length) {
+    //         if(leftArr[point1] > rightArr[point2]) {
+    //             temp.push(rightArr[point2])
+    //             point2++
+    //         } else {
+    //             temp.push(leftArr[point1])
+    //             point1++
+    //         }
+    //     }
+    //     if (point1 < leftArr.length) {
+    //         temp.push(...leftArr.slice(point1))
+    //     }
+    //     if (point2 < rightArr.length) {
+    //         temp.push(...rightArr.slice(point2))
+    //     }
+    //     return temp
+    // }
+
+    // // arr = mergeSort(arr)
+
+
+
+
+    // // 快速排序
+    // function fastSort(arr, left, right) {
+    //     if (left >= right) return
+    //     const baseIndex = findBaseIndex(arr, left, right)
+
+    //     fastSort(arr, left, baseIndex - 1)
+    //     fastSort(arr, baseIndex + 1, right)
+    // }
+
+    // function findBaseIndex(arr, left, right) {
+    //     let base = arr[left]
+    //     let leftPoint = left, rightPoint = right
+    //     while(leftPoint < rightPoint && leftPoint < arr.length && rightPoint >= 0) {
+    //         while(arr[rightPoint] >= base && leftPoint < rightPoint) {
+    //             rightPoint--
+    //         }
+    //         arr[leftPoint] = arr[rightPoint]
+    //         while(arr[leftPoint] <= base && leftPoint < rightPoint) {
+    //             leftPoint++
+    //         }
+    //         arr[rightPoint] = arr[leftPoint]
+    //     }
+    //     arr[leftPoint] = base
+    //     return leftPoint
+    // }
+
+    // // fastSort(arr, 0, arr.length - 1)
+
+
+
+
+
+
+    // // 归并排序
+    // // 构造大顶堆
+    // function heapSort(arr) {
+    //     const len = arr.length
+    //     for (let i = Math.floor(len / 2) - 1; i >= 0; i--) {
+    //         heapify(arr, len, i)
+    //     }
+    //     for (let i = len - 1; i >= 0; i--) {
+    //         [arr[i], arr[0]] = [arr[0], arr[i]]
+    //         heapify(arr, i, 0)
+    //     }
+    //     return arr
+    // }
+
+    // function heapify(arr, len, index) {
+    //     let maxFather = index
+    //     let leftChild = index * 2 + 1
+    //     let rightChild = index * 2 + 2
+    //     if (arr[leftChild] > arr[maxFather] && leftChild < len) {
+    //         maxFather = leftChild
+    //     }
+    //     if (arr[rightChild] > arr[maxFather] && rightChild < len) {
+    //         maxFather = rightChild
+    //     }
+    //     if (maxFather !== index) {
+    //         [arr[maxFather], arr[index]] = [arr[index], arr[maxFather]]
+    //         heapify(arr, len, maxFather)
+    //     }
+    // }
+
+    // arr = heapSort(arr)
+
+    // console.log('sorted arr', arr)
+
+
+    // const obj = {
+    //     a:1,
+    //     b:{
+    //         c:2,
+    //         d:3,
+    //     },
+    // }
+
+    // function isObj(val) {
+    //     if (typeof val === 'object' && val !== null) return true
+    //     return false
+    // }
+
+    // // 深拷贝
+    // function deepCopy(obj) {
+    //     if (!isObj(obj)) return
+    //     const newObj = {}
+    //     const keys = Object.keys(obj)
+    //     for (let i = 0; i < keys.length; i++) {
+    //         const curKey = keys[i]
+    //         if (isObj(obj[curKey])) {
+    //             const res = deepCopy(obj[curKey])
+    //             newObj[curKey] = res
+    //         } else {
+    //             newObj[curKey] = obj[curKey]
+    //         }
+    //     }
+    //     return newObj
+    // }
+
+    // console.log(deepCopy(obj))
+
+
+
+
+
+
+    const imgList = document.querySelectorAll('img')
+
+    // 懒加载图片加载原理
+    function lazyLoad(){
+        let imgList = document.querySelectorAll("img");
+        let windowHeight = window.innerHeight;
+        let scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+        for (let i = 0; i < imgList.length; i++) {
+            if (imgList[i].offsetTop < scrollTop+windowHeight) {
+                imgList[i].src = imgList[i].getAttribute("data-src")
+            }
         }
     }
 
-    firstClick()
-    secondClick()
+    
+    // 更加优雅的方式
+    function isInView(dom) {
+        const bound = dom.getBoundingClientRect()
+        return bound.top <= window.innerHeight
+    }
+    function loadImg(dom) {
+        dom.src = dom.getAttribute('data-src')
+    }
+    function checkAndLoad() {
+        for (let i = 0; i < imgList.length; i++) {
+            if (isInView(imgList[i])) {
+                loadImg(imgList[i])
+            }
+        }
+    }
+    window.addEventListener('scroll', () => checkAndLoad())
+
+
+    // 优化方法：intersetsion observer
+    const imgLazyObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                const img = entry.target
+                img.src = img.getAttribute('data-src')
+
+                // 这里需要取消监控重复加载
+                imgLazyObserver.unobserve(img)
+            }
+        })
+    })
+
+    imgList.forEach((img) => {
+        imgLazyObserver.observe(img)
+    })
+
+
+
+
+
+
+
+
+
 
 
 
@@ -808,3 +1071,4 @@
 
   </script>
 </body>
+

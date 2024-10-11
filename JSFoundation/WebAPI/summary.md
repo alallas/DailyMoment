@@ -114,6 +114,58 @@ MutationObserver 有以下特点：
 ### IntersectionObserver
 
 
+```
+  const imgList = document.querySelectorAll('img')
+
+  // 懒加载图片加载原理
+  // 基本写法
+  function lazyLoad(){
+      let imgList = document.querySelectorAll("img");
+      let windowHeight = window.innerHeight;
+      let scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      for (let i = 0; i < imgList.length; i++) {
+          if (imgList[i].offsetTop < scrollTop+windowHeight) {
+              imgList[i].src = imgList[i].getAttribute("data-src")
+          }
+      }
+  }
+
+  
+  // 更加优雅的方式
+  function isInView(dom) {
+      const bound = dom.getBoundingClientRect()
+      return bound.top <= window.innerHeight
+  }
+  function loadImg(dom) {
+      dom.src = dom.getAttribute('data-src')
+  }
+  function checkAndLoad() {
+      for (let i = 0; i < imgList.length; i++) {
+          if (isInView(imgList[i])) {
+              loadImg(imgList[i])
+          }
+      }
+  }
+  window.addEventListener('scroll', () => checkAndLoad())
+
+
+  // 优化方法：intersetsion observer
+  const imgLazyObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+              const img = entry.target
+              img.src = img.getAttribute('data-src')
+
+              // 这里需要取消监控重复加载
+              imgLazyObserver.unobserve(img)
+          }
+      })
+  })
+
+  imgList.forEach((img) => {
+      imgLazyObserver.observe(img)
+  })
+```
 
 
 ## window对象
