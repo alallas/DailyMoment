@@ -1004,58 +1004,92 @@
 
 
 
-    const imgList = document.querySelectorAll('img')
+    // const imgList = document.querySelectorAll('img')
 
-    // 懒加载图片加载原理
-    function lazyLoad(){
-        let imgList = document.querySelectorAll("img");
-        let windowHeight = window.innerHeight;
-        let scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-        for (let i = 0; i < imgList.length; i++) {
-            if (imgList[i].offsetTop < scrollTop+windowHeight) {
-                imgList[i].src = imgList[i].getAttribute("data-src")
-            }
-        }
-    }
+    // // 懒加载图片加载原理
+    // function lazyLoad(){
+    //     let imgList = document.querySelectorAll("img");
+    //     let windowHeight = window.innerHeight;
+    //     let scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+    //     for (let i = 0; i < imgList.length; i++) {
+    //         if (imgList[i].offsetTop < scrollTop+windowHeight) {
+    //             imgList[i].src = imgList[i].getAttribute("data-src")
+    //         }
+    //     }
+    // }
 
     
-    // 更加优雅的方式
-    function isInView(dom) {
-        const bound = dom.getBoundingClientRect()
-        return bound.top <= window.innerHeight
-    }
-    function loadImg(dom) {
-        dom.src = dom.getAttribute('data-src')
-    }
-    function checkAndLoad() {
-        for (let i = 0; i < imgList.length; i++) {
-            if (isInView(imgList[i])) {
-                loadImg(imgList[i])
-            }
-        }
-    }
-    window.addEventListener('scroll', () => checkAndLoad())
+    // // 更加优雅的方式
+    // function isInView(dom) {
+    //     const bound = dom.getBoundingClientRect()
+    //     return bound.top <= window.innerHeight
+    // }
+    // function loadImg(dom) {
+    //     dom.src = dom.getAttribute('data-src')
+    // }
+    // function checkAndLoad() {
+    //     for (let i = 0; i < imgList.length; i++) {
+    //         if (isInView(imgList[i])) {
+    //             loadImg(imgList[i])
+    //         }
+    //     }
+    // }
+    // window.addEventListener('scroll', () => checkAndLoad())
 
 
-    // 优化方法：intersetsion observer
-    const imgLazyObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                const img = entry.target
-                img.src = img.getAttribute('data-src')
+    // // 优化方法：intersetsion observer
+    // const imgLazyObserver = new IntersectionObserver((entries, observer) => {
+    //     entries.forEach((entry) => {
+    //         if (entry.isIntersecting) {
+    //             const img = entry.target
+    //             img.src = img.getAttribute('data-src')
 
-                // 这里需要取消监控重复加载
-                imgLazyObserver.unobserve(img)
-            }
+    //             // 这里需要取消监控重复加载
+    //             imgLazyObserver.unobserve(img)
+    //         }
+    //     })
+    // })
+
+    // imgList.forEach((img) => {
+    //     imgLazyObserver.observe(img)
+    // })
+
+
+
+
+
+
+
+
+
+
+    const arr = [1, 2, 3]
+    function task(num){
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                console.log(num)
+                console.log('打印完一次')
+                resolve()
+            }, 3000)
         })
-    })
+    }
 
-    imgList.forEach((img) => {
-        imgLazyObserver.observe(img)
-    })
+    // task(arr[0]).then(res => {
+    //     return task(arr[1])
+    // }).then(res => {
+    //     task(arr[2])
+    // })
+    
 
 
+    // function back(arr, i) {
+    //     if (i === arr.length - 1) return () => task(arr[rr.length - 1])
+    //     const bottomUpToTop = back(arr, i+1)
+    //     const cur = i
+    //     return () => task(arr[cur]).then(bottomUpToTop())
+    // }
 
+    // back(arr, 0)
 
 
 

@@ -57,48 +57,56 @@ class MyPromise {
 
   then(onFulfilled, onRejected) {
     // 只要then执行了就肯定生成一个已经resolve的promise对象，回调函数肯定异步执行
-    const returnValue = new Promise();
+    // const returnValue = new Promise();
+
     const self = this;
 
-    let fulfilledTask;
-    if (typeof onFulfilled === 'function') {
-      fulfilledTask = function () {
-        const r = onFulfilled(self.promiseResult);
-        // 执行完回调函数之后就使得这个新的promise变成一个状态为fulfilled的promise对象
-        returnValue.resolve(r);
-      };
-    } else {
-      fulfilledTask = function () {
-        returnValue.resolve(self.promiseResult);
-      };
-    }
-
-    let rejectedTask;
-    if (typeof onRejected === 'function') {
-      rejectedTask = function () {
-        const r = onRejected(self.promiseResult);
-        // 这里官网写的是resolve，但是我感觉是不是应该写reject(x)
-        // https://exploringjs.com/es6/ch_promises.html#sec_demo-promise
-        returnValue.resolve(r);
-      };
-    } else {
-      rejectedTask = function () {
-        returnValue.reject(self.promiseResult);
-      };
-    }
-
-    switch (this.promiseState) {
-      case 'pending':
-        this.fulfillReactions.push(fulfilledTask);
-        this.rejectReactions.push(rejectedTask);
-        break;
-      case 'fulfilled':
-        addToTaskQueue(fulfilledTask);
-        break;
-      case 'rejected':
-        addToTaskQueue(rejectedTask);
-        break;
-    }
+    const returnValue = new Promise((resolve, reject) => {
+      let fulfilledTask;
+      if (typeof onFulfilled === 'function') {
+        fulfilledTask = function () {
+  
+          // 执行回调函数
+          const r = onFulfilled(self.promiseResult);
+  
+          // 执行完回调函数之后就使得这个新的promise变成一个状态为fulfilled的promise对象
+          resolve(r);
+        };
+      } else {
+        fulfilledTask = function () {
+          resolve(self.promiseResult);
+        };
+      }
+  
+      let rejectedTask;
+      if (typeof onRejected === 'function') {
+        rejectedTask = function () {
+          const r = onRejected(self.promiseResult);
+  
+          // 这里官网写的是resolve，但是我感觉是不是应该写reject(x)
+          // https://exploringjs.com/es6/ch_promises.html#sec_demo-promise
+  
+          resolve(r);
+        };
+      } else {
+        rejectedTask = function () {
+          reject(self.promiseResult);
+        };
+      }
+  
+      switch (this.promiseState) {
+        case 'pending':
+          this.fulfillReactions.push(fulfilledTask);
+          if (rejectedTask) this.rejectReactions.push(rejectedTask);
+          break;
+        case 'fulfilled':
+          addToTaskQueue(fulfilledTask);
+          break;
+        case 'rejected':
+          addToTaskQueue(rejectedTask);
+          break;
+      }
+    })
 
     return returnValue;
   }
