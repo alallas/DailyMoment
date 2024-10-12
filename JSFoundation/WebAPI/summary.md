@@ -203,19 +203,18 @@ location.host 返回域名？NOOOOOO！！
 
 
 ## 尺寸相关
-### scrollHeight
-scrollHeight 是一个元素内容的整体高度，包括那些因为溢出而不在当前视口内的部分。简而言之，它是元素所有内容的高度，即使这些内容在当前不可见。
-
-例如，假设有一个高度限制的容器，其内部内容的高度超出了这个容器的高度，产生了垂直滚动条。这个容器的 scrollHeight 就是内部完整内容的总高度，而不仅仅是当前能看见的部分。
-
 ### scrollTop
-scrollTop 是元素当前的滚动位置。当元素的内容向下滚动时，scrollTop 的值增大。它表示的是容器顶部距离内容顶部的垂直距离。当内容未滚动时（即处于顶部），scrollTop 的值为0。
+- 常用于：body
+- 解释：scrollTop 是视口顶部距离内容顶部的垂直距离。
 
-以同样一个高度限制的容器为例，当你向下滚动时，它的顶部不再与内容的顶部对齐，scrollTop 值就是这个“空隙”的高度。如果你一直滚到底部，scrollTop 的值将会是 scrollHeight 减去容器可视高度。
+### innerHeight
+- 常用于：window
+- 解释：浏览器视口高度
 
-对比：
-- scrollHeight 表示元素内容完整的高度，包含了不在视口内的部分。
-- scrollTop 表示元素内容被垂直滚动的距离。
+### scrollHeight
+- 常用于：长数据列表的dom，body
+- 解释：scrollHeight 是一个元素内容的整体高度，包括那些因为溢出而不在当前视口内的部分。
+
 
 代码参考：（滚动随时刷新）
 ```
@@ -244,15 +243,15 @@ class Scrolling extends React.Component(){
     }
 }
 ```
+
 因为内容（this.props.list）的长度会随时变化，所以ScrollHeight也会随时变化，每次都会增加list.length增加的部分，因此scrollTop也会增加这一部分，因此滚动位置是随时刷新的
 
 ### offsetTop
-一个元素距离整个页面顶部距离：
+- 常用于：单个小的dom
+- 解释：一个元素（的border顶部）距离最近具有定位（非static）的父级元素（的padding顶部）的距离。（一个元素距离body的顶部的距离）
 
-offsetTop 属性是一个只读属性，表示当前元素的顶部外边缘距离最近的具有定位（非 static 定位，即 relative、absolute、fixed 或 sticky ）的祖先元素的内部顶部边缘的距离。如果没有定位的祖先元素，则是距离<body>元素顶部边缘的距离。
-
-更加准确的定义：offsetTop是从当前元素的边框（border box）的顶端开始，到其最近具有定位（非static）的父级元素的内边框（padding box）顶端之间的距离。
-
-### innerHeight
-浏览器视口高度
-
+### getBoundingClientRect
+- 常用于：单个小的dom
+- 解释：
+  - top：一个元素距离浏览器视口顶部的距离
+  - bottom：一个元素距离浏览器视口底部的距离...
