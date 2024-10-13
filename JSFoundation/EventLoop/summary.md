@@ -119,12 +119,12 @@ class MacroTaskQueue {
 
 ### 控制xx任务“前后”执行
 
-2. 题目：有一个事件，点击之后有两个异步函数，要求等前一个执行完，才执行后一个
-
-思路：
-- 写一个顶部开关
-- 在执行中就让顶部开关直接等于new Promise，执行完之后立刻改变此Promise的状态，然后关掉开关
-- 另一个函数，拿到这个new Promise，等他执行完，因为他执行完相当于fetch执行完了
+1. 两个任务（且后一个任务不受前面的任务的控制）
+- 题目：有一个事件，点击之后有两个异步函数，要求等前一个执行完，才执行后一个
+- 思路：
+  - 写一个顶部开关
+  - 在执行中就让顶部开关直接等于new Promise，执行完之后立刻改变此Promise的状态，然后关掉开关
+  - 另一个函数，拿到这个new Promise，等他执行完，因为他执行完相当于fetch执行完了
 
 ```
 let isFirstLoading = null
@@ -159,3 +159,162 @@ function secondClick() {
 firstClick()
 secondClick()
 ```
+
+
+- 进阶：
+  - 上面的思路其实就是：用Promise包裹长任务，放在一边不管他，继续执行后面的，等到时间到了，resolve这个开关会触发回调函数的执行
+  - 相当于下面的代码，只是上面的只需要控制两个任务，且要考虑第二个任务不受第一个任务控制的情况
+
+```
+function task(num){
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            console.log(num)
+            resolve()
+        }, 3000)
+    })
+}
+
+task(1).then(res => 第二个任务)
+```
+
+
+
+
+
+
+2. 多个任务
+
+- 题目：有一个数组，实现这个数组每一个元素隔3秒打印一次
+
+```
+const arr = [1, 2, 3]
+function task(num){
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            console.log(num)
+            resolve()
+        }, 3000)
+    })
+}
+```
+
+
+- 思路1：
+  - 用覆盖式的Promise链
+  - 为什么要覆盖式，利用then返回一个宏任务（宏任务里面才有resolve）的特征，使得变量被覆盖为一个pending的promise对象
+  - 也就是说，每次调用回调函数，放入队列中都是受到setTimeout包裹的函数，需要等待上一个任务执行完毕，更清晰的说法就是：【上一个任务与resolve开关同时进行，只不过因为下一个任务受到setTimeout包裹，才会等待上一个任务执行】
+  - 等待的是一个包
+
+```
+(function loopThroughArray(arr) {
+    let promiseChain = Promise.resolve();
+
+    arr.forEach(num => {
+        promiseChain = promiseChain.then(() => task(num));
+    });
+})(arr);
+
+
+// 下面的和上面的是一样的
+let promiseChain = Promise.resolve();
+promiseChain = promiseChain.then(() => task(1));
+promiseChain = promiseChain.then(() => task(2));
+promiseChain = promiseChain.then(() => task(3));
+
+
+// 但是不能写成这样，不然相当于所有元素隔3秒之后会一起打印
+Promise.resolve().then(() => task(1))
+Promise.resolve().then(() => task(2))
+Promise.resolve().then(() => task(3))
+```
+
+
+- 思路2
+  - 用链式的包含return的Promise链
+  - 为什么要包含return，对于每个then回调函数之间，如果不return且return一个Promise的话，（除了第一个回调函数受到控制）其他的回调函数执行完之后就会自动resolve，后面的回调函数就会立刻执行，导致第二个元素及后面的元素被同时加到webAPI中计时，完了一起打印出来
+  - return相当于执行了resolve(Promise)，首先使得本次的状态不会立刻变为fullfilled，其次，根据传入的Promise的resolve时间点，执行【把本轮then的Promise的状态变为fullfilled】，具体如下：
+    - return 已经瞬间resolve的promise ——> 与不return无区别
+    - return 延后resolve的promise ——> 起实际作用，相当于打断默认的瞬间resolve
+    - return 一直不resolve的promise ——> 相当于永远不会resolve，后面的then一直不会触发
+    - （无论return的是一个新的promise还是怎么样，都可以保证最后resolve的是当前then的promise）
+  
+```
+// 正确做法
+task(arr[0]).then(res => {
+    return task(arr[1])
+}).then(res => {
+    task(arr[2])
+})
+
+// 这个与不return没有区别，因为resolve是瞬间给到then函数的，导致then函数会瞬间执行，改变当前的resolve
+task(arr[0]).then(res => {
+    task(arr[1])
+    return new Promise((resolve) => {resolve()})
+}).then(res => {
+    task(arr[2])
+})
+
+// 这个不会打印3，因为相当于永远不会resolve，最后的回调函数永远不会被执行
+task(arr[0]).then(res => {
+    task(arr[1])
+    return new Promise((resolve) => {})
+}).then(res => {
+    task(arr[2])
+})
+```
+
+
+- 思路3
+  - 用递归构造包裹式的Promise链
+  - 递归有两种思路，第一种是从上到下收集结果，也就是从外往里包裹。
+    - 此时最外层为【一次操作单元】，即本次.then(
+    - 这时需要注意末尾的处理，不能也是本次.then(下一次)的形式，应该只是最后一次。
+    - 构造出的链条形如：task(arr0).then(task(arr1).then(arr2))
+  
+```
+function recursivePrint(arr, index = 0) {
+    if (index >= arr.length) return
+    if (index < arr.length - 1) {
+        task(arr[index]).then(() => {
+            recursivePrint(arr, index + 1);
+        });
+    } else {
+        task(arr[arr.length - 1])
+    }
+}
+recursivePrint(arr, 0)
+  
+  - 第二种思路是从下往上收集结果，也就是从内往外包裹。
+    - 此时内层为【一次操作单元】，即下一次)，因为需要先探底到最后一程，然后向上返回“下一次”的任务
+    - 这时顶部肯定是遍历到最末尾，返回的应该是最末尾的任务，即task(arr[arr.length - 1])，为了防止这个时候就执行了，用一个函数包裹一下
+    - 首部也需要额外构造，或者说首部应该是函数触发执行的导火索，这个逻辑应该放在递归函数的后面，等bottomUpToTop构造好了后面所有函数的时候，判断curIndex为0，然后执行
+    
+function back(arr, i) {
+    if (i >= arr.length - 1) return () => task(arr[arr.length - 1])
+    const bottomUpToTop = back(arr, i+1)
+    const cur = i
+    if (cur === 0) {
+        task(arr[cur]).then(() => { bottomUpToTop()})
+    }
+    return () => task(arr[cur]).then(() => { bottomUpToTop()})
+}
+
+back(arr, 0)
+```
+
+
+- 思路4
+  - 最简单的做法，直接同步遍历，然后await等待，执行完一句之后才去下一句
+
+```
+async function printSequentially(arr) {
+    for (const num of arr) {
+        await task(num);
+    }
+}
+printSequentially(arr);
+```
+
+
+

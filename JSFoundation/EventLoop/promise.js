@@ -16,6 +16,11 @@ class MyPromise {
       addToTaskQueue(function () {
         value.then(
           function onFulfilled(result) {
+
+            // 这里很关键！！！！
+            // 这里针对的是这个时候的上下文（then的promise或者外部调用resolve的promise）
+            // 即使value是一个无关的，新的promise实例，doResolve的也是针对this上下文来resolve的
+
             self._doResolve(result);
           },
           function onRejected(error) {
@@ -77,7 +82,7 @@ class MyPromise {
           resolve(self.promiseResult);
         };
       }
-  
+
       let rejectedTask;
       if (typeof onRejected === 'function') {
         rejectedTask = function () {
@@ -97,9 +102,15 @@ class MyPromise {
       switch (this.promiseState) {
         case 'pending':
           this.fulfillReactions.push(fulfilledTask);
-          if (rejectedTask) this.rejectReactions.push(rejectedTask);
+          this.rejectReactions.push(rejectedTask);
           break;
         case 'fulfilled':
+
+          // 这里要注意，fulfilledTask函数里面干两件事，执行回调函数，resolve 当前的then的promise的状态
+
+          // 而看下面的代码，这是被包裹了一层setTimeout的，也就是异步的
+          // 这意味着，如果同时遍历很多个then，说明第一个then返回的永远是pending，因为都没有执行resolve，而是等待“等房间”里面上一条任务执行完毕。
+
           addToTaskQueue(fulfilledTask);
           break;
         case 'rejected':

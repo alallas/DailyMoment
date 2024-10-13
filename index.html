@@ -1018,6 +1018,7 @@
     //     }
     // }
 
+
     
     // // 更加优雅的方式
     // function isInView(dom) {
@@ -1035,6 +1036,8 @@
     //     }
     // }
     // window.addEventListener('scroll', () => checkAndLoad())
+
+
 
 
     // // 优化方法：intersetsion observer
@@ -1063,16 +1066,15 @@
 
 
 
-    const arr = [1, 2, 3]
-    function task(num){
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                console.log(num)
-                console.log('打印完一次')
-                resolve()
-            }, 3000)
-        })
-    }
+    // const arr = [1, 2, 3]
+    // function task(num){
+    //     return new Promise((resolve, reject) => {
+    //         setTimeout(() => {
+    //             console.log(num)
+    //             resolve()
+    //         }, 3000)
+    //     })
+    // }
 
     // task(arr[0]).then(res => {
     //     return task(arr[1])
@@ -1083,10 +1085,13 @@
 
 
     // function back(arr, i) {
-    //     if (i === arr.length - 1) return () => task(arr[rr.length - 1])
+    //     if (i >= arr.length - 1) return () => task(arr[arr.length - 1])
     //     const bottomUpToTop = back(arr, i+1)
     //     const cur = i
-    //     return () => task(arr[cur]).then(bottomUpToTop())
+    //     if (cur === 0) {
+    //         task(arr[cur]).then(() => { bottomUpToTop()})
+    //     }
+    //     return () => task(arr[cur]).then(() => { bottomUpToTop()})
     // }
 
     // back(arr, 0)
@@ -1095,11 +1100,52 @@
 
 
 
+    // function recursivePrint(arr, index = 0) {
+    //     if (index >= arr.length) return
+    //     if (index < arr.length - 1) {
+    //         task(arr[index]).then(() => {
+    //             recursivePrint(arr, index + 1);
+    //         });
+    //     } else {
+    //         task(arr[arr.length - 1])
+    //     }
+    // }
+    // recursivePrint(arr, 0)
 
 
 
 
+    // (function loopThroughArray(arr) {
+    //     let promiseChain = Promise.resolve();
 
+    //     arr.forEach(num => {
+    //         promiseChain = promiseChain.then(() => task(num));
+    //     });
+    // })(arr);
+    
+
+    // let promiseChain = Promise.resolve();
+    // promiseChain = promiseChain.then(() => task(1));
+    // promiseChain = promiseChain.then(() => task(2));
+    // promiseChain = promiseChain.then(() => task(3));
+
+
+
+
+    // Promise.resolve().then(() => task(1))
+    // Promise.resolve().then(() => task(2))
+    // Promise.resolve().then(() => task(3))
+
+    
+
+
+
+    // async function printSequentially(arr) {
+    //     for (const num of arr) {
+    //         await task(num);
+    //     }
+    // }
+    // printSequentially(arr);
 
 
 
