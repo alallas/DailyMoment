@@ -123,8 +123,8 @@ class MacroTaskQueue {
 - 题目：有一个事件，点击之后有两个异步函数，要求等前一个执行完，才执行后一个
 - 思路：
   - 写一个顶部开关
-  - 在执行中就让顶部开关直接等于new Promise，执行完之后立刻改变此Promise的状态，然后关掉开关
-  - 另一个函数，拿到这个new Promise，等他执行完，因为他执行完相当于fetch执行完了
+  - 在执行中就让顶部开关直接等于`new Promise`，执行完之后立刻改变此Promise的状态，然后关掉开关
+  - 另一个函数，拿到这个`new Promise`，等他执行完，因为他执行完相当于fetch执行完了
 
 ```
 let isFirstLoading = null
@@ -233,12 +233,13 @@ Promise.resolve().then(() => task(3))
 - 思路2
   - 用链式的包含return的Promise链
   - 为什么要包含return，对于每个then回调函数之间，如果不return且return一个Promise的话，（除了第一个回调函数受到控制）其他的回调函数执行完之后就会自动resolve，后面的回调函数就会立刻执行，导致第二个元素及后面的元素被同时加到webAPI中计时，完了一起打印出来
-  - return相当于执行了resolve(Promise)，首先使得本次的状态不会立刻变为fullfilled，其次，根据传入的Promise的resolve时间点，执行【把本轮then的Promise的状态变为fullfilled】，具体如下：
+  - return相当于执行了`resolve(Promise)`，首先使得本次的状态不会立刻变为fullfilled，其次，根据传入的Promise的resolve时间点，执行【把本轮then的Promise的状态变为fullfilled】，具体如下：
     - return 已经瞬间resolve的promise ——> 与不return无区别
     - return 延后resolve的promise ——> 起实际作用，相当于打断默认的瞬间resolve
     - return 一直不resolve的promise ——> 相当于永远不会resolve，后面的then一直不会触发
     - （无论return的是一个新的promise还是怎么样，都可以保证最后resolve的是当前then的promise）
   
+
 ```
 // 正确做法
 task(arr[0]).then(res => {
@@ -268,9 +269,9 @@ task(arr[0]).then(res => {
 - 思路3
   - 用递归构造包裹式的Promise链
   - 递归有两种思路，第一种是从上到下收集结果，也就是从外往里包裹。
-    - 此时最外层为【一次操作单元】，即本次.then(
-    - 这时需要注意末尾的处理，不能也是本次.then(下一次)的形式，应该只是最后一次。
-    - 构造出的链条形如：task(arr0).then(task(arr1).then(arr2))
+    - 此时最外层为【一次操作单元】，即`本次.then(`
+    - 这时需要注意末尾的处理，不能也是`本次.then(下一次)`的形式，应该只是最后一次。
+    - 构造出的链条形如：`task(arr0).then(task(arr1).then(arr2))`
   
 ```
 function recursivePrint(arr, index = 0) {
@@ -286,8 +287,8 @@ function recursivePrint(arr, index = 0) {
 recursivePrint(arr, 0)
   
   - 第二种思路是从下往上收集结果，也就是从内往外包裹。
-    - 此时内层为【一次操作单元】，即下一次)，因为需要先探底到最后一程，然后向上返回“下一次”的任务
-    - 这时顶部肯定是遍历到最末尾，返回的应该是最末尾的任务，即task(arr[arr.length - 1])，为了防止这个时候就执行了，用一个函数包裹一下
+    - 此时内层为【一次操作单元】，即`下一次)`，因为需要先探底到最后一程，然后向上返回“下一次”的任务
+    - 这时顶部肯定是遍历到最末尾，返回的应该是最末尾的任务，即`task(arr[arr.length - 1])`，为了防止这个时候就执行了，用一个函数包裹一下
     - 首部也需要额外构造，或者说首部应该是函数触发执行的导火索，这个逻辑应该放在递归函数的后面，等bottomUpToTop构造好了后面所有函数的时候，判断curIndex为0，然后执行
     
 function back(arr, i) {
