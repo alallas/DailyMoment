@@ -227,6 +227,14 @@ promiseChain = promiseChain.then(() => task(3));
 Promise.resolve().then(() => task(1))
 Promise.resolve().then(() => task(2))
 Promise.resolve().then(() => task(3))
+
+
+// 还有一种写法是用reduce的写法，相当于拼接所有【上一次.then(本次)】的单元
+let promiseChain = Promise.resolve()
+arr.reduce((accum, item) => {
+    return accum.then(() => task(item))
+}, promiseChain)
+
 ```
 
 

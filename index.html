@@ -93,7 +93,7 @@
     <button class="button">go other page</button>
     <div class="anim1 underline heart shape color">hello</div>
 
-    <script src="./JSFoundation/EventLoop/promise.js"></script>
+    <!-- <script src="./JSFoundation/EventLoop/promise.js"></script> -->
 
 
     <script>
@@ -1130,6 +1130,13 @@
     // promiseChain = promiseChain.then(() => task(3));
 
 
+    // let promiseChain = Promise.resolve()
+    // arr.reduce((accum, item) => {
+    //     return accum.then(() => task(item))
+    // }, promiseChain)
+
+    // promiseChain.then(() => console.log('done'))
+
 
 
     // Promise.resolve().then(() => task(1))
@@ -1146,6 +1153,40 @@
     //     }
     // }
     // printSequentially(arr);
+
+
+
+
+
+    // function isSupportWebp(imgPath) {
+    //     const imgCheck = new Image()
+    //     imgCheck.src = imgPath
+    //     imgCheck.onload(() => {
+    //         if (imgCheck.height > 0 && imgCheck.width > 0) {
+    //             return true
+    //         } else {
+    //             return false
+    //         }
+    //     })
+    //     imgCheck.onerror(() => {
+    //         return false
+    //     })
+    // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
