@@ -1178,12 +1178,25 @@
 
 
 
+    function say() {
+        console.log('<\/script>')
+    }
+    say()
 
 
 
 
+    // 这表示默认是以async的方式进行加载的js
+    let script = document.createElement('script')
+    script.src = 'xxx.js'
+    document.head.appendChild(script)
 
 
+    // 但有的浏览器不支持async，那就需要取消异步加载的方式
+    let script = document.createElement('script')
+    script.src = 'xxx.js'
+    script.async = false
+    document.head.appendChild(script)
 
 
 
