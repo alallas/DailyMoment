@@ -1178,25 +1178,159 @@
 
 
 
-    function say() {
-        console.log('<\/script>')
-    }
-    say()
+
+
+    // function say() {
+    //     console.log('<\/script>')
+    // }
+    // say()
+
+
+    // // 这表示默认是以async的方式进行加载的js
+    // let script = document.createElement('script')
+    // script.src = 'xxx.js'
+    // document.head.appendChild(script)
+
+
+    // // 但有的浏览器不支持async，那就需要取消异步加载的方式
+    // let script = document.createElement('script')
+    // script.src = 'xxx.js'
+    // script.async = false
+    // document.head.appendChild(script)
 
 
 
 
-    // 这表示默认是以async的方式进行加载的js
-    let script = document.createElement('script')
-    script.src = 'xxx.js'
-    document.head.appendChild(script)
 
 
-    // 但有的浏览器不支持async，那就需要取消异步加载的方式
-    let script = document.createElement('script')
-    script.src = 'xxx.js'
-    script.async = false
-    document.head.appendChild(script)
+    // const a = '123.444aaaa334.55aaaaa'
+    // const b = '10'
+    // console.log(b.toString(8))
+
+    // function sum(a, b) {
+    //     a = 2;
+    //     console.log(arguments[0])
+    //     // 打印2
+    //     arguments[0] = 3;
+    //     console.log(a)
+    //     // 打印3，实际上两者不是一样的变量
+    //     // 只是内部有一个映射关系，把两个绑定在一起
+    //     console.log(sum)
+    // }
+    // sum(1, 2)
+
+
+
+    // function sum(a, b) {
+    //     b = 2;
+    //     console.log(arguments[1]);
+    //     // 打印undefined，因为实际参数和形参不是完全一一对应，因此里面的映射关系是不存在的
+    // }
+    // sum(1)
+
+    // function sum(a, b, c) {
+    //     console.log(sum.length)
+    //     // 打印3
+    //     console.log(arguments.length)
+    //     // 打印5
+    // }
+    // sum(2, 3, 4, 5, 6)
+
+    // function test() {
+    //     var a = b = 10
+    // }
+    // test()
+    // console.log(window.a)
+    // console.log(window.b)
+
+
+
+    // function fn(a) {
+    //     console.log(a);
+    //     let a = 123;
+    //     console.log(a);
+    //     function a() {};
+    //     console.log(a);
+    //     let b = function() {};
+    //     console.log(b);
+    //     function d() {};
+    // }
+    // fn(1)
+
+
+    // global = 100;
+    // function fn() {
+    //     console.log(global);
+    //     global = 200;
+    //     console.log(global);
+    //     var global = 300;
+    // }
+    // fn();
+    // var global;
+
+    // GO = {
+    //     global: undefined, // 后面执行第一行的时候变成100
+    //     fn: function fn() {...},
+    // }
+
+
+    // AO = {
+    //     global: undefined, // 后面执行里面的global赋值的时候，global变为200，以及300
+    // }
+
+
+    // GO = {
+    //     test: function test() {...},
+    //     a: undefined,
+    //     c: 234, // 在执行到test函数内部的c = 234的时候，放到GO里面
+    // }
+
+
+    // function test() {
+    //     console.log(b);
+    //     if(a) {
+    //         var b = 100;
+    //     }
+    //     console.log(b);
+    //     c = 234;
+    //     console.log(c);
+    // }
+
+    // var a;
+
+    // AO = {
+    //     b: undefined, 
+    //     // 这里不管有没有if条件的限制，都会变量声明提升，直接忽略if条件
+    //     // 但是在执行的时候，需要看if的条件是否满足，因为a此时为undefined，所以不满足条件，b后续不能被赋值
+    // }
+
+    // test();
+    // a = 10;
+    // console.log(c);
+
+
+    
+
+    // // 第一个全局编译
+    // function bar() {
+    //     return foo;
+    //     foo = 100;
+    //     function foo() {}
+    //     var foo = 11;
+    // }
+    // console.log(bar());
+    // // 返回 function foo() {}
+
+
+    // // 第二个全局编译
+    // console.log(bar());
+    // function bar() {
+    //     foo = 10;
+    //     function foo() {}
+    //     var foo = 11;
+    //     return foo;
+    // }
+    // // 返回 11
 
 
 

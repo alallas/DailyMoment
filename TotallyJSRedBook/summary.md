@@ -40,7 +40,13 @@
 .java文件——（javac的指令）——（编译）——>.class文件——>jvm（解释执行）
 
 
-2. 单线程（js引擎）
+2. 既面向对象又面向过程
+- 面向对象：谁来干
+- 面向过程：第一步第二步是什么
+
+
+
+3. 单线程（js引擎）
 （一个人一个时间只能干一件事，不能左手画圆右手画方）
 
 - 分类
@@ -53,10 +59,265 @@
 把任务切成一个个片段，随机性地排队，然后输入到js引擎里面
 
 
-3. 语法规则
+4. 语法规则
 - 原生的：ECMAscript
 - DOM
 - BOM
+
+
+
+
+
+## 编译
+### 总体步骤
+1. 语法分析（通篇扫描）
+2. 预编译（解释为啥函数声明/变量-声明提升？？）
+3. 解释执行（解释一行执行一行）
+
+
+### 预编译
+#### 问题引入
+- 函数声明整体提升
+```
+test()
+// 成功执行
+
+function test() {
+    console.log('ok')
+}
+```
+
+- 变量-声明提升
+```
+console.log(a)
+// 打印undefined
+// 如果没有下面这一行，是会报错的，显示a is not defined
+
+let a = '11'
+```
+
+
+#### 原则
+- 变量没声明就赋值，此变量为全局对象（window）所有（也就是window是全局的域）
+
+```
+a = 10
+// 等于window.a = 10
+
+
+function test() {
+    var a = b = 10
+}
+test()
+// 首先把10赋值给b（但b是未声明的）
+// 然后声明a
+// 然后把b赋值给a
+// 相当于从头到尾b都没有声明，也就是为全局变量
+
+console.log(window.a)
+// 值为undefined
+console.log(window.b)
+// 值为10
+```
+
+
+#### 干了什么，什么时候干
+1. 局部预编译
+（局部预编译发生在函数执行的前一刻）
+```
+function fn(a) {
+    console.log(a);
+    let a = 123;
+    console.log(a);
+    function a() {};
+    console.log(a);
+    let b = function() {};
+    console.log(b);
+    function d() {};
+}
+fn(1)
+```
+
+- 创建AO对象（Activation Object）（相当于执行上下文）
+```
+AO {
+
+}
+```
+
+- 找形参（a）和变量声明（a和b），作为AO对象的key，值为undefined
+```
+AO {
+    a: undefined,
+    b: undefined,
+}
+```
+
+- 形式参数的key的值为实际参数（实际参数和形式参数相统一）
+```
+AO {
+    a: 1,
+    b: undefined,
+}
+```
+
+- 找函数声明（a和d），相应key值为函数体
+```
+AO {
+    a: function a() {},
+    b: undefined,
+    d: function d() {},
+}
+```
+
+！！！总结一下：
+1. 形变
+2. 形填充
+3. 函填充（覆盖原有的实参数据，优先级最高）
+
+- 最后结果
+```
+// 函数
+function fn(a){
+    console.log(a); //根据AO对象中的数据第一个打印的是：function a() {}
+    
+    // 变量声明+变量赋值（只提升变量声明，不提升变量赋值）
+    var a = 123; // 执行到这时，由于变量赋值是不提升的，所以执行a = 123，a原本的函数值被123覆盖了
+    // 注意！！上面这行代码换成let和const都说a已经被声明过了，var是正常的，因为var可以重复声明同名变量，且覆盖同名变量
+    console.log(a); // 123
+    
+    // 函数声明
+    function a(){}; // 这里被提升上去了，可以忽略
+    console.log(a); // 123
+    
+    // 变量声明（函数表达式）
+    var b = function(){};
+    console.log(b); 
+    // var b 作为变量声明已经提上去了，需要执行的是function() {} 赋值给b
+    // AO对象中的数据被改了：function () {}
+    
+    // 函数声明
+    function d(){};
+}
+//调用函数
+fn(1);
+```
+
+2. 全局预编译
+（全部预编译发生在页面加载完成时执行）
+```
+console.log(a)
+// 返回function a() {}
+
+let a = 123;
+function a() {}
+```
+
+- 创建GO对象（Global Object）（相当于执行上下文）
+```
+GO {
+
+}
+```
+
+- 找变量声明（a），作为AO对象的key，值为undefined
+```
+GO {
+    a: undefined,
+}
+```
+
+- 找函数声明（a和d），相应key值为函数体
+```
+GO {
+    a: function a() {},
+}
+```
+
+
+3. 当前局部上下文AO找不到目标值，才去上一级找（上一级的AO或者GO）。如果本身的AO有，就不需要去上一级找
+- 简单版本
+```
+// 全局预编译写在最上面
+GO = {
+    global: undefined, // 后面执行第一行的时候变成100
+    fn: function fn() {...},
+}
+
+global = 100;
+function fn() {
+    console.log(global);
+    global = 200;
+    console.log(global);
+    var global = 300;
+}
+
+// 函数执行前预编译，所以写在这里
+AO = {
+    global: undefined, // 后面执行里面的global赋值的时候，global变为200，以及300
+}
+
+fn();
+var global;
+```
+
+
+- 困难版本
+```
+GO = {
+    test: function test() {...},
+    a: undefined,
+    c: 234, // 在执行到test函数内部的c = 234的时候，放到GO里面
+}
+
+function test() {
+    console.log(b);
+    if(a) {
+        var b = 100;
+    }
+    console.log(b);
+    c = 234;
+    console.log(c);
+}
+
+var a;
+
+AO = {
+    b: undefined, 
+    // 这里不管有没有if条件的限制，都会变量声明提升，直接忽略if条件
+    // 但是在执行的时候，需要看if的条件是否满足，因为a此时为undefined，所以不满足条件，b后续不能被赋值
+}
+
+test();
+a = 10;
+console.log(c);
+```
+
+- 继续最后一个练习
+```
+// 第一个全局编译
+function bar() {
+    return foo;
+    foo = 100;
+    function foo() {}
+    var foo = 11;
+}
+console.log(bar());
+// 返回 function foo() {}
+
+
+// 第二个全局编译
+console.log(bar());
+function bar() {
+    foo = 10;
+    function foo() {}
+    var foo = 11;
+    return foo;
+}
+// 返回 11
+```
+
+
 
 
 ## 基础使用
@@ -282,7 +543,94 @@ let event = e || window.event
   - 与运算：相同为1，不同为0
 
 
-#### for/while
+
+
+### 类型转换
+
+1. 判断类型
+- typeof：UFO（undefined、function、object）
+
+2. 显式转换
+- 转为数字：Number()
+  - 转为0
+    - KFN
+    - ""，false，null
+  - 转为NaN
+    - U（Y）
+    - undefined、“包含非数字”
+
+- 转为整数：parseInt(string, radix)
+  - 转为NaN：其他非数字类型，非数字开头的字符串
+  - 转为整数：数字或数字开头的字符串
+```
+let a = '100px'
+parseInt(a)
+// 输出100
+```
+  
+  - 第二个参数：【转10】把当前第一个参数当做：第二个参数表示的进制数，转化第一个参数为10进制
+    - 范围是2-36
+```
+parseInt('b', 16)
+// 输出的是11
+```
+
+- 转为小数：parseFloat(string)
+  - 转为NaN：其他非数字类型，非数字开头的字符串
+  - 转为整数：数字或数字开头的字符串
+
+
+
+- 转为字符串：
+  - String(xxx)或者+ ''
+    - 什么东西都会转化成字符串
+  - xxx.toString(radix)
+    - undefined和null没有这个方法，用不了
+    - 第二个参数：【10转】把前面的数字当成是10进制，然后转化成第二个参数定义的进制（注意：只有在前面的数据是数字的时候才ok）
+```
+'10'.toString(8)
+// 输出12
+```
+
+- 转为布尔值
+  - 转为false
+    - KUZAN
+    - ""，undefined，0，NaN，null
+
+
+
+3. 隐式转换
+- isNaN()
+  - 内部先Number()，然后再把结果和NaN相比较
+
+- 非加法运算：内部先Number()
+  - ++/--或者+/-（正负）
+  - *、-、/、%
+- 加法运算（+）：有string就用toString方法
+
+- 比较
+  - < 或 > ：先Number()，如果两个都是字母字符串，比较asc码
+  - && 或 || 或 ! ：转布尔值
+  - == 或 === ：
+    - 原始值转数字，Number()
+    - 引用值转字符串再转数字（转字符串之后其实相当于转为原始值了）
+
+- 特殊
+  - undefined == null ——>true
+  - NaN === NaN ——> false
+  - typeof xxx ——>返回的值是字符串类型
+```
+typeof typeof undefined
+// 返回string
+// 相当于 typeof  'undefined'
+```
+
+
+
+
+
+
+### for/while
 - for循环：底层执行顺序
 ```
 for (let i = 0; i < 10; i++)
