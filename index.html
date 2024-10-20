@@ -1337,6 +1337,182 @@
 
 
 
+
+    // function a() {
+    //     function b() {
+    //         var bb = 234;
+    //         aa = 0;
+    //     }
+    //     var aa = 123;
+    //     b();
+    //     console.log(aa);
+    // }
+    // var global = 100;
+    // a();
+
+
+
+
+
+
+    // // 形式为: (function (){}())
+    // (function (a, b, c) {
+    //     return a + b + c;
+    // }(1, 2, 3))
+
+    // // 只有表达式才能被执行符号()执行
+    
+    // // 下面是函数声明，直接立即执行不行，语法错误
+    // function test() {
+    //     console.log('222')
+    // }()
+
+    // // 下面是函数表达式，直接立即执行是ok的
+    // const test = function () {
+    //     console.log('111')
+    // }()
+
+    // // 且执行符号执行之后，函数的名字会被忽略
+    // // 相当于我函数立即执行，完了之后这个函数对象被销毁了，因此针对上面的函数，打印test是undefined
+
+    // console.log(test)
+    // // 输出为undefined
+
+
+
+
+
+    // function test() {
+    //     let arr = [];
+    //     for (let i = 0; i < 10; i ++) {
+    //         arr[i] = function () {
+    //             console.log(i + ' ');
+    //         }
+    //     }
+    //     return arr;
+    // }
+    // let myArr = test();
+    // for (let i = 0; i < myArr.length; i ++) {
+    //     myArr[i]();
+    // }
+
+
+
+
+
+    // function test() {
+    //     let arr = [];
+    //     for (var i = 0; i < 10; i ++) {
+    //         arr[i] = function () {
+    //             console.log(i + ' ');
+    //         }
+    //     }
+    //     return arr;
+    // }
+    // let myArr = test();
+    // for (let i = 0; i < myArr.length; i ++) {
+    //     myArr[i]();
+    // }
+
+
+
+
+
+    // function test() {
+    //     let arr = [];
+    //     for (var i = 0; i < 10; i ++) {
+    //         arr[i] = function (j) {
+    //             console.log(j + ' ');
+    //         }
+    //     }
+    //     return arr;
+    // }
+    // let myArr = test();
+    // for (let i = 0; i < myArr.length; i ++) {
+    //     myArr[i](i);
+    // }
+
+
+
+
+
+
+    // function test() {
+    //     let arr = [];
+    //     for (var i = 0; i < 10; i ++) {
+    //         (function (j) {
+    //             arr[j] = function () {
+    //                 console.log(j + ' ');
+    //             }
+    //         }(i))
+    //     }
+    //     return arr;
+    // }
+    // let myArr = test();
+    // for (let i = 0; i < myArr.length; i ++) {
+    //     myArr[i]();
+    // }
+
+
+
+    // window.onload = () => {
+    //     for (var i = 0; i < ulList.length; i++) {
+    //         ulList[i].onclick = function () {
+    //             console.log(i)
+    //         }
+    //     }
+    // }
+
+
+
+    // var x = 1;
+    // if (function f() {}) {
+    //     x += typeof f
+    // }
+    // console.log(x)
+
+
+
+    // function Car() {
+    //     this.name = 'BMW';
+    // }
+
+    // const car1 = new Car();
+
+
+
+
+    // function Person(name, height) {
+    //     const that = {};
+    //     that.name = name;
+    //     that.height = height;
+    //     return that;
+    // }
+
+    // const person1 = new Person('1', 180)
+    // const person2 = new Person('2', 185)
+
+
+
+    // const test = 'abc'
+    // test.name = 'ss'
+    // console.log(test.name)
+
+
+    Person.prototype.name = 'abc';
+    function Person() {
+        // 第一步：
+        let this = {
+            // __proto__相当于连接儿子和父亲
+            // 当儿子本身没有一个属性或方法的时候，访问__proto__来访问父亲
+            __proto__: Person.prototype,
+        }
+
+    }
+    const person1 = new Person()
+
+
+
   </script>
 </body>
 
