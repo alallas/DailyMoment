@@ -1499,17 +1499,111 @@
     // console.log(test.name)
 
 
-    Person.prototype.name = 'abc';
-    function Person() {
-        // 第一步：
-        let this = {
-            // __proto__相当于连接儿子和父亲
-            // 当儿子本身没有一个属性或方法的时候，访问__proto__来访问父亲
-            __proto__: Person.prototype,
-        }
 
+
+
+    // Person.prototype.name = 'abc';
+    // function Person() {
+    //     // 第一步：
+    //     let this = {
+    //         // __proto__相当于连接儿子和父亲
+    //         // 当儿子本身没有一个属性或方法的时候，访问__proto__来访问父亲
+    //         __proto__: Person.prototype,
+    //     }
+
+    // }
+    // const person1 = new Person()
+
+
+
+    // console.log(Person.prototype.__proto__ === Object.prototype)
+    // Person.prototype.name = 'sunny';
+    // function Person() {
+    // }
+
+    // const person1 = new Person();
+    // console.log(person1)
+
+    // Person.prototype = {
+    //     name: 'cherry',
+    // }
+
+    // console.log(person1.name)
+
+
+
+
+    // let obj = {name: 'sunny'};
+    // let obj1 = obj;
+    // obj = {name: 'cherry'};
+
+    // console.log(obj1)
+
+
+
+
+
+    // function Father() {
+    //     this.money = {
+    //         card1: '100',
+    //     };
+    // }
+    // const f1 = new Father();
+
+    // Son.prototype = f1;
+    // function Son() {
+
+    // }
+    // const s1 = new Son();
+
+    // s1.money.card1 = '200'
+    // console.log(f1.money)
+
+
+
+
+    // function Father() {}
+    // const f1 = Object.create(Father.prototype)
+    
+
+
+    // let num = 123;
+    // num.toString();
+    // // 打印‘123’
+
+    // // 内部发生了什么
+    // // new Number(123).toString()
+    // // 调用的是Number.prototype.toString()，而不是Object.prototype.toString()
+
+    // let obj = {}
+    // obj.toString()
+    // // 返回的是[object object]
+
+
+
+    function Person(name, age) {
+        this.name = name;
+        this.age = age;
     }
-    const person1 = new Person()
+    const person1 = new Person('z', 20);
+    let obj = {}
+    Person.call(obj, 'y', 30)
+    console.log(obj)
+
+
+    function Person(name, age) {
+        this.name = name;
+        this.age = age;
+    }
+
+
+    function Student(name, age, grade) {
+        Person.call(this, name, age)
+        // 上面相当于给Student(this)加上了name和age的属性（Person的属性）
+        this.grade = grade
+    }
+
+    const s1 = new Student('z', 20, 3)
 
 
 
