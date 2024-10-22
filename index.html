@@ -1581,29 +1581,372 @@
 
 
 
-    function Person(name, age) {
-        this.name = name;
-        this.age = age;
-    }
-    const person1 = new Person('z', 20);
-    let obj = {}
-    Person.call(obj, 'y', 30)
-    console.log(obj)
+    // function Person(name, age) {
+    //     this.name = name;
+    //     this.age = age;
+    // }
+    // const person1 = new Person('z', 20);
+    // let obj = {}
+    // Person.call(obj, 'y', 30)
+    // console.log(obj)
 
 
-    function Person(name, age) {
-        this.name = name;
-        this.age = age;
-    }
+    // function Person(name, age) {
+    //     this.name = name;
+    //     this.age = age;
+    // }
 
 
-    function Student(name, age, grade) {
-        Person.call(this, name, age)
-        // 上面相当于给Student(this)加上了name和age的属性（Person的属性）
-        this.grade = grade
-    }
+    // function Student(name, age, grade) {
+    //     Person.call(this, name, age)
+    //     // 上面相当于给Student(this)加上了name和age的属性（Person的属性）
+    //     this.grade = grade
+    // }
 
-    const s1 = new Student('z', 20, 3)
+    // const s1 = new Student('z', 20, 3)
+
+
+
+
+
+
+
+
+    // function Wheel(style, wheelSize) {
+    //     this.style = style;
+    //     this.wheelSize = wheelSize;
+    // }
+
+    // function Sit(sitColor) {
+    //     this.sitColor = sitColor;
+    // }
+
+    // function Model(height, width, len) {
+    //     this.height = height;
+    //     this.width = width;
+    //     this.len = len;
+    // }
+
+    // function Car(style, wheelSize, sitColor, height, width, len) {
+    //     Wheel.call(this, style, wheelSize);
+    //     Sit.call(this, sitColor);
+    //     Model.call(this, height, width, len);
+
+    //     // apply传递的参数是数组，但是顺序也要一样
+    //     // Wheel.apply(this, [style, wheelSize]);
+    //     // Sit.apply(this, [sitColor]);
+    //     // Model.apply(this, [height, width, len]);
+    // }
+
+    // const myCar = new Car('z', 20, 'green', 200, 300, 400);
+    // console.log(myCar)
+
+
+
+
+
+    // Grand.prototype.lastName = 'll';
+    // function Grand() {
+        
+    // }
+    // const grand = new Grand();
+
+    // Father.prototype = grand;
+    // function Father() {
+    //     this.name = 'zz'
+    // }
+    // const father = new Father();
+
+    // // Son 的本意是继承Grand的lastName，但是他必须要经过father这一层
+    // // 有点像props的传递
+    // Son.prototype = father;
+    // function Son() {
+
+    // }
+    // const son = new Son;
+
+
+
+
+
+
+
+
+
+    // Father.prototype.lastName = 'zz';
+    // function Father(name) {
+    //     this.name = name
+    // }
+    // function Son() {
+    // }
+    // Son.prototype = Father.prototype;
+    // // 相当于Father的原型给了Father和Son
+    // // Father和Son的祖先是同一个对象
+
+
+    // // 更好的写法：封装一个方法实现共有对象的继承
+    // // function inherit(target, origin) {
+    // //     target.prototype = origin.prototype;
+    // // }
+    // inherit(Son, Father);
+
+    // // // 不能修改自己的原型，因为这时Son.prototype指向的是同一个房间
+    // // Son.prototype.gender = 'female';
+
+    // const father = new Father();
+    // const son = new Son();
+    // // console.log(father.gender)
+    // // // 打印female
+
+
+
+
+    // // 加一个中间层
+    // // 一方面，中间层的原型和origin原型一致
+    // // 另一方面，中间层本身是target的原型
+    // // 修改target的原型不会改father的原型
+
+    // function inherit(target, origin) {
+    //     function Middle() {}
+    //     Middle.prototype = origin.prototype
+    //     target.prototype = new Middle()
+    // }
+
+    // // 但是这样有一个问题
+    // // son 的constructor变成了Father() {}
+    // // son.__proto__(找此实例的构造函数的原型即Son.prototype)为new Middle()
+    // // new Middle().__proto__(找此实例的构造函数的原型即Middle.prototype)为Father.prototype
+    // // Father.prototype.__proto__指向Object.prototype(Father.prototype是对象，其构造函数肯定是Object)，这时到头了
+    // // 因此找Father.prototype.constructor，为Father() {}
+    // function inherit(target, origin) {
+        // function Middle() {};
+        // Middle.prototype = origin.prototype;
+        // target.prototype = new Middle();
+        
+    //     // 改一下constructor
+    //     target.prototype.constructor = target;
+
+    //     // 记录一下真正继承的目标函数father.prototype
+    //     target.prototype.super = origin.prototype
+
+    //     // 如果想要继承father本身的属性
+    //     target.prototype.super = function (name) {
+    //         return new origin(name)
+    //     }
+    // }
+
+
+    // // Middle本来就不是一个重要的变量，直接变成私有变量
+    // const inherit = (function () {
+    //     const Middle = function() {};
+    //     return function(target, origin) {
+    //         Middle.prototype = origin.prototype;
+    //         target.prototype = new Middle();
+
+    //         target.prototype.constructor = target;
+    //         target.prototype.super = origin.prototype;
+    //     }
+    // }())
+
+
+
+    
+
+
+    // function Person() {
+    //     const name = 'zzz'
+    //     this.getPrivateName = function() {
+    //         console.log(name)
+    //     }
+    // }
+    // const person = new Person()
+    // person.getPrivateName()
+    // console.log(person.name)
+
+
+
+
+
+    // // 父亲对象
+    // function Father(gender) {
+    //     this.gender = gender
+    // }
+    // Father.prototype.getGender = function() {
+    //     console.log('this.gender', this.gender)
+    // }
+
+    // // 儿子对象
+    // function Son(name, age) {
+    //     this.name = name
+    //     this.age = age
+    // }
+
+    // // 儿子继承父亲的对象
+    // // 首先继承父亲的方法
+    // Son.prototype = Object.create(Father.prototype)
+    // // 改一下constructor
+    // Son.prototype = Object.create(Father.prototype, {
+    //     constructor: {
+    //         value: Son,
+    //         writable: true,
+    //         configurable: true,
+    //         enumerable: false,
+    //     }
+    // })
+
+    // // 然后需要继承父亲的属性（因为属性要传递参数，必须用一个函数来实现）
+    // Son.prototype.super = function(gender) {
+    //     return new Father(gender)
+    // }
+
+    // // 儿子对象原本的自己的方法加上
+    // Son.prototype.getName = function() {
+    //     console.log(this.name)
+    // }
+    // Son.prototype.msg = function() {
+    //     console.log('msg', this.name, this.age)
+    // }
+
+    // // 儿子的实例
+    // const son = new Son('ming',25)
+
+    // // 下面返回 this.gender female
+    // son.super('female').getGender()
+
+    // // 下面返回undefined，因为儿子实例本身是没有父亲的属性的
+    // console.log(son.gender)
+
+
+
+
+
+
+    // const name = '456'
+    // const init = (function () {
+    //     const name = '123';
+    //     function callName() {
+    //         console.log(name);
+    //     }
+    //     return function() {
+    //         callName();
+    //     }
+    // }())
+    // init()
+    // // 打印的是123，而不是456
+
+
+
+
+    // const actions = {
+    //     smoke: function () {
+    //         console.log('smoking');
+    //         return this;
+    //     },
+    //     drink: function () {
+    //         console.log('drinking');
+    //         return this;
+    //     },
+    //     perm: function () {
+    //         console.log('perming');
+    //         return this;
+    //     },
+    // };
+
+    // actions.smoke().drink().perm().smoke()
+
+
+
+
+    // const obj = {
+    //     num1: {name: '111'},
+    //     num2: {name: '222'},
+    //     num3: {name: '333'},
+    //     num4: {name: '444'},
+    //     getNum: function(num) {
+    //         console.log(this[`num${num}`])
+    //     }
+    // }
+    // // obj.getNum(2)
+
+
+    // for (let i in obj) {
+    //     console.log(obj[i])
+    // }
+
+
+
+    // var name = '123';
+    // const a = {
+    //     name: '111',
+    //     getName: function() {
+    //         console.log(this.name);
+    //     }
+    // }
+    // const fn = a.getName;
+    // fn(); // 打印123
+    // a.getName(); // 打印111
+
+    // const b = {
+    //     name: '222',
+    //     getName: function(fn) {
+    //         fn()
+    //     }
+    // }
+    // b.getName(a.getName) // 打印123
+    // b.getName = a.getName
+    // b.getName() // 打印222
+
+
+
+    // // 求n的阶层，用递归！
+    // const num = (function (n) {
+    //     if (n === 1) {
+    //         return 1;
+    //     }
+    //     // 这里外部函数没有名字，用arguments.callee来代替当前外部函数
+    //     return n * arguments.callee(n - 1)
+
+    // }(5));
+
+
+    // function test() {
+    //     demo()
+    // }
+    // function demo() {
+    //     console.log(demo.caller)
+    // }
+    // test()
+
+
+
+    // var foo = 123;
+    // function print() {
+    //     this.foo = 234;
+    //     console.log(foo);
+    // }
+    // print(); // 打印234
+    // new print() // 打印123
+
+
+    const arr = [5, 2, 1, 8, 4, 10, 9]
+    arr.sort(() => a - b)
+    // 底层实现：递归思路的比较顺序
+    // 第一层：5和2对比，5和1对比...5和9对比
+    // 第二层：2和1比较，2和8比较...2和9比较
+    // ...
+
+    // 规则：
+    // 回调函数返回值大于0，后面的数在前面（大后前）
+    // 回调函数返回值小于0，前面的数在前面（小前前）
+    // 返回值为0，不动
+
+
+
+    // arr.sort(() => {
+    //     return Math.random() - 0.5
+    // })
+
+
 
 
 
