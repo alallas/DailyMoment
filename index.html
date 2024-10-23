@@ -1928,8 +1928,8 @@
     // new print() // 打印123
 
 
-    const arr = [5, 2, 1, 8, 4, 10, 9]
-    arr.sort(() => a - b)
+    // const arr = [5, 2, 1, 8, 4, 10, 9]
+    // arr.sort(() => a - b)
     // 底层实现：递归思路的比较顺序
     // 第一层：5和2对比，5和1对比...5和9对比
     // 第二层：2和1比较，2和8比较...2和9比较
@@ -1949,6 +1949,93 @@
 
 
 
+    // const obj = {
+    //     '0': 'a',
+    //     '1': 'b',
+    //     '2': 'c',
+    //     '3': 'd',
+    //     'length': 4,
+    //     'push': Array.prototype.push,
+    //     'splice': Array.prototype.splice,
+    // }
+    // // 类数组要求的：属性要为索引，要有length属性
+    // // 一旦加上splice属性，这个对象打印出来长成数组那样
+
+    // // 在这里，push方法的底层实现如下：
+    // Array.prototype.push = function(target) {
+    //     obj[obj.length] = target;
+    //     obj.length ++;
+    // }
+
+
+    // const obj1 = {
+    //     '2': 'c',
+    //     '3': 'd',
+    //     'length': 2,
+    //     'push': Array.prototype.push,
+    //     'splice': Array.prototype.splice,
+    // }
+    // obj1.push('a');
+    // obj1.push('b');
+    // // 得到的obj1是
+    // obj1 = {
+    //     '2': 'a',
+    //     '3': 'b',
+    //     'length': 4,
+    //     ...
+    // }
+
+
+
+    // const obj = {
+    //     department1: {
+    //         zyl: {
+    //             name: 'zyl',
+    //             age: 123,
+    //         },
+    //         zzc: {
+    //             name: 'zzc',
+    //             age: 234,
+    //         }
+    //     },
+    //     department2: {
+    //         zxq: {
+    //             name: 'zxq',
+    //             age: 456,
+    //         }
+    //     }
+    // }
+
+    // with(obj.department1.zyl) {
+    //     console.log(name)
+    // }
+    // with(obj.department1.zzc) {
+    //     console.log(name)
+    // }
+
+
+    // 'use strict';
+    // console.log(this) // 全局this打印window
+    // function test() {
+    //     console.log(this) // 局部this，没有被定义，打印undefined
+    // }
+    // test()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
 
   </script>
 </body>

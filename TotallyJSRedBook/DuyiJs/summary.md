@@ -1521,6 +1521,36 @@ console.log(son.gender)
 ## 命名空间
 - 历史
 
+```
+const obj = {
+    department1: {
+        zyl: {
+            name: 'zyl',
+            age: 123,
+        },
+        zzc: {
+            name: 'zzc',
+            age: 234,
+        }
+    },
+    department2: {
+        zxq: {
+            name: 'zxq',
+            age: 456,
+        }
+    }
+}
+
+with(obj.department1.zyl) {
+    console.log(name) // 打印zyl
+}
+with(obj.department1.zzc) {
+    console.log(name) // 打印zzc
+}
+```
+
+with的作用是绑定执行的AO到栈顶，使得找变量直接在最近的AO里面找
+
 
 - 闭包实现变量私有化
 
@@ -1539,4 +1569,94 @@ init()
 // 打印的是123，而不是456
 ```
 
+
+
+
+## try catch
+- try里面的代码执行，其中某一行报错，这一行后面的（try里面的）代码不执行；但catch后面的代码正常运行
+- 错误信息传到error里面
+  - error.name ——> Reference errot
+  - error.message ——> b is not defined
+
+```
+try {
+} catch(error) {
+}
+```
+
+
+- 错误类型
+  - EvalError：eval()的使用与定义不一致
+  - RangeError：数值越界
+  - ReferenceError：非法或不能识别的引用数值
+  - SyntaxError：发生语法解析错误
+  - TypeError：操作数类型错误
+  - URLError：URL处理函数使用不当
+
+
+
+## 严格模式(es5.0)
+- 默认浏览器使用的语法：es3.0所有 + es5.0新增的部分
+- 定义
+  - 开启：es3.0和es5.0产生冲突的部分，用es5.0的（eval3.0不能用）
+  - 用es3.0的
+
+- 开启严格模式的方法：全局脚本顶端首行写use strict，或函数局部顶端写use strict
+
+```
+// 全局脚本顶端
+'use strict';
+
+
+// 局部函数顶端
+function test() {
+    'use strict';
+    console.log(arguments.callee);
+}
+```
+
+
+  - 为什么写字符串的格式？
+  - 最原始的值，防止某些老浏览器没法执行新操作，他们只能识别原始值
+
+- es5.0不支持的es3.0的方法
+  - with() {}
+  - arguments.callee
+  - func.caller
+  - 变量赋值前必须声明
+  - 局部的this必须被赋值，全局的this还是指向window
+
+```
+'use strict';
+console.log(this) // 全局this打印window
+function test() {
+    console.log(this) // 局部this，没有被定义，打印undefined
+}
+test()
+```
+
+
+  - 拒绝重复使用形参
+
+
+# DOM
+
+## 拿到dom
+
+1. 获取当前的dom
+
+- getElementByTagName()
+  - 输入纯的dom标签名
+  - 输出类数组
+
+- getElementByClassName()
+  - 输入纯的类名（前面没有点）
+  - 输出类数组
+
+
+2. 创建新的dom
+
+- createElement()
+  - 输入纯的dom标签名
+  - 输出标签本身
 
