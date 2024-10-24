@@ -95,6 +95,60 @@
 
     <!-- <script src="./JSFoundation/EventLoop/promise.js"></script> -->
 
+    <div>
+        <strong></strong>
+        <span></span>
+        <!-- this is a comment -->
+        123
+        <p class="11"></p>
+        <i></i>
+        345354
+        <!-- 4575675 -->
+        <address></address>
+    </div>
+
+    <script>
+        // const ele = document.getElementsByClassName('11')[0]
+        // // console.log(div.firstChild)
+
+        // function getSiblingElement(ele, n) {
+        //     while(ele && n) {
+        //         console.log('enter while ele', ele, '---n', n)
+        //         if (n > 0) {
+        //             // 考虑到nextElementSibling的ie9兼容性问题，可以使用两个方案
+        //             // 第一个方案使用ele = ele.nextElementSibling;
+        //             // 另一个方案使用兼容性更强的nextSibling
+
+        //             // 思路是：首先移动到下一个，然后发现下一个不是元素节点，继续移动指针；如果下一个是元素节点，停下循环
+        //             // 特殊情况是ele为null，if里面执行不了，但也退出内部的while循环了，接着也退出外部的while循环了
+        //             while(ele = ele.nextSibling) {
+        //                 if (ele.nodeType === 1) break;
+        //             }
+        //             n --;
+        //         } else {
+        //             while(ele = ele.previousSibling) {
+        //                 if (ele.nodeType === 1) break;
+        //             }
+        //             n ++;
+        //         }
+        //     }
+        //     return ele;
+        // }
+        // console.log(getSiblingElement(ele, -100))
+
+
+
+        // console.log(
+
+        //     // ele.nextElementSibling.nextElementSibling
+        //     // ele.nextElementSibling
+
+        // )
+
+
+
+
+    </script>
 
     <script>
 
@@ -2026,14 +2080,15 @@
 
 
 
+    // console.log(
+
+    //     HTMLHeadElement.prototype.__proto__ === HTMLElement.prototype
+
+    // )
 
 
 
-
-
-
-
-
+    document.insertBefore('div', document.getElementsByClassName('11'))
 
     
 

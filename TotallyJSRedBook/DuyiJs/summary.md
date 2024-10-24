@@ -1641,22 +1641,335 @@ test()
 
 # DOM
 
-## 拿到dom
+## document
+- 含义：代表整个文档，硬要说的话是html上一级的标签
 
-1. 获取当前的dom
+```
+<document>
+    <html>
+        <head>
+        </head>
+        
+        <body>
+        </body>
+    </html>
+</document>
+```
 
-- getElementByTagName()
+
+## dom
+### 类型
+1. 元素节点
+2. 属性节点
+3. 文本节点
+4. 注释节点
+5. document
+6. DocumentFragment
+
+
+
+### 属性
+#### 节点类
+
+- 所有节点
+（任何浏览器都好使！）
+
+1. parentNode：父节点
+
+```
+const html= document.getElementsByTagName('html')[0];
+
+html.parentNode
+// 输出document（顶层的）
+```
+
+
+2. childNodes：孩子节点
+  1. 输出是类数组
+  2. 包含文本节点和元素节点和注释节点，长度是【可视的节点数量 + (可视的节点数量 + 1)】
+  3. 其中文本节点是每个可视标签前后都有
+
+```
+<div class="11">
+    <strong></strong>
+    <span></span>
+    <!-- this is a comment -->
+</div>
+
+
+<div class="11">
+    123
+    <strong></strong>
+    <span></span>
+    <!-- this is a comment -->
+</div>
+
+
+const div = document.getElementsByClassName('11')[0]
+console.log(div.childNodes.length)
+// 两个代码块打印出来都是7
+```
+
+
+- 一个方法：hasChildNodes()：判断是否有任何一个类型的孩子节点
+
+
+3. firstChild / lastChild：第一个孩子 / 最后一个孩子的节点
+
+```
+<div class="11">
+    <strong></strong>
+    <span></span>
+    <!-- this is a comment -->
+</div>
+
+
+const div = document.getElementsByClassName('11')[0]
+console.log(div.firstChild)
+// 打印出来是text，即文本节点！！
+```
+
+
+4. nextSibling / previousSibling：后一个兄弟节点 / 前一个兄弟节点
+
+```
+<div>
+    <strong></strong>
+    <span class="11"></span>
+    <!-- this is a comment -->
+</div>
+
+
+const span = document.getElementsByClassName('11')[0]
+console.log(span.nextSibling)
+// 输出text，即文本节点！！！
+```
+
+
+- 元素节点
+（除了children，ie9及其以下不兼容！！！）
+
+1. parentElement：父元素节点
+2. children：孩子元素节点（不是childElement！！！）
+3. firstElementChild / lastElementChild：第一个孩子元素节点 / 最后一个孩子元素节点
+4. nextElementSibling / previousElementSibling：下一个兄弟元素节点 / 上一个兄弟元素节点
+
+#### 信息类
+
+- 标签本身
+1. nodeName
+  1. 输出节点的名称
+  2. 每个节点类型都有
+  3. 只能读取不能写入
+  
+2. nodeValue
+  1. 输出节点的值
+  2. 只有文本节点和注释节点有这个属性
+  3. 可读可改
+  
+3. nodeType
+  1. 输出节点的类型（标号）
+  2. 每个节点都有
+
+
+- 标签尖括号内的属性
+1. attributes
+  1. 输出属性的类数组
+  2. 每个节点都有
+  3. 可读可写
+
+
+- 标签尖括号外的值
+1. innerHTML
+  1. 读取：获取标签的尖括号外的值
+  2. 写入：自动识别输入的字符串内的内容为html格式
+
+2. innerText
+  1. 读取：获取标签的尖括号外的【文本值】
+  2. 火狐不兼容（火狐拥有的是textContent）
+
+
+### 方法
+#### 信息类
+
+1. 获取/改变属性
+- dom.setAttribute(a, b)
+  - 输入两个字符串，前是属性名，后是属性值
+
+
+- dom.getAttribute()
+  - 输入一个字符串，属性名
+
+
+
+
+
+## dom结构树
+
+
+
+注意点：
+- Document.prototype和Element.prototype上面都有的方法是：
+  - getElementsByClassName()
+  - getElementsByTagName()
+  - querySelector()
+  - querySelectorAll()
+
+- Document.prototype上面的属性和方法是：
+  - 属性：documentElement：直接选取的是html标签
+  - 方法：getElementById()
+
+- HTMLDocument.prototype上面的属性和方法是：
+  - 属性：
+    - body：直接选取body标签
+    - head：直接选取head标签
+  - 方法：
+    - getElementByName()
+
+
+
+例子：
+- 题目：给一个节点，和一个数n，n大于0，输出这个节点下面的第n个节点，n小于0，输出这个节点上面的第n个节点
+- 解答：
+
+```
+function getSiblingElement(ele, n) {
+    while(ele && n) {
+        console.log('enter while ele', ele, '---n', n)
+        if (n > 0) {
+            // 考虑到nextElementSibling的ie9兼容性问题，可以使用两个方案
+            // 第一个方案使用ele = ele.nextElementSibling;
+            // 另一个方案使用兼容性更强的nextSibling
+
+            // 思路是：首先移动到下一个，然后发现下一个不是元素节点，继续移动指针；如果下一个是元素节点，停下循环
+            // 特殊情况是ele为null，if里面执行不了，但也退出内部的while循环了，接着也退出外部的while循环了
+            while(ele = ele.nextSibling) {
+                if (ele.nodeType === 1) break;
+            }
+            n --;
+        } else {
+            while(ele = ele.previousSibling) {
+                if (ele.nodeType === 1) break;
+            }
+            n ++;
+        }
+    }
+    return ele;
+}
+```
+
+
+## 操作dom
+### 获取
+#### 按名称
+（都是document.）
+
+- getElementsByName()
+  - 输入纯的name名
+  - 输出类数组
+  - 缺点：（只有部分有name属性的标签才能用：表单、img、iframe！！）
+
+- getElementsByTagName()
   - 输入纯的dom标签名
   - 输出类数组
+  - 优点：（兼容性特别好！！！）
 
-- getElementByClassName()
+```
+document.getElementByName('*')
+// 表示选择所有的标签
+```
+
+
+- getElementsByClassName()
   - 输入纯的类名（前面没有点）
   - 输出类数组
+  - 缺点：（ie8及以下没有这个方法！！！！）
+
+- getElementById()
+  - 输入纯的id名（前面没有#）
+  - 输出单个标签本身
+  - 缺点：（如果name有，id没有，但name的值和id的一样，那么把name的标签也选出来了）
 
 
-2. 创建新的dom
 
-- createElement()
+- querySelector()
+  - 输入【css怎么写就怎么写】，比如'div > span strong.demo'
+  - 输出单个标签本身
+  - 缺点：选出来的dom是镜像，不是实时的
+
+
+- querySelectorAll()
+  - 输入【css怎么写就怎么写】，比如'div > span strong.demo'
+  - 输出类数组
+  - 缺点：
+    - ie7及以下不能用！！！
+    - 选出来的元素是副本，不是实时的，后面对dom操作，不会反映到结果上
+
+
+#### 按相对位置（节点树）
+（都是dom.xxxx）
+
+- 遍历所有节点树
+1. parentNode：父节点
+2. childNodes：孩子节点
+3. firstChild / lastChild：第一个孩子 / 最后一个孩子的节点
+4. nextSibling / previousSibling：后一个兄弟节点 / 前一个兄弟节点
+
+
+- 遍历元素节点树
+1. parentElement：父元素节点
+2. children：孩子元素节点（不是childElement！！！）
+3. firstElementChild / lastElementChild：第一个孩子元素节点 / 最后一个孩子元素节点
+4. nextElementSibling / previousElementSibling：下一个兄弟元素节点 / 上一个兄弟元素节点
+
+
+### 创建
+（都是document.）
+
+- document.createElement()
   - 输入纯的dom标签名
   - 输出标签本身
+
+
+- document.createTextNode()
+  - 输入字符串
+
+- document.createComment()
+  - 输入字符串
+
+- document.createDocumentFragment
+  - 无输入
+
+
+### 插入
+（都是dom.xxxx）
+
+- dom.appendChild()
+  - 输入节点
+  - 剪切操作，如果输入的节点已经在页面中存在，那他会删除原来的，剪切原来的节点到新位置（dom的末尾）
+
+- dom.insertBefore(a, b)
+  - 输入两个节点
+  - 在dom的范围内，Insert a, before b
+
+
+### 删除
+（都是dom.xxxx）
+
+- dom.removeChild()
+  - 输入节点
+  - 返回被删除的节点（相当于剪切出来）
+  - 删除dom下面的输入的孩子节点
+
+- dom.remove()
+  - dom是目标节点，自我删除dom
+
+
+### 替换
+
+- dom.replace(new, origin)
+  - 输入两个节点，前是新，后是老（要被替换掉的那个）
+  - dom节点下面的范围
+
+
 
