@@ -89,6 +89,12 @@
     <!-- <link href="./style.css" rel="stylesheet"/> -->
 </head>
 <body>
+
+    <div style="position: relative;">
+        <div class="22" style="padding: 50px; margin: 50px; height: 50px; width: 50px; background-color: grey; border: 5px solid black;"></div>
+        <div class="33" style="padding: 50px; margin: 50px; height: 50px; width: 50px; background-color: grey; border: 5px solid black; box-sizing: border-box;"></div>
+    </div>
+
     <input class="input"/>
     <button class="button">go other page</button>
     <div class="anim1 underline heart shape color">hello</div>
@@ -106,6 +112,63 @@
         <!-- 4575675 -->
         <address></address>
     </div>
+
+
+
+
+
+    <script>
+        // const div1 = document.getElementsByClassName('22')[0];
+        // const div2 = document.getElementsByClassName('33')[0];
+        // console.log(
+        //     div1.getBoundingClientRect(),
+        //     div2.getBoundingClientRect(),
+        //     div1.offsetTop,
+        //     div2.offsetTop,
+        //     div1.offsetLeft,
+        //     div2.offsetLeft,
+        //     div1.offsetParent,
+        // )
+
+
+
+        // const div1 = document.getElementsByClassName('22')[0];
+        // const div2 = document.getElementsByClassName('33')[0];
+        // let timer = null;
+        // let key = true;
+        // div1.onclick(function () {
+        //     // 默认锁是打开的，允许执行第一次
+        //     // 函数执行完，关闭锁，下次定时函数还没被清除的时候，不能再次执行
+        //     if (key) {
+        //         timer = setInterval(() => {
+        //             window.scrollBy(0, 10)
+        //         }, 10);
+        //         key = false;
+        //     }
+        // });
+        // div2.onclick = function () {
+        //     clearInterval(timer);
+        //     key = true;
+        // }
+
+
+
+        // let key = true;
+        // div1.onclick = function () {
+        //     if(key) {
+        //         div1.style.backgroundColor = 'green';
+        //         key = false;
+        //     } else {
+        //         div1.style.backgroundColor = 'grey';
+        //         key = true;
+        //     }
+        // }
+
+
+
+
+
+    </script>
 
     <script>
         // const ele = document.getElementsByClassName('11')[0]
@@ -2068,6 +2131,9 @@
     // }
 
 
+
+    
+
     // 'use strict';
     // console.log(this) // 全局this打印window
     // function test() {
@@ -2081,15 +2147,22 @@
 
 
     // console.log(
-
     //     HTMLHeadElement.prototype.__proto__ === HTMLElement.prototype
-
     // )
 
 
 
-    document.insertBefore('div', document.getElementsByClassName('11'))
+    // const date1 = new Date().getTime()
+    // for (let i = 0; i < 10000000; i++) {}
+    // const data2 = new  Date().getTime()
+    // console.log(data2 - date1)
 
+
+
+    // let firstTime = new Date().getTime();
+    // const timer1 = setInterval(function () {}, 1000)
+    // const timer2 = setTimeout(function () {}, 1000)
+    // console.log(timer1, timer2)
     
 
   </script>

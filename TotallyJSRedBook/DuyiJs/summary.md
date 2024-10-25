@@ -1789,6 +1789,22 @@ console.log(span.nextSibling)
   2. 火狐不兼容（火狐拥有的是textContent）
 
 
+#### css类
+1. dom.className
+  1. 读取：拿到class的内容
+  2. 写入：字符串
+
+2. dom.style
+  1. 读取：拿到行内样式（大驼峰写法）
+  2. 写入：字符串形式，如‘300px’
+  
+- PS：获取当前元素的显示出来的所有样式（不仅是行内样式）：window.getComputedStyle(div, null)
+  - 输入第一个参数是节点，第二个参数是伪元素（'after'），输出一个对象，只读不修改！！
+  - ie8及以下不支持（ie8有另一个方法：dom.currentStyle）
+
+
+
+
 ### 方法
 #### 信息类
 
@@ -1971,5 +1987,182 @@ document.getElementByName('*')
   - 输入两个节点，前是新，后是老（要被替换掉的那个）
   - dom节点下面的范围
 
+
+
+
+## 尺寸与滚动
+### 尺寸
+#### 大body：滚动条距离（相对于视口顶端）
+1. window.pageXOffset / pageYOffset
+（ie9及以上可以使用）
+
+2. document.body.scrollLeft / scrollTop
+3. document.documentElement.scrollLeft / scrollTop
+（ie8及以下可以使用，但哪个版本哪个有效不知道，所以写的时候要兼容；且一旦一个有效，另一个就是0）
+
+
+#### 可视窗口尺寸
+1. window.innerWidth / innerHeight：随着浏览器的缩放也会发生改变
+（ie8及以下不兼容）
+
+2. document.documentElement.clientWidth / clientHeight
+（标准模式下，任意浏览器都兼容）
+
+3. document.body.clientWidth / clientHeight
+（混杂模式下）
+
+
+#### 元素的尺寸
+1. dom.getBoundingClientRect()：
+  1. width、height
+（返回的结果是拷贝值，不是实时的，不会跟着dom的变化而变化）
+
+2. dom.offsetWidth / offsetHeight：是视觉上的尺寸（包含padding，不包含margin）
+
+#### 元素的位置
+1. dom.getBoundingClientRect()：相对于视口左上角的坐标
+  1. left、right、top、bottom
+（返回的结果是拷贝值，不是实时的，不会跟着dom的变化而变化）
+
+2. dom.offsetLeft / offsetTop：没有定位父级的元素（position为static），相对于文档。有定位父级，相对于最近的有定位父级
+- PS：！！dom.offsetParent：返回最近的有定位父级的节点，否则返回<body>
+
+
+### 滚动
+1. window.scroll()
+2. window.scrollTo()
+（传入x和y坐标，让滚动条滚动到当前的位置，只滚动到某个点）
+
+3. window.scrollBy()
+（传入x和y坐标，让滚动条滚动到当前的位置，可以实现累加滚动）
+
+
+- 小例子：页面自动滚动，可以暂停
+- 思路：
+  - 随时滚动：用setInterval，隔很小时间执行滚动一次
+  - 滚动累加：滚动用scrollBy做累加
+  - 停止用clearInterval
+  - 进阶：！！如果用户不断点击按钮怎么办？不断生成更多的timer，导致暂停也不行，只能暂停最后被保留下来的那个
+    - 问题简化为：回调函数在结束前执行次数大于1次，但目标是只需执行一次
+    - 解答：锁机制！！！第一次执行，锁打开，执行完一次就关上。结束函数最后才重新打开锁
+
+```
+const div1 = document.getElementsByClassName('22')[0];
+const div2 = document.getElementsByClassName('33')[0];
+let timer = null;
+let key = true;
+div1.onclick(function () {
+    // 默认锁是打开的，允许执行第一次
+    // 函数执行完，关闭锁，下次定时函数还没被清除的时候，不能再次执行
+    if (key) {
+        timer = setInterval(() => {
+            window.scrollBy(0, 10)
+        }, 10);
+        key = false;
+    }
+});
+div2.onclick = function () {
+    clearInterval(timer);
+    key = true;
+}
+```
+
+
+# 时间相关
+## date对象
+### 新建
+- 新建一个实例
+```
+const date = new Date();
+```
+（注意！不是实时的，每次要获得最新的时间，必须新建一个实例）
+
+### 方法
+#### 相对时间
+
+- 获取时间
+1. getDate()：一个月的第xx天（1-31）(几号)
+2. getDay()：一个星期的第xx天（星期几）
+3. getFullYear()：第几年（xxxx）
+4. getMonth()：第几个月（0-11）
+5. getHours()：第几小时（24小时制）（0-23）
+6. getMinutes()：第几分钟（0-59）
+7. getSeconds()：第几秒（0-59）
+8. getMiliseconds()：第几毫秒（0-999）
+
+- 定义时间
+1. setDate()：....（见上）....
+....（见上）....
+
+
+#### 绝对时间
+1. getTime()：1970年1月1日（纪元时刻）至今的毫秒数（重要！作为时间戳）
+const date1 = new Date().getTime()
+for (let i = 0; i < 10000000; i++) {}
+const data2 = new  Date().getTime()
+console.log(data2 - date1)
+
+
+
+## 定时器
+### setInterval
+
+1. 建立循环器
+```
+setInterval(function () {}, 1000)
+```
+
+
+- 循环器准不准？：不准！！
+```
+let firstTime = new Date().getTime();
+setInterval(function () {
+    let lastTime = new Date().getTime();
+    console.log(lastTime - firstTime);
+    firstTime = lastTime;
+}, 1000)
+```
+
+js的执行是遵循时间切片的，每次setInterval的函数执行是放入队列中，并不是真正的执行
+
+
+- 循环器的返回值是什么？：返回一个数字，作为timer的唯一标识
+```
+const timer1 = setInterval(function () {}, 1000)
+const timer2 = setInterval(function () {}, 1000)
+console.log(timer1, timer2)
+// 打印1和2
+```
+
+
+2. 消除循环器
+```
+clearInterval(timer)
+```
+
+
+### setTimeout
+
+1. 建立定时器
+```
+setTimeout(function () {}, 1000)
+```
+
+
+- 定时器的返回值和循环器的返回值会重叠吗？不会，一起在一个标识列表中
+```
+const timer1 = setInterval(function () {}, 1000)
+const timer2 = setTimeout(function () {}, 1000)
+console.log(timer1, timer2)
+// 还是打印1和2
+```
+
+2. 消除定时器
+```
+clearTimeout(timer)
+```
+
+### 注意
+两个setInterval和setTimeout里面的this都是指向window，严格模式也是！！
 
 
