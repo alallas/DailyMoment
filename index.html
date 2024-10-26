@@ -114,6 +114,12 @@
     </div>
 
 
+    <div class="outter" style="width: 100px; height: 100px; background-color: #d3d3d3;">
+        <div class="middle" style="width: 50px; height: 50px; background-color: #666666;">
+            <div class="inner" style="width: 25px; height: 25px; background-color: #282828;">
+            </div>
+        </div>
+    </div>
 
 
 
@@ -163,6 +169,71 @@
         //         key = true;
         //     }
         // }
+
+
+        // // 打印两次aa
+        // div1.addEventListener('click', function () {
+        //     console.log('aa')
+        // }, false)
+        // div1.addEventListener('click', function () {
+        //     console.log('aa')
+        // }, false)
+
+
+        // // 只会打印一次aa
+        // div1.addEventListener('click', test, false)
+        // div1.addEventListener('click', test, false)
+        // function test() {
+        //     console.log('aa')
+        // }
+
+
+        // div1.attachEvent('onclick', function () {
+        //     test.call(div1)
+        // })
+
+
+        // const outter = document.getElementsByClassName('outter')[0];
+        // const middle = document.getElementsByClassName('middle')[0];
+        // const inner = document.getElementsByClassName('inner')[0];
+
+
+        // outter.addEventListener('click', () => {
+        //     console.log('outter')
+        // }, true)
+        // middle.addEventListener('click', () => {
+        //     console.log('middle')
+        // }, true)
+
+
+        // outter.addEventListener('click', () => {
+        //     console.log('outter Bubble')
+        // }, false)
+        // middle.addEventListener('click', () => {
+        //     console.log('middle Bubble')
+        // }, false)
+        // inner.addEventListener('click', () => {
+        //     console.log('inner Bubble')
+        // }, true)
+        // inner.addEventListener('click', () => {
+        //     console.log('inner')
+        // }, true)
+
+
+        // // 写法一
+        // a.onclick = function () {
+        //     return false;
+        // }
+
+        // // 写法二
+        // // javascript:后面如果写void()，括号内表示函数的返回值
+        // <a href="javascript:void(false)">click me</a>
+
+
+
+
+
+
 
 
 

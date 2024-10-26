@@ -2166,3 +2166,246 @@ clearTimeout(timer)
 两个setInterval和setTimeout里面的this都是指向window，严格模式也是！！
 
 
+
+
+
+# 事件
+## 事件绑定与解除（定义回调函数）
+
+1. dom.onxxx = function () {}
+- 优点：兼容性很好，就是给对象写方法！！
+- 缺点：一个dom的一个事件只能绑定一个函数（不断覆盖之前的）
+- 相当于：（句柄绑定方式）
+```
+<div onclick='console.log()'></div>
+```
+
+- this指向dom本身
+- 解除事件：dom.onxxx = null;
+
+
+
+2. dom.addEventListener('click', function () {}, false)
+- 优点：一个dom的一个事件可以绑定多个函数，按照代码编写顺序从上往下执行
+  - 前提：两个函数地址不一样，如果都是同一个函数引用，只打印一次
+
+```
+// 打印两次aa
+div1.addEventListener('click', function () {
+    console.log('aa')
+}, false)
+div1.addEventListener('click', function () {
+    console.log('aa')
+}, false)
+
+// 只会打印一次aa
+div1.addEventListener('click', test, false)
+div1.addEventListener('click', test, false)
+function test() {
+    console.log('aa')
+}
+```
+
+- 缺点：ie9以下不兼容
+
+- this指向dom本身
+- 解除事件：dom.removeEventListener('click', function () {}, false);
+
+
+
+3. dom.attachEvent('on' + 事件类型, function () {})
+- 优点：一个dom的一个事件绑定多个函数，不要求函数的地址必须一致，都会执行
+- 缺点：ie独有的方法
+
+- this指向window
+// 函数写在外面，里面用call改变this
+div1.attachEvent('onclick', function () {
+    test.call(div1)
+})
+- 解除事件：dom.detachEvent('on' + 事件类型, function () {})
+
+
+
+
+
+## 事件处理模型（传递关系）
+### 事件冒泡
+
+- 结构上，点击子元素，子元素的事件回调函数触发一层一层向上，直到顶层父元素的回调函数触发完毕
+- 顺序：从内层向外层
+```
+dom.addEventListener('click', function () {}, false)
+// 第三个参数默认是false，不输入也行
+// false表示事件冒泡
+```
+
+- 不管点击的元素本身有无事件监听函数，只要他的父亲有（或儿子有（捕获）），就会触发
+
+
+
+### 事件捕获
+- 结构上，点击父元素，父元素的事件回调函数触发一层一层向下，直到底层子元素的回调函数触发完毕
+```
+dom.addEventListener('click', function () {}, true)
+```
+// 第三个参数true表示事件冒泡
+
+
+### 处理顺序
+1. 非自身的回调函数：先捕获，后冒泡
+2. 自身的回调函数：先执行定义在前面的函数！！
+  1. 经过测试！！！不一定！！！也是按照【先捕获后冒泡】的顺序
+  2. 如果都是捕获或者都是冒泡，先执行定义在前面的函数！！
+
+- 例子：
+
+```
+const outter = document.getElementsByClassName('outter')[0];
+const middle = document.getElementsByClassName('middle')[0];
+const inner = document.getElementsByClassName('inner')[0];
+
+outter.addEventListener('click', () => {
+    console.log('outter Bubble')
+}, false)
+middle.addEventListener('click', () => {
+    console.log('middle Bubble')
+}, false)
+inner.addEventListener('click', () => {
+    console.log('inner Bubble')
+}, false)
+
+outter.addEventListener('click', () => {
+    console.log('outter')
+}, true)
+middle.addEventListener('click', () => {
+    console.log('middle')
+}, true)
+inner.addEventListener('click', () => {
+    console.log('inner')
+}, true)
+```
+
+- 上述代码打印的结果是
+```
+// 疑问：我打印的是下面
+outter
+middle
+inner
+inner Bubble
+middle Bubble
+outter Bubble
+
+// 但老师打印的是
+outter
+middle
+inner Bubble
+inner
+middle Bubble
+outter Bubble
+```
+
+3. 注意！以下事件不冒泡（基本都是表单事件）
+  1. Focus
+  2. Blur
+  3. Change
+  4. Submit
+  5. Reset
+  6. Select
+  
+
+### 事件委托
+- 基于事件冒泡的原理：
+  - 针对【多个（相似）dom】的事件监听，或【不断有新dom产生的一个dom“列表”】的监听
+  - 包裹一个父元素，只绑定一次函数
+  - 通过event.target对象拿到每个子dom的值
+
+```
+ul.onclick = function (e) {
+    const event = e || window.event;
+    const target = event.target || event.srcElement;
+    console.log(target.innerText);
+}
+```
+
+
+
+
+### 阻止事件
+
+1. 阻止事件冒泡
+- 事件回调函数的入参是一个事件对象，上面有一个方法是event.stopPropagation()
+  - （不支持ie9以下的版本）
+
+```
+div.onclick = function (event) {
+    event.stopPropagation();
+}
+```
+
+- event.cancelBubble = true
+  - （ie独有的方法）
+
+
+
+
+2. 阻止默认事件
+
+- 浏览器默认事件：（已经写好在内核的回调函数）
+  - 表单提交
+  - a标签：跳转页面或到页面顶部（写了#）
+  - 右键出现菜单事件（oncontextmenu）
+
+
+1. document.oncontextmenu = function () { return false }
+- 直接return false，兼容性很好
+
+2. event。preventDefault()
+- ie9以下不兼容
+
+3. event.returnValue = false
+- 兼容ie
+
+
+- 例子：取消a标签的默认事件
+
+```
+// 写法一
+a.onclick = function () {
+    return false;
+}
+
+// 写法二
+// javascript:后面如果写void()，括号内表示函数的返回值
+<a href="javascript: void(false)">click me</a>
+```
+
+
+### 事件对象
+
+#### 拿到事件对象
+
+1. ie浏览器：window.event
+2. 其他：event（函数入参）
+
+```
+// 需要兼容
+dom.onclick = function (e) {
+    const event = e || window.event;
+}
+```
+
+
+#### 属性
+
+1. 事件源对象：用户实际点击的标签是谁
+- target：火狐只有这个，谷歌也有这个
+- srcElement：IE只有这个，谷歌也有这个
+
+```
+// 需要兼容
+dom.onclick = function (e) {
+    const event = e || window.event;
+    const target = event.target || event.srcElement;
+}
+```
+
