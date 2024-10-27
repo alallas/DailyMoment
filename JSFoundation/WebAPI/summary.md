@@ -1,74 +1,5 @@
-## DOM
-创建节点
-- createElement
-- cloneNode
-- appendChild
 
-
-## 事件onXXX
-### 基础写法
-
-1. 如果是原生的，不要加on，直接click
-```
-const input = document.querySelector('.input')
-input.addEventListener('change', () => test())
-function test() {
-    console.log('on!!')
-}
-```
-
-2. 如果是有框架的，要加on
-
-
-### 表单相关
-- onBlur：元素失去焦点的时候触发
-- onFocus：某个元素获得焦点触发的事件
-- onReset：RESET属性被激发时触发
-- onSubmit：提交时触发
-- onInput：每次输入框内容有变都会触发（包括加入内容和按下backspace键）
-- onChange：元素失去焦点并且元素的内容发生改变（两个条件都会满足的时候才会执行）
-
-
-### 页面交互相关
-- onLoad：整个页面及所有依赖资源如样式表和图片都已完成加载时触发（与DOMContentLoaded不同，后者只要页面 DOM 加载完成就触发，无需等待依赖资源的加载。）
-
-- onBeforeunload：当浏览器窗口关闭或者刷新时触发。（事件使网页能够触发一个确认对话框，询问用户是否真的要离开该页面。如果用户确认，浏览器将导航到新页面，否则导航将会取消。）
-- onHashChange：当 URL 的片段标识符（以 # 符号开头和之后的 URL 部分）更改时触发 
-
-### 用户具体操作交互相关
-- onResize：浏览器的窗口大小发生变化
-- onScroll：滚动条发生变化
-- onClick：每次点击鼠标
-
-- onKeyPress：当键盘上的某个键被按下并且释放时触发的事件（页面内必须有被聚焦的对象）
-
-
-
-## 监听器
-### addListener
-
-1. 情况一：多个监听器监听同个对象同个动作（没有第三个参数）
-  此时是事件冒泡，从叶子dom往上开始向上冒泡，并依次触发所有监听器。
-  回调函数从上往下按照顺序执行
-2. 情况二：多个监听器监听同个对象同个动作（有第三个参数，为true）
-  此时是事件捕获，按照从根元素一层层往叶子元素的顺序监听
-  回调函数从下往上反顺序执行
-3. 几个额外api：
-  1. 默认行为：
-  某些事件（如 click 事件）可能会触发元素的默认行为（如链接跳转）。比如，我想针对a标签做一些点击之后的操作，但是不想点击之后他跳转到别的连接，那么调用 `event.preventDefault()`
-
-```
-<a href="https://example.com" id="myLink">Click me</a>
-
-document.getElementById('myLink').addEventListener('click', function(event) {
-    event.preventDefault(); // 阻止默认导航行为
-    alert('Link clicked, but no navigation');
-});
-```
-
-  2. 事件传播：在事件处理函数中，你可以使用 event.stopPropagation() 来阻止事件继续传播，这将影响事件的冒泡或捕获行为。
-
-
+## Observer对象
 
 ### MutationObserver
 利用 MutationObserver API 我们可以监视 DOM 的变化。DOM 的任何变化，比如节点的增加、减少、属性的变动、文本内容的变动，通过这个 API 我们都可以得到通知。
@@ -201,57 +132,36 @@ location.host 返回域名？NOOOOOO！！
 
 
 
+## date对象
+### 新建
+- 新建一个实例
+const date = new Date();
+（注意！不是实时的，每次要获得最新的时间，必须新建一个实例）
 
-## 尺寸相关
-### scrollTop
-- 常用于：body
-- 解释：scrollTop 是视口顶部距离内容顶部的垂直距离。
+### 方法
+#### 相对时间
 
-### innerHeight
-- 常用于：window
-- 解释：浏览器视口高度
+- 获取时间
+1. getDate()：一个月的第xx天（1-31）(几号)
+2. getDay()：一个星期的第xx天（星期几）
+3. getFullYear()：第几年（xxxx）
+4. getMonth()：第几个月（0-11）
+5. getHours()：第几小时（24小时制）（0-23）
+6. getMinutes()：第几分钟（0-59）
+7. getSeconds()：第几秒（0-59）
+8. getMiliseconds()：第几毫秒（0-999）
 
-### scrollHeight
-- 常用于：长数据列表的dom，body
-- 解释：scrollHeight 是一个元素内容的整体高度，包括那些因为溢出而不在当前视口内的部分。
+- 定义时间
+1. setDate()：....（见上）....
+....（见上）....
 
 
-代码参考：（滚动随时刷新）
+#### 绝对时间
+1. getTime()：1970年1月1日（纪元时刻）至今的毫秒数（重要！作为时间戳）
 ```
-class Scrolling extends React.Component(){
-    constructor(props){
-        super(props);
-        this.listRef=React.createRef();
-    }
-    getSnapshotBeforeUpdate(prevProps,prevState){
-        if(prevProps.list.length<this.props.list.length){
-            let list =this.listRef.current;
-            return list.scrollHeight-list.scrollTop;
-        }
-        return null;
-    }
-    componentDidUpdate(prevProps,prevState,snapshot){
-        if(snapshot!==null){
-            let list =this.listRef.current;
-            list.scrollTop=list.scrollHeight-snapshot;
-        }
-    }
-    render(){
-        return(
-            <div ref={this.listRef}>xxxxxxxx</div>
-        )
-    }
-}
+const date1 = new Date().getTime()
+for (let i = 0; i < 10000000; i++) {}
+const data2 = new  Date().getTime()
+console.log(data2 - date1)
 ```
 
-因为内容（this.props.list）的长度会随时变化，所以ScrollHeight也会随时变化，每次都会增加list.length增加的部分，因此scrollTop也会增加这一部分，因此滚动位置是随时刷新的
-
-### offsetTop
-- 常用于：单个小的dom
-- 解释：一个元素（的border顶部）距离最近具有定位（非static）的父级元素（的padding顶部）的距离。（一个元素距离body的顶部的距离）
-
-### getBoundingClientRect
-- 常用于：单个小的dom
-- 解释：
-  - top：一个元素距离浏览器视口顶部的距离
-  - bottom：一个元素距离浏览器视口底部的距离...

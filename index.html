@@ -200,8 +200,8 @@
 
 
         const outter = document.getElementsByClassName('outter')[0];
-        // const middle = document.getElementsByClassName('middle')[0];
-        // const inner = document.getElementsByClassName('inner')[0];
+        const middle = document.getElementsByClassName('middle')[0];
+        const inner = document.getElementsByClassName('inner')[0];
 
 
         // outter.addEventListener('click', () => {
@@ -218,12 +218,12 @@
         // middle.addEventListener('click', () => {
         //     console.log('middle Bubble')
         // }, false)
-        // inner.addEventListener('click', () => {
-        //     console.log('inner Bubble')
-        // }, true)
-        // inner.addEventListener('click', () => {
-        //     console.log('inner')
-        // }, true)
+        inner.addEventListener('click', () => {
+            console.log('inner Bubble')
+        }, true)
+        inner.addEventListener('click', () => {
+            console.log('inner')
+        }, true)
 
 
         // // 写法一
@@ -287,69 +287,69 @@
         // }
 
 
-        document.onkeydown = function (e) {
-            console.log('down', e)
-        }
-
-        document.onkeypress = function (e) {
-            console.log('press', e)
-            console.log(String.fromCharCode(e.charCode))
-        }
-
-
-
-        function asyncLoadScript(url, callback) {
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-
-            if (script.readyState) {
-                script.onreadystatechange = function () {
-                    if (script.readyState === 'complete' || script.readyState === 'loaded') {
-                        callback();
-                    }
-                }
-            } else {
-                script.onload = function () {
-                    callback();
-                }
-            }
-
-            // 为什么要把回调函数写在下载前？？？？？
-            // 如果下载写在回调函数前面，万一下载是一瞬间的事，还没执行到【定义回调函数】的代码时，就已经下载完，错过了onload的时机
-            // 回调函数即使被定义也永远不会执行了
-            script.src = url;
-            document.head.appendChild(script);
-        }
-
-
-        asyncLoadScript('tools.js', test)
-        // 直接写tools.js里面的test的函数名报错
-        // 执行到上面这一行的时候，预编译并不知道asyncLoadScript的具体执行内容，所以在这test找不到
-
-        // 使用函数引用的方法，传入一个新函数，里面包裹目标函数
-        // 在这不需要知道新函数的函数体，传入到回调函数，回调函数真正执行的时候，tools.js已经下载完毕，test肯定就能找到了
-        asyncLoadScript('tools.js', function () { test() })
-
-
-
-        // 办法二，传入字符串，用eval()执行
-        script.onload = function () {
-            eval(callback);
-        }
-        asyncLoadScript('tools.js', 'test()')
-
-
-
-        // 办法三：tools.js导出一个对象，里面的属性对应的就是一个方法，直接调用属性
-        // const tools = {
-        //     test: function () {},
-        //     demo: function () {},
+        // document.onkeydown = function (e) {
+        //     console.log('down', e)
         // }
-        script.onload = function () {
-            // tools是导出的对象名字
-            tools[callback]();
-        }
-        asyncLoadScript('tools.js', 'test')
+
+        // document.onkeypress = function (e) {
+        //     console.log('press', e)
+        //     console.log(String.fromCharCode(e.charCode))
+        // }
+
+
+
+        // function asyncLoadScript(url, callback) {
+        //     const script = document.createElement('script');
+        //     script.type = 'text/javascript';
+
+        //     if (script.readyState) {
+        //         script.onreadystatechange = function () {
+        //             if (script.readyState === 'complete' || script.readyState === 'loaded') {
+        //                 callback();
+        //             }
+        //         }
+        //     } else {
+        //         script.onload = function () {
+        //             callback();
+        //         }
+        //     }
+
+        //     // 为什么要把回调函数写在下载前？？？？？
+        //     // 如果下载写在回调函数前面，万一下载是一瞬间的事，还没执行到【定义回调函数】的代码时，就已经下载完，错过了onload的时机
+        //     // 回调函数即使被定义也永远不会执行了
+        //     script.src = url;
+        //     document.head.appendChild(script);
+        // }
+
+
+        // asyncLoadScript('tools.js', test)
+        // // 直接写tools.js里面的test的函数名报错
+        // // 执行到上面这一行的时候，预编译并不知道asyncLoadScript的具体执行内容，所以在这test找不到
+
+        // // 使用函数引用的方法，传入一个新函数，里面包裹目标函数
+        // // 在这不需要知道新函数的函数体，传入到回调函数，回调函数真正执行的时候，tools.js已经下载完毕，test肯定就能找到了
+        // asyncLoadScript('tools.js', function () { test() })
+
+
+
+        // // 办法二，传入字符串，用eval()执行
+        // script.onload = function () {
+        //     eval(callback);
+        // }
+        // asyncLoadScript('tools.js', 'test()')
+
+
+
+        // // 办法三：tools.js导出一个对象，里面的属性对应的就是一个方法，直接调用属性
+        // // const tools = {
+        // //     test: function () {},
+        // //     demo: function () {},
+        // // }
+        // script.onload = function () {
+        //     // tools是导出的对象名字
+        //     tools[callback]();
+        // }
+        // asyncLoadScript('tools.js', 'test')
 
 
 
