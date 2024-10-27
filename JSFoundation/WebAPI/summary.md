@@ -133,19 +133,21 @@ location.host 返回域名？NOOOOOO！！
 
 
 ## date对象
-### 新建
+### 新建实例
 - 新建一个实例
 const date = new Date();
 （注意！不是实时的，每次要获得最新的时间，必须新建一个实例）
 
-### 方法
+### 获取时间
 #### 相对时间
 
 - 获取时间
-1. getDate()：一个月的第xx天（1-31）(几号)
-2. getDay()：一个星期的第xx天（星期几）
-3. getFullYear()：第几年（xxxx）
-4. getMonth()：第几个月（0-11）
+1. getFullYear()：第几年（xxxx）
+2. getMonth()：第几个月（0-11）
+
+3. getDate()：一个月的第xx天（1-31）(几号)
+4. getDay()：一个星期的第xx天（星期几）
+
 5. getHours()：第几小时（24小时制）（0-23）
 6. getMinutes()：第几分钟（0-59）
 7. getSeconds()：第几秒（0-59）
@@ -164,4 +166,42 @@ for (let i = 0; i < 10000000; i++) {}
 const data2 = new  Date().getTime()
 console.log(data2 - date1)
 ```
+
+2. Date.now()：返回自1970年1月1日 00:00:00到当前时间的毫秒数（不需要创建一个 Date 对象的实例！！！更省内存！更快！）
+```
+let timestamp = Date.now();
+console.log(timestamp);
+// 1611814153365
+```
+
+
+### 按照本地语言显示日期
+toLocaleString() 将日期和时间转换为本地化的字符串表示形式
+- 参数
+  - locales：一个字符串或字符串数组，表示要使用的本地化环境。（默认使用运行环境的默认语言环境）
+  - options：一个对象，包含定制的日期和时间的格式。
+
+```
+let date = new Date();
+console.log(date.toLocaleString()); 
+// 输出当前日期和时间的本地化字符串，例如 "4/20/2023, 12:00:00 PM"
+
+let date = new Date();
+console.log(date.toLocaleString('en-US')); 
+// 输出使用美国英语格式的日期和时间，例如 "4/20/2023, 12:00:00 PM"
+
+let date = new Date();
+console.log(date.toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })); 
+// 输出 "April 20, 2023"
+
+let date = new Date();
+console.log(date.toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true })); 
+// 输出 "12:00:00 PM"
+```
+
+options 对象可以包含以下属性：
+- localeMatcher：指定如何匹配 locales 参数。可能的值有 "lookup" 和 "best fit"。
+- timeZone：指定时区。
+- hour12：指定是否使用 12 小时制（true）或 24 小时制（false）。
+- weekday、year、month、day、hour、minute、second：指定日期和时间的各个部分的显示方式。
 
