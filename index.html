@@ -114,12 +114,18 @@
     </div>
 
 
-    <div class="outter" style="width: 100px; height: 100px; background-color: #d3d3d3;">
+    <div class="outter" style="position: absolute; left: 0px; top: 0px; width: 100px; height: 100px; background-color: #d3d3d3;">
         <div class="middle" style="width: 50px; height: 50px; background-color: #666666;">
             <div class="inner" style="width: 25px; height: 25px; background-color: #282828;">
             </div>
         </div>
     </div>
+
+
+    <input value="请输入" onfocus="if (this.value === '请输入') { this.value = '' }" onblur="if (this.value === '') { this.value = '请输入' }" />
+    <input placeholder="请输入" />
+
+
 
 
 
@@ -193,7 +199,7 @@
         // })
 
 
-        // const outter = document.getElementsByClassName('outter')[0];
+        const outter = document.getElementsByClassName('outter')[0];
         // const middle = document.getElementsByClassName('middle')[0];
         // const inner = document.getElementsByClassName('inner')[0];
 
@@ -231,11 +237,119 @@
 
 
 
+        // 按下鼠标，但不松开
+        outter.onmousedown = function (e) {
+
+            // 按下鼠标的这一刻，鼠标可能在方块的中间
+            // 但移动的那一刻，鼠标位置恢复成默认（dom的坐标原点（左上角））
+
+            // 这对于dom方块来说呢？？？它往右下移动了
+            // （为什么要思考对于方块来说如何，因为移动时改变的是方块的位置而不是鼠标的位置）
+
+            // 移动的时刻：给方块往左上拉，减去【按下时鼠标距离方块原点】的x和y距离
+            let disX = e.pageX - parseInt(outter.style.left);
+            let disY = e.pageY - parseInt(outter.style.top);
+
+            // 鼠标一直按着，开始移动
+            // 注意！按着鼠标移动的时候，对移动事件的监听由document来触发，这样允许鼠标移出了方块也能触发到
+            document.onmousemove = function (e) {
+                const event = e || window.event;
+                outter.style.left = event.pageX - disX + 'px';
+                outter.style.top = event.pageY - disY + 'px';
+            }
+
+            // 松开鼠标
+            // 松开鼠标允许在方块之外松开
+            document.onmouseup = function () {
+                document.onmousemove = null
+            }
+        }
 
 
 
+        // let firstTime = 0, lastTime = 0;
+        // let onClickKey = false;
+
+        // document.onmousedown = function () {
+        //     firstTime = new Date().getTime();
+        // }
+        // document.onmouseup = function () {
+        //     lastTime = new Date().getTime();
+        //     if (lastTime - firstTime < 300) {
+        //         onClickKey = true;
+        //     }
+        // }
+        // document.onclick = function () {
+        //     if (onClickKey) {
+        //         console.log('click');
+        //         onClickKey = false;
+        //     }
+        // }
 
 
+        document.onkeydown = function (e) {
+            console.log('down', e)
+        }
+
+        document.onkeypress = function (e) {
+            console.log('press', e)
+            console.log(String.fromCharCode(e.charCode))
+        }
+
+
+
+        function asyncLoadScript(url, callback) {
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+
+            if (script.readyState) {
+                script.onreadystatechange = function () {
+                    if (script.readyState === 'complete' || script.readyState === 'loaded') {
+                        callback();
+                    }
+                }
+            } else {
+                script.onload = function () {
+                    callback();
+                }
+            }
+
+            // 为什么要把回调函数写在下载前？？？？？
+            // 如果下载写在回调函数前面，万一下载是一瞬间的事，还没执行到【定义回调函数】的代码时，就已经下载完，错过了onload的时机
+            // 回调函数即使被定义也永远不会执行了
+            script.src = url;
+            document.head.appendChild(script);
+        }
+
+
+        asyncLoadScript('tools.js', test)
+        // 直接写tools.js里面的test的函数名报错
+        // 执行到上面这一行的时候，预编译并不知道asyncLoadScript的具体执行内容，所以在这test找不到
+
+        // 使用函数引用的方法，传入一个新函数，里面包裹目标函数
+        // 在这不需要知道新函数的函数体，传入到回调函数，回调函数真正执行的时候，tools.js已经下载完毕，test肯定就能找到了
+        asyncLoadScript('tools.js', function () { test() })
+
+
+
+        // 办法二，传入字符串，用eval()执行
+        script.onload = function () {
+            eval(callback);
+        }
+        asyncLoadScript('tools.js', 'test()')
+
+
+
+        // 办法三：tools.js导出一个对象，里面的属性对应的就是一个方法，直接调用属性
+        // const tools = {
+        //     test: function () {},
+        //     demo: function () {},
+        // }
+        script.onload = function () {
+            // tools是导出的对象名字
+            tools[callback]();
+        }
+        asyncLoadScript('tools.js', 'test')
 
 
 

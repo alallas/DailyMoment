@@ -2070,105 +2070,6 @@ div2.onclick = function () {
 ```
 
 
-# 时间相关
-## date对象
-### 新建
-- 新建一个实例
-```
-const date = new Date();
-```
-（注意！不是实时的，每次要获得最新的时间，必须新建一个实例）
-
-### 方法
-#### 相对时间
-
-- 获取时间
-1. getDate()：一个月的第xx天（1-31）(几号)
-2. getDay()：一个星期的第xx天（星期几）
-3. getFullYear()：第几年（xxxx）
-4. getMonth()：第几个月（0-11）
-5. getHours()：第几小时（24小时制）（0-23）
-6. getMinutes()：第几分钟（0-59）
-7. getSeconds()：第几秒（0-59）
-8. getMiliseconds()：第几毫秒（0-999）
-
-- 定义时间
-1. setDate()：....（见上）....
-....（见上）....
-
-
-#### 绝对时间
-1. getTime()：1970年1月1日（纪元时刻）至今的毫秒数（重要！作为时间戳）
-const date1 = new Date().getTime()
-for (let i = 0; i < 10000000; i++) {}
-const data2 = new  Date().getTime()
-console.log(data2 - date1)
-
-
-
-## 定时器
-### setInterval
-
-1. 建立循环器
-```
-setInterval(function () {}, 1000)
-```
-
-
-- 循环器准不准？：不准！！
-```
-let firstTime = new Date().getTime();
-setInterval(function () {
-    let lastTime = new Date().getTime();
-    console.log(lastTime - firstTime);
-    firstTime = lastTime;
-}, 1000)
-```
-
-js的执行是遵循时间切片的，每次setInterval的函数执行是放入队列中，并不是真正的执行
-
-
-- 循环器的返回值是什么？：返回一个数字，作为timer的唯一标识
-```
-const timer1 = setInterval(function () {}, 1000)
-const timer2 = setInterval(function () {}, 1000)
-console.log(timer1, timer2)
-// 打印1和2
-```
-
-
-2. 消除循环器
-```
-clearInterval(timer)
-```
-
-
-### setTimeout
-
-1. 建立定时器
-```
-setTimeout(function () {}, 1000)
-```
-
-
-- 定时器的返回值和循环器的返回值会重叠吗？不会，一起在一个标识列表中
-```
-const timer1 = setInterval(function () {}, 1000)
-const timer2 = setTimeout(function () {}, 1000)
-console.log(timer1, timer2)
-// 还是打印1和2
-```
-
-2. 消除定时器
-```
-clearTimeout(timer)
-```
-
-### 注意
-两个setInterval和setTimeout里面的this都是指向window，严格模式也是！！
-
-
-
 
 
 # 事件
@@ -2410,4 +2311,440 @@ dom.onclick = function (e) {
     const target = event.target || event.srcElement;
 }
 ```
+
+
+### 事件分类
+
+#### 鼠标事件
+
+（有on的版本）
+1. onclick：鼠标点击
+  1. 等于onmousedown + onmouseup
+  2. 只能监听左键，不能监听右键
+  
+2. onmousedown：鼠标按下不松开
+3. onmouseup：鼠标松开
+- onmousedown和onmouseup的事件对象的button属性（其他没有，尤其是onclick没有！！）
+  - button：0：左键
+  - button：1：中间键
+  - button：2：右键
+
+4. onmousemove：鼠标移动
+- 移动端的三件套是（touchstart、touchend、touchmove）
+
+（css的hover）
+5. onmouseover / onmouseenter：鼠标闯进某dom区域
+6. onmouseout / onmouseleave：鼠标离开某dom区域
+
+7. oncontextmenu：右键出菜单
+
+
+- 问题：如何区分拖拽的点击？
+  - 看【点击的瞬间与onmouseup的时间差】
+
+```
+let firstTime = 0, lastTime = 0;
+let onClickKey = false;
+// 定义一个开关，表示区分出了click事件
+
+document.onmousedown = function () {
+    firstTime = new Date().getTime();
+}
+document.onmouseup = function () {
+    lastTime = new Date().getTime();
+    if (lastTime - firstTime < 300) {
+        onClickKey = true;
+    }
+}
+document.onclick = function () {
+    if (onClickKey) {
+        console.log('click');
+        onClickKey = false;
+        // 末尾做完click该做的事情之后关闭开关
+    }
+}
+```
+
+- 例子：拖拽
+
+```
+// 按下鼠标，但不松开
+outter.onmousedown = function (e) {
+
+    // 按下鼠标的这一刻，鼠标可能在方块的中间
+    // 但移动的那一刻，鼠标位置恢复成默认（dom的坐标原点（左上角））
+
+    // 这对于dom方块来说呢？？？它往右下移动了
+    // （为什么要思考对于方块来说如何，因为移动时改变的是方块的位置而不是鼠标的位置）
+
+    // 移动的时刻：给方块往左上拉，减去【按下时鼠标距离方块原点】的x和y距离
+    let disX = e.pageX - parseInt(outter.style.left);
+    let disY = e.pageY - parseInt(outter.style.top);
+
+    // 鼠标一直按着，开始移动
+    // 注意！按着鼠标移动的时候，对移动事件的监听由document来触发，这样允许鼠标移出了方块也能触发到
+    document.onmousemove = function (e) {
+        const event = e || window.event;
+        outter.style.left = event.pageX - disX + 'px';
+        outter.style.top = event.pageY - disY + 'px';
+    }
+
+    // 松开鼠标
+    // 松开鼠标允许在方块之外松开
+    document.onmouseup = function () {
+        document.onmousemove = null
+    }
+}
+```
+
+#### 键盘事件
+
+1. onkeydown：键盘按着不松开，连续一直按着，事件一直被不断触发
+  1. charCode永远是0，keyCode和which是按键位置码，不能识别按下了什么字符（不能区分大小写）
+  2. 监测到所有按键
+2. onkeypress：键盘按着不松开，连续一直按着，事件一直被不断触发
+  1. charCode是按键的ascii码， 是对的。keyCode和which是按键位置码（能区分大小写）
+  2. 只能监测到字符按键（ascii表里面有的）
+```
+// 识别ascii码转换成字符
+console.log(String.fromCharCode(e.charCode))
+```
+
+3. onkeyup：键盘松开
+- onkeydown > onkeypress > onkeyup
+
+
+#### 文本事件
+
+1. oninput
+  1. 触发时机：鼠标聚焦 + 输入（输入一次触发一次，只要输入框内容变了都会触发）
+
+2. onchange
+  1. 触发时机：鼠标聚焦 + 输入不同的字符 + 鼠标失去焦点（如果两次时机的字符串一样，不会触发事件）
+
+
+
+- placeholder的底层写法
+
+```
+<input placeholder="请输入" />
+
+// 底层写法：
+<input value="请输入" onfocus="if (this.value === '请输入') { this.value = '' }" onblur="if (this.value === '') { this.value = '请输入' }" />
+```
+
+#### 窗口事件
+
+1. onscroll：滚动
+
+2. onload：dom的资源下载完 / window加载完       （除了ie不兼容，其他都兼容）
+  1. window.onload 的触发时机：dom【解析完】，且图片、css、js等资源【下载完】且【执行完】，才执行回调函数
+  2. dom.onload 的触发时机：dom的资源【下载完】，还【没执行】（这里的dom代指script、img、iframe等需要外部资源的标签）
+- DOMContentLoaded：dom【解析完】，但图片、css、js等资源可能没有下载完
+
+```
+// ie的script标签上有readyState的属性
+if (script.readyState) {
+    // 监听readyState属性是否发生变化
+    script.onreadystatechange = function () {
+        if (script.readyState === 'complete' || script.readyState === 'loaded') {
+            test();
+        }
+    }
+} else {
+    // 除了ie之外的其他浏览器
+    script.onload = function () {
+        test();
+    }
+}
+```
+
+
+# 工具类API
+## date对象
+### 新建
+- 新建一个实例
+const date = new Date();
+（注意！不是实时的，每次要获得最新的时间，必须新建一个实例）
+
+#### 方法
+##### 相对时间
+
+- 获取时间
+1. getDate()：一个月的第xx天（1-31）(几号)
+2. getDay()：一个星期的第xx天（星期几）
+3. getFullYear()：第几年（xxxx）
+4. getMonth()：第几个月（0-11）
+5. getHours()：第几小时（24小时制）（0-23）
+6. getMinutes()：第几分钟（0-59）
+7. getSeconds()：第几秒（0-59）
+8. getMiliseconds()：第几毫秒（0-999）
+
+- 定义时间
+1. setDate()：....（见上）....
+....（见上）....
+
+
+##### 绝对时间
+1. getTime()：1970年1月1日（纪元时刻）至今的毫秒数（重要！作为时间戳）
+```
+const date1 = new Date().getTime()
+for (let i = 0; i < 10000000; i++) {}
+const data2 = new  Date().getTime()
+console.log(data2 - date1)
+```
+
+
+
+
+
+# 执行时间线
+
+## 前后数据传输
+### 格式：JSON
+
+- 本质：对象
+- 格式：
+  - 属性名必须加双引号
+  - 形式是字符串
+
+```
+'{ "name": "zzz", "age": 55 }'
+```
+
+
+- 转换方法
+  - 转化为JSON：JSON.stringify(obj)
+  - 转化为对象：JSON.parse(str)
+
+
+
+
+
+
+
+## 渲染过程
+
+### 完整总览
+
+1. 创建document对象，开始解析（构建dom树）
+  1. 此时：document.readyState = 'loading'
+
+2. 遇到link标签，创建新线程异步下载href，且继续解析文档
+3. 遇到script标签
+  1. 没有设置async、defer，所有事情停止，开始下载src，完了开始执行，完了才继续解析
+  2. 有设置async、defer，创建新线程异步下载src，且继续解析文档（异步加载的js里面不能使用document.write()）
+    1. async：新线程里面下载完立刻执行
+    2. defer：新线程里面下载，等待主线程解析完之后执行
+4. 遇到img标签，创建新线程异步下载src，且继续解析文档
+
+5. 文档解析完成（dom树构建完）
+  1. 此时，document.readyState = 'interactive'
+
+6. 设置了defer的脚本按照顺序执行
+
+7. document触发DOMContentLoaded事件，执行回调函数
+8. $(document).ready(function () {})里面的回调函数执行
+
+9. 所有异步的东西下载完，且执行完
+  1. 此时，document.readyState = 'complete'
+
+10. window对象触发onload事件，执行回调函数
+
+（往后，就是以异步响应的方式处理用户输入，网络事件等）
+
+
+
+### 加载
+（注：加载等于下载）
+1. 异步加载
+- defer（只有ie能用）：加载完等dom解析完才会被执行（执行也是异步的，在另一个进程里面干）
+  - 代码可以写到标签里面
+- async（所有浏览器都能用）：加载完立刻执行（执行也是异步的，在另一个进程里面干）
+  - 代码不能写到script标签里面
+
+
+2. （进阶！！）按需加载
+- 场景：一个按钮，用户按他的概率只有0.1%，那这个脚本可以不用放在当前页面首加载中，可以等到用户按了，才去加载
+
+```
+const script = document.createElement('script');
+script.type = 'text/javascript';
+script.src = 'toos.js';
+// 执行上面这一句的时候，浏览器就会立刻去下载js文件，异步地下载，在另一个线程里面下载
+// 但还不会去执行
+
+document.head.appendChild(script);
+// 只有把dom加到页面中，script标签才会体现他的默认特征：下载完立刻执行里面的代码
+// 此时如果还没下载完，但这行代码是已经执行了的，那他下载完的那一刻他自动回自己立即执行
+
+// 如果这是一个默认的script标签，执行完第7行代码之后
+// 所有dom解析，css解析都暂停，要一直等这个script【下载】且【执行】完
+```
+
+
+- 场景拓展：假设我只需要执行引入的tools.js文件里面的某个工具函数test()
+  - onload的时机是：dom的src资源【下载】完成那一刻
+
+```
+// ie外其他浏览器
+script.onload = function () {
+    test();
+}
+// 兼容ie
+script.onreadystatechange = function () {
+    if (script.readyState === 'complete' || script.readyState === 'loaded') {
+        test();
+    }
+}
+
+// 注意一定要【在script被放到文档中】之前定义好
+document.head.appendChild(script);
+```
+
+
+- 整合，封装成函数
+
+```
+function asyncLoadScript(url, callback) {
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+
+    if (script.readyState) {
+        script.onreadystatechange = function () {
+            if (script.readyState === 'complete' || script.readyState === 'loaded') {
+                callback();
+            }
+        }
+    } else {
+        script.onload = function () {
+            callback();
+        }
+    }
+
+    // 为什么要把回调函数写在下载前？？？？？
+    // 如果下载写在回调函数前面，万一下载是一瞬间的事，还没执行到【定义回调函数】的代码时，就已经下载完，错过了onload的时机
+    // 回调函数即使被定义也永远不会执行了
+    script.src = url;
+    document.head.appendChild(script);
+}
+
+
+asyncLoadScript('tools.js', test)
+// 直接写tools.js里面的test的函数名报错
+// 执行到上面这一行的时候，预编译并不知道asyncLoadScript的具体执行内容，所以在这test找不到
+
+asyncLoadScript('tools.js', function () { test() })
+// 使用函数引用的方法，传入一个新函数，里面包裹目标函数
+// 在这不需要知道新函数的函数体，传入到回调函数，回调函数真正执行的时候，tools.js已经下载完毕，test肯定就能找到了
+
+
+
+// 办法二，传入字符串，用eval()执行
+script.onload = function () {
+    eval(callback);
+}
+asyncLoadScript('tools.js', 'test()')
+
+
+// 办法三：tools.js导出一个对象，里面的属性对应的就是一个方法，直接调用属性
+// const tools = {
+//     test: function () {},
+//     demo: function () {},
+// }
+script.onload = function () {
+    // tools是导出的对象名字
+    tools[callback]();
+}
+asyncLoadScript('tools.js', 'test')
+```
+
+
+
+
+### 生成
+#### dom树
+- 解释：对dom一行一行解释，看到这是什么节点之后，立刻把节点挂到树上面
+  - 比如img标签，不需要等图片下载完，就把img挂到树上了
+
+- 原则：深度优先搜索
+- 结束后：等css树
+
+#### css树
+
+
+#### render树
+
+
+
+### 修改
+#### 重排（dom树修改）：整个页面
+- dom节点的删除、添加
+- dom节点尺寸变化：width、height、padding、border-width、border、box-shadow...（注意：outline-width不算，它不占空间）
+- dom节点位置变化：margin、left、top、bottom、right、flex、align-items、align-content...
+- offsetWidth / offsetLeft 触发（为保证结果是实时的，调用这两个属性，浏览器内部会重新从根节点开始重排）
+
+#### 重绘（css树修改）：一部分
+- 颜色
+- visibility
+
+
+
+## 定时器
+### setInterval
+
+1. 建立循环器
+```
+setInterval(function () {}, 1000)
+```
+
+- 循环器准不准？：不准！！
+```
+let firstTime = new Date().getTime();
+setInterval(function () {
+    let lastTime = new Date().getTime();
+    console.log(lastTime - firstTime);
+    firstTime = lastTime;
+}, 1000)
+```
+js的执行是遵循时间切片的，每次setInterval的函数执行是放入队列中，并不是真正的执行
+
+
+- 循环器的返回值是什么？：返回一个数字，作为timer的唯一标识
+
+```
+const timer1 = setInterval(function () {}, 1000)
+const timer2 = setInterval(function () {}, 1000)
+console.log(timer1, timer2)
+// 打印1和2
+```
+
+2. 消除循环器
+```
+clearInterval(timer)
+```
+
+
+### setTimeout
+
+1. 建立定时器
+```
+setTimeout(function () {}, 1000)
+```
+
+- 定时器的返回值和循环器的返回值会重叠吗？不会，一起在一个标识列表中
+```
+const timer1 = setInterval(function () {}, 1000)
+const timer2 = setTimeout(function () {}, 1000)
+console.log(timer1, timer2)
+// 还是打印1和2
+```
+
+2. 消除定时器
+```
+clearTimeout(timer)
+```
+
+### 注意
+两个setInterval和setTimeout里面的this都是指向window，严格模式也是！！
 
