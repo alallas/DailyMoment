@@ -1,5 +1,20 @@
 # DOM
 
+
+
+## DTD文档模式
+
+
+- 标准模式：加上<!DOCTYPE html>
+
+- 怪异（混杂）模式：没加<!DOCTYPE html>
+  - 向后兼容，ie7的浏览器兼容ie6的语法
+
+- 准标准模式：支持很多标准，但没有标准规定的这么严格
+
+
+
+
 ## document
 - 含义：代表整个文档，硬要说的话是html上一级的标签
 
@@ -911,6 +926,10 @@ if (script.readyState) {
 
 ### 加载
 （注：加载等于下载）
+
+#### script标签
+##### 加载相关属性
+
 1. 异步加载
 - defer（只有ie能用）：加载完等dom解析完才会被执行（执行也是异步的，在另一个进程里面干）
   - 代码可以写到标签里面
@@ -922,6 +941,7 @@ if (script.readyState) {
 - 场景：一个按钮，用户按他的概率只有0.1%，那这个脚本可以不用放在当前页面首加载中，可以等到用户按了，才去加载
 
 ```
+// 这表示默认是以async的方式进行加载的js
 const script = document.createElement('script');
 script.type = 'text/javascript';
 script.src = 'toos.js';
@@ -934,6 +954,18 @@ document.head.appendChild(script);
 
 // 如果这是一个默认的script标签，执行完第7行代码之后
 // 所有dom解析，css解析都暂停，要一直等这个script【下载】且【执行】完
+
+
+
+// 但有的浏览器不支持async，那就需要取消异步加载的方式
+let script = document.createElement('script')
+script.src = 'xxx.js'
+script.async = false
+document.head.appendChild(script)
+
+// 但是动态加载的方式本身不可预见，又不是异步加载，很容易因为加载网络问题产生延迟，而一直阻塞渲染
+// 解决：让浏览器预加载器提前知道这些要动态导入的文件的存在，使用rel的preload属性
+<link rel="preload" href="xxx.js">
 ```
 
 
@@ -1012,6 +1044,56 @@ script.onload = function () {
 }
 asyncLoadScript('tools.js', 'test')
 ```
+
+
+
+
+##### 其他属性
+
+1. crossorigin【网络】
+- 默认：不使用cors
+- anonymous：表示不设置凭据
+- use-credentials：表示设置凭据
+
+2. integrity【安全】
+- 对比接受到的资源和加密签名来验证完整性，不匹配脚本不执行
+- 确保CDN不会提供恶意内容
+
+3. src
+（有src，标签里面又有内容，只会执行src的）
+- src可以是跨源的地址，发起请求可以成功拿到js数据
+  - 一保证源可信，二使用上面的integrity属性
+- 浏览器缓存可以缓存所有含有src的【外部链接】的js文件
+
+4. type
+- 定义脚本语言的类型（MIME类型）
+- 默认是：‘text/javascript’（最好不要指定）
+- 如果src的文件是jsx或ts或tsx格式的，服务器会根据扩展名来响应正确的MIME类型（因为服务器首先会识别脚本的扩展，浏览器则不关心）
+
+##### 特殊注意
+
+- 浏览器具有解析</script>的精细的规则（or算法？），所以不能在标签里面使用字符串的</script>，会报错显示Invalid or unexpected token，并把他当成结束符号。
+
+```
+function say() {
+    console.log('</script>')
+}
+say()
+```
+
+
+- 需要对/进行转译
+
+```
+function say() {
+    console.log('<\/script>')
+}
+say()
+```
+
+
+（浏览器如果不支持脚本（或对脚本的支持被关闭），noscript标签里面的内容会被渲染，相当于一个兜底方案）
+
 
 
 
