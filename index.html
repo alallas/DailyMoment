@@ -2348,6 +2348,12 @@
     // const timer1 = setInterval(function () {}, 1000)
     // const timer2 = setTimeout(function () {}, 1000)
     // console.log(timer1, timer2)
+
+
+    // 100000000 ——> 100.000.000
+    const reg = /(?=(\B)(\d{3})+$)/g;
+    const str = '100000000';
+    console.log(str.replace(reg, '.'));
     
 
   </script>
