@@ -2350,11 +2350,659 @@
     // console.log(timer1, timer2)
 
 
-    // 100000000 ——> 100.000.000
-    const reg = /(?=(\B)(\d{3})+$)/g;
-    const str = '100000000';
-    console.log(str.replace(reg, '.'));
+    // // 100000000 ——> 100.000.000
+    // const reg = /(?=(\B)(\d{3})+$)/g;
+    // const str = '100000000';
+    // console.log(str.replace(reg, '.'));
+
+
+
     
+    // function solution(numbers) {
+    //     let res = 0;
+    //     function back(outArrIndex, pathCount, pathSum) {
+    //         if (pathCount === numbers.length) {
+    //             if (pathSum % 2 === 0) {
+    //                 res ++;
+    //             }
+    //             return;
+    //         }
+    //         const curLayer = numbers[outArrIndex] + '';
+    //         for (let i = 0; i < curLayer.length; i++) {
+    //             const newPathSum = pathSum + (+curLayer[i]);
+    //             back(outArrIndex + 1, pathCount + 1, newPathSum)
+    //         }
+    //     }
+    //     back(0, 0, 0)
+    //     return res;
+    // }
+
+    // console.log(solution([123, 456, 789]));
+
+
+
+
+
+    // function solution(n, max, array) {
+    //     const map = {};
+    //     let slow = 0, fast = 0;
+    //     let leTwo = [], geThree = [];
+    //     let sortedArray = array.sort((a, b) => b - a);
+
+    //     while (fast <= n) {
+    //         if (sortedArray[fast] !== sortedArray[slow]) {
+    //             if (fast - slow >= 3) {
+    //                 geThree.push(sortedArray[slow]);
+    //                 leTwo.push(sortedArray[slow]);
+    //             } else if (fast - slow === 2) {
+    //                 leTwo.push(sortedArray[slow]);
+    //             }
+    //             slow = fast;
+    //         }
+    //         fast ++;
+    //     }
+
+    //     const all = [geThree, leTwo];
+
+
+
+
+    //     let res = [], curA = 0, curB = 0;
+    //     function back(index, cardsCount, a, b) {
+    //         if (cardsCount === 2) {
+    //             if ((a * 3 + b * 2) <= max) {
+    //                 a = a === 1 ? 14 : a
+    //                 b = b === 1 ? 14 : b
+    //                 if (a > curA) {
+    //                     const a1 = a === 14 ? 1 : a
+    //                     const b1 = b === 14 ? 1 : b
+    //                     res = [a1, b1];
+    //                     curA = a;
+    //                     curB = b;
+    //                 } else if (a === curA && b > curB) {
+    //                     const a1 = a === 14 ? 1 : a
+    //                     const b1 = b === 14 ? 1 : b
+    //                     res = [a1, b1];
+    //                     curB = b;
+    //                 }
+    //             }
+    //             return;
+    //         }
+    //         const curLayer = all[index];
+    //         for (let i = 0; i < curLayer.length; i++) {
+    //             let curLayerNum = curLayer[i];
+    //             if ((index === 0 && curLayerNum === b) || (index === 1 && curLayerNum === a)) {
+    //                 continue;
+    //             }
+    //             if (index === 0) {
+    //                 back(index + 1, cardsCount + 1, curLayerNum, b);
+    //             } else {
+    //                 back(index + 1, cardsCount + 1, a, curLayerNum);
+    //             }
+    //         }
+    //     }
+    //     back(0, 0, null, null)
+    //     return res.length > 0 ? res : [0, 0];
+    // }
+
+    // function main() {
+    //     // Add your test cases here
+    //     // console.log(JSON.stringify(solution(9, 34, [6, 6, 6, 8, 8, 8, 5, 5, 1])) === JSON.stringify([8, 5]));
+    //     // console.log(JSON.stringify(solution(9, 37, [9, 9, 9, 9, 6, 6, 6, 6, 13])) === JSON.stringify([6, 9]));
+    //     // console.log(JSON.stringify(solution(26, 99, [10,6,3,1,1,1,4,11,4,13,3,7,13,4,10,1,7,11,12,10,3,4,7,9,3,12])) === JSON.stringify([1, 13]));
+    //     console.log(JSON.stringify(solution(31, 42, [3,3,11,12,12,2,13,5,13,1,13,8,8,1,8,13,12,9,2,11,3,5,8,11,1,11,1,5,4,2,5])) === JSON.stringify([1, 13]));
+    // }
+
+    // main();
+
+
+
+
+
+
+    // function solution(a, b) {
+    //     const strA = a + ''
+    //     const strB = b + ''
+    //     console.log(strA, strB)
+    //     let res = strA + b
+    //     if (b > a && strA.length > 1) return Number(strB + strA)
+    //     for (let i = 0; i < strA.length; i++) {
+    //         if ((+strB[0]) > (+strA[i])) {
+    //             res = strA.substring(0, i) + b + strA.substring(i, strA.length)
+    //             return Number(res)
+    //         }
+    //     }
+    //     return Number(res)
+    // }
+
+
+    // function main() {
+    //     // console.log(solution(76543, 4) === 765443);
+    //     // console.log(solution(1, 0) === 10);
+    //     // console.log(solution(44, 5) === 544);
+    //     // console.log(solution(666, 6) === 6666);
+    //     console.log(solution(12, 15) === 1512);
+    // }
+
+    // main();
+
+
+
+
+
+
+    
+    // function solution(n, k, data) {
+    //     let curFood = 0;
+    //     let totalCost = 0;
+    //     for (let i = 0; i < data.length; i++) {
+    //         console.log(`====第${i}天=====`)
+    //         console.log('剩下的食物--', curFood)
+    //         let futureNeedInBagFood = Math.min(k, n - i - 1); // 不算今天的
+    //         let minPrice = Math.min(...data.slice(i, i + futureNeedInBagFood + 1))
+    //         console.log('futureNeedInBagFood', futureNeedInBagFood)
+    //         console.log('minPrice', minPrice)
+    //         if (data[i] > minPrice) {
+    //             if (curFood < 1) {
+    //                 totalCost += data[i];
+    //                 curFood ++;
+    //             }
+    //         } else {
+    //             if (curFood < futureNeedInBagFood + 1) {
+    //                 totalCost += minPrice * (futureNeedInBagFood - (curFood - 1))
+    //                 curFood = futureNeedInBagFood + 1;
+    //             }
+    //         }
+    //         console.log('花了多少钱---',totalCost)
+    //         curFood --;
+    //     }
+
+    //     return totalCost;
+    // }
+
+    // function main() {
+    //     // Add your test cases here
+    //     console.log(solution(5, 2, [1, 2, 3, 3, 2]) === 9);
+    //     console.log(solution(6, 3, [4, 1, 5, 2, 1, 3]) === 9);
+    //     console.log(solution(4, 1, [3, 2, 4, 1]) === 10);
+    // }
+
+    // main();
+
+
+
+
+
+
+    // function solution(n, H, A, h, a) {
+    //     const mons = {
+    //         length: h.length,
+    //         sort: Array.prototype.sort,
+    //     }
+    //     for (let i = 0; i < h.length; i++) {
+    //         mons[i] = {
+    //             a: a[i],
+    //             h: h[i],
+    //             sum: a[i] + h[i],
+    //             originIndex: i,
+    //         }
+    //     }
+    //     console.log(mons)
+    //     mons.sort((a, b) => b.sum - a.sum)
+
+    //     let playerH = H, playerA = A;
+    //     let res = 0;
+    //     for (let j = 0; j < mons.length; j++) {
+    //         const mon = mons[j];
+    //         console.log('curMon', mon)
+    //         if (playerA > mon.a && playerH > mon.h) {
+    //             console.log('feat mon!----')
+    //             res ++;
+    //             playerA = mon.a;
+    //             playerH = mon.h;
+    //             console.log('after feat---a-', playerA, '--h--', playerH)
+    //         }
+    //     }
+    //     console.log('res', res)
+    //     return res;
+    // }
+
+    // function main() {
+    //     console.log(solution(3, 4, 5, [1, 2, 3], [3, 2, 1]) === 1);
+    //     console.log(solution(5, 10, 10, [6, 9, 12, 4, 7], [8, 9, 10, 2, 5]) === 2);
+    //     console.log(solution(4, 20, 25, [10, 15, 18, 22], [12, 18, 20, 26]) === 3);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+    // function solution(values) {
+    //     let path = [];
+    //     let res = [];
+    //     function back(startIndex) {
+    //         if (path.length === 2) {
+    //             res.push(path.slice());
+    //             return;
+    //         }
+    //         for (let i = startIndex; i < values.length; i++) {
+                
+    //             path.push({
+    //                 num: values[i],
+    //                 originIndex: i,
+    //             });
+    //             back(i + 1);
+    //             path.pop();
+    //         }
+    //     }
+    //     back(0)
+    //     console.log(res)
+    //     let max = 0
+    //     for (let j = 0; j < res.length; j++) {
+    //         const curGroup = res[j]
+    //         const indexA = curGroup[0].originIndex;
+    //         const indexB = curGroup[1].originIndex;
+    //         const valueA = curGroup[0].num;
+    //         const valueB = curGroup[1].num;
+    //         const score = valueA + valueB - Math.abs(indexA - indexB);
+    //         if (score > max) {
+    //             max = score
+    //         }
+    //     }
+    //     console.log('maxscore', max)
+    //     return max
+    // }
+
+    // function main() {
+    //     console.log(solution([8, 3, 5, 5, 6]) === 11 ? 1 : 0);
+    //     console.log(solution([10, 4, 8, 7]) === 16 ? 1 : 0);
+    //     console.log(solution([1, 2, 3, 4, 5]) === 8 ? 1 : 0);
+    // }
+
+    // main();
+
+
+
+
+
+
+    
+
+    // function solution(S, T) {
+    //     let p1 = 0, p2 = 0;
+    //     let changeIndex = 0;
+        
+    //     while(p1 < S.length && p2 < T.length) {
+    //         if (S[p1] !== T[p2]) {
+    //             changeIndex ++;
+    //         }
+    //         p1 ++;
+    //         p2 ++;
+    //     }
+    //     if (S.length > T.length) {
+    //         if (changeIndex === 0) {
+    //             changeIndex = S.length - T.length;
+    //         } else {
+    //             changeIndex += S.length - T.length;
+    //         }
+
+    //     }
+    //     console.log('changeIndex', changeIndex)
+    //     return changeIndex
+    // }
+
+    // function main() {
+    //     console.log(solution("aba", "abb") === 1);
+    //     console.log(solution("abcd", "efg") === 4);
+    //     console.log(solution("xyz", "xy") === 1);
+    //     console.log(solution("hello", "helloworld") === 0);
+    //     console.log(solution("same", "same") === 0);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+    // function solution(n, a) {
+    //     let res = [], path = [];
+    //     const aLen = a.length;
+    //     function back(startIndex) {
+    //         if (path.length === 2) {
+    //             res.push(path.slice());
+    //             return;
+    //         }
+    //         for (let i = startIndex; i < aLen; i++) {
+    //             path.push({
+    //                 num: a[i],
+    //                 originIndex: i,
+    //             });
+    //             back(i + 1);
+    //             path.pop();
+    //         }
+    //     }
+    //     back(0)
+
+    //     let max = 0;
+    //     for (let j = 0; j < res.length; j ++) {
+    //         const curGroup = res[j];
+    //         const a = curGroup[0];
+    //         const b = curGroup[1];
+    //         let dist1, dist2;
+    //         let minDist;
+    //         if (a.originIndex > b.originIndex) {
+    //             dist2 = aLen - a.originIndex + b.originIndex;
+    //             dist1 = a.originIndex - b.originIndex;
+    //             minDist = Math.min(dist1, dist2);
+    //         } else {
+    //             dist2 = aLen - b.originIndex + a.originIndex;
+    //             dist1 = b.originIndex - a.originIndex;
+    //             minDist = Math.min(dist1, dist2);
+    //         }
+
+    //         const score = (a.num + b.num) * minDist;
+    //         if (score > max) {
+    //             max = score;
+    //         }
+            
+    //     }
+    //     return max;
+    // }
+
+    // function main() {
+    //     console.log(solution(3, [1, 2, 3]) === 5);
+    //     console.log(solution(4, [4, 1, 2, 3]) === 12);
+    //     console.log(solution(5, [1, 5, 3, 7, 2]) === 24);
+    // }
+
+    // main();
+
+
+    
+
+
+
+    // function solution(S) {
+    //     let map = {};
+    //     let doubleCount = 0;
+    //     for (let i = 0; i < S.length; i++) {
+    //         const curChar = S[i];
+    //         if (map[curChar]) {
+    //             map[curChar] ++;
+    //             if (map[curChar] % 2 === 0) {
+    //                 doubleCount ++;
+    //             }
+    //         } else {
+    //             map[curChar] = 1;
+    //         }
+    //     }
+    //     return doubleCount
+    // }
+
+    // function main() {
+    //     console.log(solution("abab") === 2);
+    //     console.log(solution("aaaa") === 2);
+    //     console.log(solution("abcabc") === 3);
+    // }
+
+    // main();
+
+
+
+
+    // function solution(n, a) {
+    //     let res = [];
+    //     function back(arr) {
+    //         if (arr.length <= 0) return;
+    //         const listen = arr.shift();
+    //         res.push(listen);
+    //         if (arr.length > 0) {
+    //             const temp = arr.shift();
+    //             arr.push(temp);
+    //             back(arr);
+    //         }
+    //     }
+    //     back(a)
+    //     return res
+    // }
+
+    // function main() {
+    //     console.log(JSON.stringify(solution(5, [5, 3, 2, 1, 4])) === JSON.stringify([5, 2, 4, 1, 3]));
+    //     console.log(JSON.stringify(solution(4, [4, 1, 3, 2])) === JSON.stringify([4, 3, 1, 2]));
+    //     console.log(JSON.stringify(solution(6, [1, 2, 3, 4, 5, 6])) === JSON.stringify([1, 3, 5, 2, 6, 4]));
+    // }
+
+    // main();
+
+
+
+
+
+
+
+    // function solution(word) {
+    //     let arr = word.split('');
+    //     for (let i = 0; i < arr.length; i++) {
+    //         const curStr = arr[i];
+    //         if (!+curStr) {
+    //             arr[i] = ' ';
+    //         }
+    //     }
+
+    //     const reg = /\s{2,}/g
+    //     const str = arr.join('').trim().replace(reg, ' ')
+
+    //     if (!str) {
+    //         return 0
+    //     }
+    //     const arr2 = str.split(' ').sort((a, b) => a - b);
+        
+    //     let slow = 0, fast = 0;
+    //     while(fast < arr2.length) {
+    //         if (+arr2[fast] !== +arr2[slow]) {
+    //             slow++;
+    //             arr2[slow] = arr2[fast];
+    //         }
+    //         fast++;
+    //     }
+    //     return slow + 1;
+
+    // }
+
+    // function main() {
+    //     console.log(solution("a123bc34d8ef34") === 3);
+    //     console.log(solution("t1234c23456") === 2);
+    //     console.log(solution("a1b01c001d4") === 2);
+    //     console.log(solution("m") === 0);
+    //     console.log(solution("7g06td8xapw6r1d25z1ick") === 5);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+
+
+    // function solution(s, a, m, k) {
+
+    //     const newArr = a.map((item, index) => ({
+    //         price: item,
+    //         mesh: s[index],
+    //     })).sort((a, b) => a.price - b.price);
+
+    //     let meshDist = 0;
+    //     let pay = 0;
+    //     let allDist = k;
+
+    //     // 处理没法点菜的情况
+    //     const reg = /1/g
+    //     const matched = s.match(reg)
+    //     if (a.length - matched.length < k - m || a.length < k) {
+    //         return -1
+    //     }
+
+    //     for (let i = 0; i < newArr.length && allDist > 0; i++) {
+    //         const curDish = newArr[i]
+    //         if (curDish.mesh === '1') {
+    //             meshDist ++;
+    //             if (meshDist > m) {
+    //                 meshDist --;
+    //                 continue;
+    //             }
+    //         }
+    //         pay += curDish.price;
+    //         allDist --;
+    //     }
+    //     return pay
+    // }
+
+    // function main() {
+    //     console.log(solution("001", [10, 20, 30], 1, 2) === 30);
+    //     console.log(solution("111", [10, 20, 30], 1, 2) === -1);
+    //     console.log(solution("0101", [5, 15, 10, 20], 2, 3) === 30);
+    //     console.log(solution("1", [6], 16, 16) === -1);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+    // function solution(n, a, b) {
+    //     let outArr = [];
+    //     for (let j = 0; j < a.length; j++) {
+    //         outArr.push([a[j], b[j]]);
+    //     }
+
+    //     let res = 0;
+    //     function back(outArrIndex, pathSum, pathCount) {
+    //         if (pathCount === outArr.length) {
+    //             if (pathSum % 3 === 0) {
+    //                 res ++;
+    //             }
+    //             return;
+    //         }
+    //         const curLayer = outArr[outArrIndex];
+    //         for (let i = 0; i < curLayer.length; i++) {
+    //             const newPathSum = pathSum + curLayer[i];
+    //             back(outArrIndex + 1, newPathSum, pathCount + 1);
+    //         }
+    //     }
+    //     back(0, 0, 0);
+    //     return res;
+    // }
+
+    // function main() {
+    //     console.log(solution(3, [1, 2, 3], [2, 3, 2]) === 3);
+    //     console.log(solution(4, [3, 1, 2, 4], [1, 2, 3, 1]) === 6);
+    //     console.log(solution(5, [1, 2, 3, 4, 5], [1, 2, 3, 4, 5]) === 32);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+    // function solution(n, u) {
+    //     u.sort((a, b) => a - b);
+    //     let fast = 0, slow = 0;
+    //     let notRepeat = 0;
+    //     while(fast < u.length) {
+    //         if(u[fast] !== u[slow]) {
+    //             slow++;
+    //             u[slow] = u[fast];
+    //             notRepeat++;
+    //         }
+    //         fast++;
+    //     }
+
+    //     if (slow === 0) {
+    //         return 0
+    //     }
+
+    //     if (u.length % 2 === 0 && notRepeat % 2 !== 0) {
+    //         return u.length / (notRepeat + 1)
+    //     }
+    //     if (u.length % 2 !== 0 && notRepeat % 2 === 0) {
+    //         return Math.ceil(u.length / 2)
+    //     }
+
+    // }
+
+    // function main() {
+    //     console.log(solution(5, [1, 2, 3, 1, 2]) === 3);
+    //     console.log(solution(4, [100000, 100000, 100000, 100000]) === 0);
+    //     console.log(solution(6, [1, 1, 1, 2, 2, 2]) === 3);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+
+    // function solution(n, a) {
+    //     let res = 0;
+    //     for (let i = 0; i < a.length; i++) {
+    //         const curNum = a[i];
+    //         const curNumStr = curNum + '';
+    //         const reg = /0/g
+    //         const matched = curNumStr.match(reg)
+    //         if (matched) {
+    //             res += curNumStr.length - matched.length;
+    //         } else {
+    //             res += curNumStr.length;
+    //         }
+
+    //     }
+    //     return res
+    // }
+
+
+
+
+
+    // function main() {
+    //     console.log(solution(5, [10, 13, 22, 100, 30]) === 7);
+    //     console.log(solution(3, [5, 50, 505]) === 4);
+    //     console.log(solution(4, [1000, 1, 10, 100]) === 4);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+
 
   </script>
 </body>
