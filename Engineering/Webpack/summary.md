@@ -881,3 +881,385 @@ module.exports = {
 ```
 
 
+
+## sourceMap
+
+### 是什么
+
+- 解释：源代码和转化后代码的位置映射
+- 终极目的：看得到【压缩前】以及【babel转换前】的代码
+
+
+
+
+
+### webpack的sourceMap配置
+#### devtool处设置（sourceMap与bundle.js放在一起）
+
+1. 'false'：不生成sourceMap文件
+
+2. 'source-map'：生成一个单独的sourceMap文件，文件名字为bundle.js.map。（带module功能，啥都有）
+  1. bundle.js里面的源代码处有//# sourceMappingURL=main.js.map注释
+  2. 作用是在bundle.js里面设置一个指令指向source-map的地址，使得bundle.js和source-map分开可以找到他
+3. 'hidden-source-map'：和source-map一样，但是不会在bundle.js后面加上述注释
+  
+4. 'eval'：没有单独的sourceMap文件，源代码用eval包裹（且webp5主入口代码不在树对象里，eval之后变成webp4的版本）
+
+```
+"./src/index.js": ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+  eval("\n\n__webpack_require__(/*! ./content.js */ \"./src/content.js\");\n__webpack_require__(/*! ./test/title.js */ \"./src/test/title.js\");\nvar a = 1;\nvar sum = function sum(a, b) {\n  return a + b;\n};\n\n//# sourceURL=webpack://zyl/./src/index.js?");
+}),
+```
+
+5. 'eval-source-map'：没有单独的sourceMap文件，sourceMap内容放在eval里面，用base64的方式
+  1. 好处：可以缓存
+
+```
+"./src/index.js": ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+  eval("\n\n__webpack_require__(/*! ./content.js */ \"./src/content.js\");\n__webpack_require__(/*! ./test/title.js */ \"./src/test/title.js\");\nvar a = 1;\nvar sum = function sum(a, b) {\n  return a + b;\n};//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiLi9zcmMvaW5kZXguanMiLCJtYXBwaW5ncyI6Ijs7QUFBQUEsbUJBQU8sQ0FBQyxzQ0FBYyxDQUFDO0FBQ3ZCQSxtQkFBTyxDQUFDLDRDQUFpQixDQUFDO0FBRTFCLElBQUlDLENBQUMsR0FBRyxDQUFDO0FBQ1QsSUFBSUMsR0FBRyxHQUFHLFNBQU5BLEdBQUdBLENBQUlELENBQUMsRUFBRUUsQ0FBQztFQUFBLE9BQUtGLENBQUMsR0FBR0UsQ0FBQztBQUFBIiwic291cmNlcyI6WyJ3ZWJwYWNrOi8venlsL2luZGV4LmpzPzA0OTciXSwic291cmNlc0NvbnRlbnQiOlsicmVxdWlyZSgnLi9jb250ZW50LmpzJyk7XHJcbnJlcXVpcmUoJy4vdGVzdC90aXRsZS5qcycpO1xyXG5cclxubGV0IGEgPSAxO1xyXG5sZXQgc3VtID0gKGEsIGIpID0+IGEgKyBiO1xyXG5cclxuIl0sIm5hbWVzIjpbInJlcXVpcmUiLCJhIiwic3VtIiwiYiJdLCJzb3VyY2VSb290IjoiIn0=\n//# sourceURL=webpack-internal:///./src/index.js\n");
+}),
+```
+
+
+6. 'inline-source-map'：没有单独的sourceMap文件，将sourceMap作为DataUrl（注释）嵌入，用base64的方式
+
+```
+(() => {
+  __webpack_require__(/*! ./content.js */ "./src/content.js");
+  __webpack_require__(/*! ./test/title.js */ "./src/test/title.js");
+  var a = 1;
+  var sum = function sum(a, b) {
+    return a + b;
+  };
+})();
+
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibWFpbi5qcyIsIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7QUFBQSxTQUFTQSxJQUFJQSxDQUFBLEVBQUc7RUFDZEMsT0FBTyxDQUFDQyxHQUFHLENBQUMsTUFBTSxDQUFDO0FBQ3JCO0FBQ0FDLE1BQU0sQ0FBQ0MsT0FBTyxHQUFHO0VBQ2ZKLElBQUksRUFBSkE7QUFDRixDQUFDOzs7Ozs7Ozs7Ozs7QUNMREMsT0FBTyxDQUFDQyxHQUFHLENBQUMsc0JBQXNCLENBQUM7QUFDbkNHLG1CQUFPLENBQUMsdUNBQWUsQ0FBQztBQUN4QkYsTUFBTSxDQUFDQyxPQUFPLEdBQUcsT0FBTzs7Ozs7O1VDRnhCO1VBQ0E7O1VBRUE7VUFDQTtVQUNBO1VBQ0E7VUFDQTtVQUNBO1VBQ0E7VUFDQTtVQUNBO1VBQ0E7VUFDQTtVQUNBO1VBQ0E7O1VBRUE7VUFDQTs7VUFFQTtVQUNBO1VBQ0E7Ozs7Ozs7Ozs7QUN0QkFDLG1CQUFPLENBQUMsc0NBQWMsQ0FBQztBQUN2QkEsbUJBQU8sQ0FBQyw0Q0FBaUIsQ0FBQztBQUUxQixJQUFJQyxDQUFDLEdBQUcsQ0FBQztBQUNULElBQUlDLEdBQUcsR0FBRyxTQUFOQSxHQUFHQSxDQUFJRCxDQUFDLEVBQUVFLENBQUM7RUFBQSxPQUFLRixDQUFDLEdBQUdFLENBQUM7QUFBQSxFIiwic291cmNlcyI6WyJ3ZWJwYWNrOi8venlsL2NvbnRlbnQuanMiLCJ3ZWJwYWNrOi8venlsL3RpdGxlLmpzIiwid2VicGFjazovL3p5bC93ZWJwYWNrL2Jvb3RzdHJhcCIsIndlYnBhY2s6Ly96eWwvaW5kZXguanMiXSwic291cmNlc0NvbnRlbnQiOlsiZnVuY3Rpb24gdGVzdCgpIHtcclxuICBjb25zb2xlLmxvZygndGVzdCcpXHJcbn1cclxubW9kdWxlLmV4cG9ydHMgPSB7XHJcbiAgdGVzdFxyXG59IiwiY29uc29sZS5sb2coJ3RpdGxlIGpzIHJ1bm5pbmctLS0tJylcclxucmVxdWlyZSgnLi4vY29udGVudC5qcycpXHJcbm1vZHVsZS5leHBvcnRzID0gJ3RpdGxlJzsiLCIvLyBUaGUgbW9kdWxlIGNhY2hlXG52YXIgX193ZWJwYWNrX21vZHVsZV9jYWNoZV9fID0ge307XG5cbi8vIFRoZSByZXF1aXJlIGZ1bmN0aW9uXG5mdW5jdGlvbiBfX3dlYnBhY2tfcmVxdWlyZV9fKG1vZHVsZUlkKSB7XG5cdC8vIENoZWNrIGlmIG1vZHVsZSBpcyBpbiBjYWNoZVxuXHR2YXIgY2FjaGVkTW9kdWxlID0gX193ZWJwYWNrX21vZHVsZV9jYWNoZV9fW21vZHVsZUlkXTtcblx0aWYgKGNhY2hlZE1vZHVsZSAhPT0gdW5kZWZpbmVkKSB7XG5cdFx0cmV0dXJuIGNhY2hlZE1vZHVsZS5leHBvcnRzO1xuXHR9XG5cdC8vIENyZWF0ZSBhIG5ldyBtb2R1bGUgKGFuZCBwdXQgaXQgaW50byB0aGUgY2FjaGUpXG5cdHZhciBtb2R1bGUgPSBfX3dlYnBhY2tfbW9kdWxlX2NhY2hlX19bbW9kdWxlSWRdID0ge1xuXHRcdC8vIG5vIG1vZHVsZS5pZCBuZWVkZWRcblx0XHQvLyBubyBtb2R1bGUubG9hZGVkIG5lZWRlZFxuXHRcdGV4cG9ydHM6IHt9XG5cdH07XG5cblx0Ly8gRXhlY3V0ZSB0aGUgbW9kdWxlIGZ1bmN0aW9uXG5cdF9fd2VicGFja19tb2R1bGVzX19bbW9kdWxlSWRdKG1vZHVsZSwgbW9kdWxlLmV4cG9ydHMsIF9fd2VicGFja19yZXF1aXJlX18pO1xuXG5cdC8vIFJldHVybiB0aGUgZXhwb3J0cyBvZiB0aGUgbW9kdWxlXG5cdHJldHVybiBtb2R1bGUuZXhwb3J0cztcbn1cblxuIiwicmVxdWlyZSgnLi9jb250ZW50LmpzJyk7XHJcbnJlcXVpcmUoJy4vdGVzdC90aXRsZS5qcycpO1xyXG5cclxubGV0IGEgPSAxO1xyXG5sZXQgc3VtID0gKGEsIGIpID0+IGEgKyBiO1xyXG5cclxuIl0sIm5hbWVzIjpbInRlc3QiLCJjb25zb2xlIiwibG9nIiwibW9kdWxlIiwiZXhwb3J0cyIsInJlcXVpcmUiLCJhIiwic3VtIiwiYiJdLCJzb3VyY2VSb290IjoiIn0=
+```
+
+
+7. 'cheap-source-map'：生成一个单独的sourceMap文件，只有行映射，没有列映射（报错的时候红线显示在一整行，而不是某个点）
+  1. 且只能还原到es5的代码
+8. 'cheap-module-source-map'：与上面一样，但包含loader的sourceMap，调试的时候可以还原看到es6的代码
+
+
+总结：
+- 关键词含义：
+  - cheap：只保留行映射信息
+  - module：可以保存loader那边的sourceMap，可以看到es6的代码
+  - eval：可以缓存，用eval函数执行代码
+  
+- 推荐使用：
+  - 开发环境：'eval-cheap-module-source-map'
+  - 生产环境：'hidden-source-map'
+    - bundle.js发布，但bundle.js.map不发布
+
+
+#### 插件设置（sourceMap可以放在另外的地方，不与bundle.js放在一起）
+
+1. 测试环境
+（此时的devtool设置为false）
+- 手动指定bundle.js后面指向sourceMap的地址的标识
+- 手动拷贝bundle.js.map文件，对其启动一个服务器，开启对sourceMap文件的访问（测试环境的bundle.js可以访问到这个文件）
+
+
+```
+const webpack = require('webpack');
+const FileManagerPlugin = require('filemanager-webpack-plugin');
+
+...
+
+  // 插件
+plugins: [
+
+    // 关闭devtool的source-map，用插件的目的是更加精细地控制source-map的存放位置
+    new webpack.SourceMapDevToolPlugin({
+      // 相当于我给bundle.js做一个【指令】指向他的sourceMap位置
+      // 在测试/生产环境调试的时候，启动两个服务器，就可以找到对应的sourceMap文件
+      append: '//# sourceMappingURL=http://127.0.0.1:8081/[url]',
+      filename: '[file].map'
+    }),
+    
+    // 开发环境中需要借助sourceMap调试：
+    // sourceMap文件放到自己的服务器上面的，先额外拷贝一份出来，再删掉dist文件夹里面的文件
+    // 剩下的文件打包，然后才发布测试或生产
+    new FileManagerPlugin({
+      onEnd: {
+        copy: [
+          {
+            source: './dist/**/*.map',
+            destination: 'D:/aa_qianduan/webpack_learn_test/sourceMap'
+          }
+        ],
+        delete: ['./dist/**/*.map'],
+        archive: [
+          {
+            source: './dist',
+            destination: './archives/project.zip'
+          }
+        ]
+      }
+    })
+```
+
+
+
+2. 生产环境
+- webpack自己会生成一份sourceMap放到本地服务器（怎么知道哪个端口呢？？？8081？？？）
+- 生产环境调试，可以采用http的代理工具，拦截对bundle.js.map文件的请求（chrome每次请求都会额外再次尝试请求sourcemap），重定向到有这个文件的服务器
+
+```
+mode: 'production', // 开发模式
+devtool: 'hidden-source-map', // 不生成source-map的【指向指令】
+plugins: [
+    // 没有SourceMapDevToolPlugin和FileManagerPlugin
+]
+```
+
+
+
+
+
+### 内容解读
+
+```
+{
+  "version": 3,
+  "file": "main.js",
+
+  // 位置的映射
+  "mappings": ";;;;;;;;;;;;AAAA,SAASA,IAAIA,CAAA,EAAG;EACdC,OAAO,CAACC,GAAG,CAAC,MAAM,CAAC;AACrB;AACAC,MAAM,CAACC,OAAO,GAAG;EACfJ,IAAI,EAAJA;AACF,CAAC;;;;;;;;;;;;ACLDC,OAAO,CAACC,GAAG,CAAC,sBAAsB,CAAC;AACnCG,mBAAO,CAAC,uCAAe,CAAC;AACxBF,MAAM,CAACC,OAAO,GAAG,OAAO;;;;;;UCFxB;UACA;;UAEA;UACA;UACA;UACA;UACA;UACA;UACA;UACA;UACA;UACA;UACA;UACA;UACA;;UAEA;UACA;;UAEA;UACA;UACA;;;;;;;;;;ACtBAC,mBAAO,CAAC,sCAAc,CAAC;AACvBA,mBAAO,CAAC,4CAAiB,CAAC;AAE1B,IAAIC,CAAC,GAAG,CAAC;AACT,IAAIC,GAAG,GAAG,SAANA,GAAGA,CAAID,CAAC,EAAEE,CAAC;EAAA,OAAKF,CAAC,GAAGE,CAAC;AAAA,E",
+
+  // 所有module文件
+  "sources": [
+    "webpack://zyl/content.js",
+    "webpack://zyl/title.js",
+    "webpack://zyl/webpack/bootstrap",
+    "webpack://zyl/index.js"
+  ],
+
+  // 所有源代码
+  "sourcesContent": [
+    "function test() {\r\n  console.log('test')\r\n}\r\nmodule.exports = {\r\n  test\r\n}",
+    "console.log('title js running----')\r\nrequire('../content.js')\r\nmodule.exports = 'title';",
+    "// The module cache\nvar __webpack_module_cache__ = {};\n\n// The require function\nfunction __webpack_require__(moduleId) {\n\t// Check if module is in cache\n\tvar cachedModule = __webpack_module_cache__[moduleId];\n\tif (cachedModule !== undefined) {\n\t\treturn cachedModule.exports;\n\t}\n\t// Create a new module (and put it into the cache)\n\tvar module = __webpack_module_cache__[moduleId] = {\n\t\t// no module.id needed\n\t\t// no module.loaded needed\n\t\texports: {}\n\t};\n\n\t// Execute the module function\n\t__webpack_modules__[moduleId](module, module.exports, __webpack_require__);\n\n\t// Return the exports of the module\n\treturn module.exports;\n}\n\n",
+    "require('./content.js');\r\nrequire('./test/title.js');\r\n\r\nlet a = 1;\r\nlet sum = (a, b) => a + b;\r\n\r\n"
+  ],
+
+  // 所有变量名字
+  "names": [
+    "test",
+    "console",
+    "log",
+    "module",
+    "exports",
+    "require",
+    "a",
+    "sum",
+    "b"
+  ],
+  "sourceRoot": ""
+}
+```
+
+
+mappings（一个分号表示一行）
+  1. 第一位：这个位置在转换后的代码的第几列
+  （为什么没有转换后的代码的第几行，因为转换后的代码默认肯定只有一行，省略）
+  2. 第二位：这个位置属于sources属性的那一个文件
+  3. 第三位：这个位置在转换前的代码的第几行
+  4. 第四位：这个位置在转换前的代码的第几列
+  5. 第五位：这个位置属于names属性的哪一个变量
+
+
+
+- 注意：只有第一个“AXJID”的位置是绝对位置，后面都是相对位置（相对于前一个位置的左或者右，前一个位置为0）
+  - 目的是为了防止列的索引非常大的情况
+
+```
+let origin = 'feel the force';
+let target = 'the force feel';
+
+let mapping = {
+  // 这里只是展示feel、the、force三个单词的首字母
+  "mappings":[[10, "a.js", 0, 0, "feel"], [-10, "a.js", 0, 5, "the"], [4, "a.js", 0, 4, "force"], ],
+  "sources": ["a.js"],
+  "names": ["feel", "the", "force"],
+}
+```
+
+
+- 如何把数字变为字母：Base64 VLQ编码
+  
+  - 数字变为二进制
+  - 末位补上正负位标识
+  
+  - 五位一组分组（why？）
+    - 最后要转成base64字符，这个编码方式的字符索引范围是0-63，需要六位(2^6)的二进制数才能涵盖所有十进制数的表示
+    - 而最后一位要用来做符号位，第一位用来做连续位，只剩中间四位是有意义的，只能表示-15到15了
+    - 目前已经补了末位啦，现在还剩5位
+  - 顺序逆转，低位在前
+  
+  - 首位补上连续位标识（why？）
+    - 目的是：如果第一位是1的话，说明后面一个字节也是当前数值的一部分
+  - 转base64
+
+
+```
+// 任意一个数字转成一个base64格式的字符串
+const base64 = [
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
+  'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
+  'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a',
+  'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+  'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+  't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1',
+  '2', '3', '4', '5', '6', '7', '8', '9', '+',
+  '/'
+];
+
+function encode(num) {
+  // 1. 将数字(绝对值)变为二进制的数，得到10001001
+  let binary = (Math.abs(num)).toString(2);
+
+  // 两种写法：
+  // let binary = 137..toString(2)
+  // let binary = (137).toString(2)
+
+  // 2. 末位补正负位：正数补0，负数补1
+  binary = num >= 0 ? binary + '0' : binary + '1';
+
+  // 3. 五位一组做分组，不足的补0
+  // 为什么要五位一组？
+  // 最后要转成base64字符，这个编码方式的字符索引范围是0-63，需要六位(2^6)的二进制数才能涵盖所有十进制数的表示
+  // 而最后一位要用来做符号位，第一位用来做连续位，只剩中间四位是有意义的，只能表示-15到15了
+  // 已经补了末位啦，现在还剩5位
+
+  let zero = 5 - (binary.length % 5); // 需要补多少个0
+  if (zero > 0) {
+    binary = binary.padStart(Math.ceil(binary.length / 5) * 5, '0');
+  }
+  let groups = binary.match(/\d{5}/g);
+
+  // 4. 将数组倒序，低位在前，高位在后（原本按照源数字顺序得到的数组是：高位在前，低位在后）
+  // 为什么？？
+  groups.reverse()
+
+  // 5. 首位补连续位：最后一组开头补0，其余补1
+  // 目的是：如果第一位是1的话，说明后面一个字节也是当前数值的一部分
+  groups = groups.map((item, index) => (index === groups.length - 1 ? '0' : '1') + item);
+
+  // 6. 转成base64
+  let chars = []
+  for (let i = 0; i < groups.length; i++) {
+    let base64Index = parseInt(groups[i], 2); // 把最终的二进制编码转为10进制
+    chars.push(base64[base64Index])
+  }
+
+  return chars.join('')
+}
+
+let res = encode(0)
+console.log(res) // 0是A
+```
+
+
+
+- 解码Base64 VLQ
+
+```
+function getValue(char) {
+  let base64Index = base64.indexOf(char);
+  let str = (base64Index).toString(2);
+  str = str.padStart(6, '0');
+
+  str = str.slice(1, -1);
+  let sign = str.slice(-1) === '0' ? 1 : -1;
+  return parseInt(str, 2) * sign;
+}
+
+function decode(values) {
+  let groups = values.split(',');
+  let positions = [];
+  for (let i = 0; i < groups.length; i++) {
+    let part = groups[i];
+    let char = part.split(''); // 拿到的是[I, A, A, I, C]
+    let position = [];
+    for (let j = 0; j < char.length; j++) {
+      position.push(getValue(char[j]));
+    }
+    positions.push(position);
+  }
+  return positions;
+}
+
+console.log(decode('AAAA,SAASA,IAAIA,CAAA,EAAG;EACdC'))
+```
+
+
+## loader
+### source-map loader
+
+- 问题：被import或require导入的代码，呈现的是压缩且转化后的样子，调试的时候我想看到源码
+- 解决：source-map-loader
+
+```
+// source-map-loader的作用是，为【被引入的文件】生成一个sourceMap文件使得他可以被解析成源码的样子
+{
+    test: /\.js$/,
+    use: [
+      {
+        loader: 'source-map-loader',
+      }
+    ],
+    // 设置loader的优先级，不管写的顺序，只要enforce写了pre，就先执行这个loader
+    enforce: 'pre',
+}
+```
+
+
+- 效果
+
+```
+// 被引入的文件 content.js
+function test() {
+  console.log('test');
+}
+module.exports = {
+  test,
+}
+//# sourceMappingURL=content.js.map
+```
+
+
+
+
+### babel-loader
+
+- 核心是babel.transform(source, options)方法
+
+```
+// npm i babel-loader @babel/preset-env @babel/core -D
+
+let babel = require('@babel/core')
+
+function normal(source) {
+  let options = {
+    presets: ['@babel/preset-env'], // 配置预设，是一个插件包
+    sourceMap: true, // 生成sourcemap文件,调试的时候看到的是es6的源代码，不是转换之后的
+
+    // module对应文件的名字（调试时：各个module的名字）
+    filename: this.resourcePath.split('/').pop()
+  }
+
+  // code转化后的es5代码，map新的source-map文件，ast抽象语法树
+  // 如果babel生成了ast，webpack直接用它的
+  let { code, map, ast } = babel.transform(source, options)
+
+  // callback是webpack内置的方法
+  // loader执行的时候，this指向loaderContext对象，上面有一个callback方法
+  return this.callback(null, code, map, ast);
+}
+module.exports = normal
+```
+
+
