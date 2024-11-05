@@ -1656,11 +1656,29 @@ module.exports = normal
 
 
 
+- 问题：
+  - pitch函数什么时候使用？
+  - 只有最左边的loader的normal函数才能写module.export = xxxxx，如果我想在倒数第二个loader也写module.exports = xxxxx，怎么办？？（也就是连用最左边两个loader的导出结果）
+- 解决：看style-loader和less-loader
+
 
 
 
 ### 常用的loader
-#### source-map loader
+
+
+- 配置补充，写在module.exports外部大变量
+
+```
+// 这个相当于指定【去哪里找loader】，先去node_modules，找不到再去loaders
+resolveLoader: {
+  modules: ['node_modules', path.join(__dirname, 'loaders')]
+},
+```
+
+
+#### JS文件
+##### source-map loader
 
 - 问题：被import或require导入的代码，呈现的是压缩且转化后的样子，调试的时候我想看到源码
 - 解决：source-map-loader
@@ -1696,7 +1714,7 @@ module.exports = {
 
 
 
-#### babel-loader
+##### babel-loader
 
 - 核心是babel.transform(source, options)方法
 
@@ -1725,4 +1743,354 @@ function normal(source) {
 module.exports = normal
 ```
 
+
+
+
+
+#### IMG文件（png、jpg、gif、bmp...）
+
+- 配置
+
+```
+{
+    test: /\.(jpg|png|gif|bmp)$/,
+    use: [
+      {
+        loader: 'url-loader2',
+        options: {
+          limit: 8 * 1024
+        }
+      }
+    ]
+},
+```
+
+
+
+##### file-loader
+
+主要干了两件事：
+
+1. 把源文件加到输出目录dist里面
+2. 生成一个hash文件名，导出去
+
+```
+// file-loader2.js
+
+// let { getOptions, interpolateName } = require('loader-utils')
+const path = require('path')
+
+function getOptions(loaderContext) {
+  // query的逻辑是 loader.options || loader.query
+  // 这里的核心目标是保证导出的query是一个对象
+  const query = loaderContext.query;
+  if (typeof query === 'string' && query !== '') {
+    return parseQuery(loaderContext.query)
+  }
+  if (!query || typeof query !== 'object') {
+    return null
+  }
+  return query;
+}
+
+function parseQuery(query) {
+  return query.split('&').reduce((accum, item) => {
+    if (item.startsWith('?')) {
+      item = item.replace(/^\?+/, '')
+    }
+    let [key, value] = item.split('=');
+    accum[key] = value;
+    return accum;
+  }, {})
+}
+
+function interpolateName(loaderContext, name, options) {
+  let filename = name || '[hash].[ext]';
+
+  // 拿到原来的扩展名
+  let ext = path.extname(loaderContext.resourcePath).slice(1);
+  // 根据内容生成一个hash
+  let hash = require('crypto').createHash('md5').update(options.content).digest('hex')
+
+  // 用真实值替换占位符
+  filename = filename.replace(/\[hash\]/ig, hash).replace(/\[ext\]/ig, ext);
+
+  return filename;
+
+}
+
+function loader(content) {
+
+  // 拿到配置的选项
+  let options = getOptions(this) || {}
+  // 拿到改过的hash文件名
+  let filename = interpolateName(this, options.filename || '[hash].[ext]', {
+    content
+  })
+
+  // 向输出文件夹（dist）里面加新的文件
+  // 目的是可以在main.js里面直接引用当前文件夹下面的xx图片
+  this.emitFile(filename, content)
+  
+  // 相当于把图片变成了一个js文件，可以导出他的名字
+  // 我在require('./xx.png')的时候，可以直接拿到exports对象里面的default的值，也就是图片文件名
+  return `export default ${JSON.stringify(filename)}`;
+}
+
+// 加载的是二进制，需要让content是buffer
+loader.raw = true;
+module.exports = loader
+```
+
+##### url-loader
+
+file-loader的升级版：
+
+1. 小于xx值的文件可以直接转成base64字符，导出去
+2. 大于xx值的文件，调用file-loader的函数处理
+
+```
+// url-loader2.js
+
+const { getOptions } = require('loader-utils')
+const mime = require('mime')
+
+function loader(content) {
+
+  // 拿到配置的选项
+  let options = getOptions(this) || {};
+  let { limit, fallback = 'file-loader' } = options;
+
+  // 把limit转化为数字类型
+  if (limit) {
+    limit = parseInt(limit, 10);
+  }
+
+  // 拿到目标文件的【媒体类型】
+  const mimeType = mime.getType(this.resourcePath); // .jpg变为image/jpeg
+
+  // 如果没有配置limit但是直接用了url-loader，或者图片的大小小于limit的大小
+  // 转成base64字符
+  if (!limit || content.length < limit) {
+    let base64 = `data:${mimeType};base64,${content.toString('base64')}`
+
+    // loader返回export default只能有一个，且一般是最后一个，经过转换的代码不能有多个export default
+    // 二进制文件的导出一般也不会用export default
+    return `export default ${JSON.stringify(base64)}`
+  } else {
+
+    // 如果大于limit，调用file-loader的函数，拿到返回值
+    let fileLoader = require(fallback || 'file-loader')
+    return fileLoader.call(this, content);
+  }
+}
+
+// 加载的是二进制，需要让content是buffer
+loader.raw = true;
+module.exports = loader
+```
+
+
+#### CSS文件（css、less、sass...）
+
+- 配置
+  - less和css不能结合在一起写（因为：css经过less的转化，路径会出现问题）
+
+```
+{
+    test: /\.less$/,
+    use: [
+      {
+        loader: 'style-loader2', // 把css文本变成style标签，插入到页面中
+      },
+      {
+        loader: 'css-loader2', // 处理css的@import和url()
+      },
+      {
+        loader: 'less-loader2', // 把less编译成css
+      }
+    ]
+},
+{
+    test: /\.css$/,
+    use: [
+      {
+        loader: 'style-loader2', // 把css文本变成style标签，插入到页面中
+      },
+      {
+        loader: 'css-loader2', // 处理css的@import和url()
+      },
+    ]
+},
+```
+
+
+
+##### style-loader
+
+主要干了：（css放到html里面）把css内容写入style标签，把style标签加到head
+
+
+- 普通写法：写在normal上
+  - 只有styleLoader才是最后一个，其他都不能写module.exports = xxx，其他传过来都是单纯的内容值。
+
+```
+// style-loader2.js
+
+let loaderUtils = require('loader-utils')
+
+function loader(source) {
+  let script = `
+    let style = document.createElement('style');
+    style.innerHTML = ${JSON.stringify(source)};
+    document.head.appendChild(style);
+  `
+  return script;
+}
+
+module.exports = loader
+```
+
+
+- 同时利用最左侧两个loader的写法：写在pitch上
+  - 使用require把后面执行的（remainingRequest）所有loader的累加返回值拿到
+  - 倒数第二个loader需要写module.exports = xxx，这个loader的返回值给到【已经在webpack里面】的【styleLoader的pitch函数的返回值】
+  
+```
+loader.pitch = function (remainingRequest, previousRequest, data) {
+
+  // 此时的remainingRequest是 ../loaders/css-loader2.js!../loaders/less-loader2.js!./index.less
+  // 加上感叹号的是只要inlineloader，直接用当前的这个command，不读取rule的配置项了
+
+  // stringifyRequest把绝对路径转为相对路径
+  // 因为webpack是相对根目录找文件的，所以要转换
+  
+  let script = `
+    let style = document.createElement('style');
+    style.innerHTML = require(${loaderUtils.stringifyRequest(this, '!!' + remainingRequest)});
+    document.head.appendChild(style);
+  `
+
+  // 接下来：
+  // script给webpack，把脚本转成抽象语法树，然后找依赖，也就是找import或者require
+  // 继续解析内容"!!../loaders/css-loader2.js!../loaders/less-loader2.js!./index.less"
+  // 要解析index.less这文件，找行内loader，以及其他需要这个文件（less）的loader（写在rules里面的）
+  // 因为写了！！，所以只要行内loader
+  // 开始使用css-loader和less-loader，执行他们的pitch（没有），然后读less内容，然后执行less-loader和css-loader的normal
+
+  return script;
+}
+```
+
+
+
+##### css-loader
+
+主要干了：（处理css的@import和url()）
+
+1. 针对每一个module，执行插件
+  1. 遍历里面的@import语句，保存路径到外部，以便替换为require
+  2. 遍历里面的url()语句，直接替换路径为require
+2. module操作完，执行then回调函数
+  1. 把保存好的@import语句全部替换为require
+  2. 整合自己module的所有import内容和本身的css
+3. 开关函数执行去到下一个：实际上是给到styleLoader的pitch函数，因为cssLoader自己module.export导出了
+
+```
+let postcss = require('postcss'); // 用来处理css，基于css语法树
+let loaderUtils = require('loader-utils');
+let tokenizer = require('css-selector-tokenizer');
+
+function loader(cssString) {
+
+  // 转化为异步执行
+  let callback = this.async();
+
+  const cssPlugin = (options) => {
+    return (cssRoot) => {
+
+      // 遍历每个css文件的规则，找到所有的@import()语句，保存路径到外部
+      cssRoot.walkAtRules(/^import$/i, rule => {
+        rule.remove(); // 删除这个rule，保证下次遍历不会拿到并push同样的值
+        options.imports.push(rule.params.slice(1, -1)) // params的形式为“‘./global.css’”，需要把首尾两个双引号去掉
+      })
+
+      // 遍历每个css文件的规则，找到所有的url()，改为require形式（改完后覆盖原来的值）
+      cssRoot.walkDecls(decl => {
+        let values = tokenizer.parseValues(decl.value);
+        values.nodes.forEach(item => {
+          item.nodes.forEach(item2 => {
+            if(item2.type === 'url') {
+              item2.url = "`+require(" + loaderUtils.stringifyRequest(this, item2.url) + ").default+`";
+            }
+          })
+        })
+        decl.value = tokenizer.stringifyValues(values)
+      })
+    }
+  }
+
+  // 保存所有顶部import的路径
+  let options = {
+    imports: [], // ["./global.css"]
+  };
+
+  // 源代码（每个css文件）会经过流水线的一个个插件（每个css文件都去执行一遍插件）
+  // 构造流水线
+  let pipeLine = postcss([cssPlugin(options)])
+
+  // 每个css文件处理完所有插件之后，整合所有内容构造本css文件的完整版本
+  pipeLine.process(cssString).then(result => {
+
+    // 对于顶部的@import，转化成require去拿文件
+    // 且通过inlineLoader的方式先过一遍cssLoader的内容，再得到结果写入module.exports，然后返回值给到父css
+    let importCSS = options.imports.map(url => {
+      return "`+require(" + loaderUtils.stringifyRequest(this, '!!css-loader2!' + url) + ")+`";
+    })
+
+    // 把顶部@import的内容和自己的css内容合并起来，返回值给stylePitch的返回值，然后给webpack，不用经过styleLoader的normal
+    let output = "module.exports = `" + importCSS + "\r\n" + result.css + "`"
+
+    // 开关调用，去下一个
+    callback(null, output)
+  })
+}
+
+// 为什么每个require()前后都要加上`+
+// 因为原本的其他部分都是字符串，require是一个表达式
+// 通过【结束上一个字符串】+【连接表达式】+【开始下一个字符串】实现，相当于：
+// module.export = ` 字符串 `+ require() +` 字符串 `
+// （上一行再loader里面输出也是个字符串，在webpack那里会去实现）
+
+module.exports = loader
+```
+
+
+##### less-loader
+
+主要干了：（把less编译成css）直接使用less库的render方法把less解析变成css
+
+```
+let less = require('less')
+
+function loader(source) {
+
+  // 转化成异步函数
+  let callback = this.async();
+  less.render(source, { filename: this.resource }, (err, output) => {
+
+    // 直接使用less库的render方法进行解析
+    const css = output.css
+
+    // 是倒数第二个loader，中间没有css-loader，直接用写module.exports
+    // let code = `module.exports = ${JSON.stringify(css)}`
+
+    // 不是倒数第二个loader，解析完之后直接传入去到下一个
+    callback(err, css)
+  })
+
+}
+
+module.exports = loader
+```
 

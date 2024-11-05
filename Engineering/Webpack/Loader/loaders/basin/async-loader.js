@@ -17,3 +17,4 @@ normal.pitch = function () {
 }
 
 module.exports = normal
+
