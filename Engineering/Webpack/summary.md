@@ -2094,3 +2094,336 @@ function loader(source) {
 module.exports = loader
 ```
 
+
+
+
+## plugin
+
+### 执行原理（tapable）
+
+事件流的机制：树枝上需要的地方挂上钩子，执行的时候自动找有钩子函数的去执行
+
+#### 总分类
+
+1. 按照同步异步分
+  1. 同步
+  2. 异步
+    1. 串行
+    2. 并行
+
+
+2. 按照返回值分
+  1. basic：不关心返回值，从头到尾执行每个钩子函数，结束
+  2. bail：
+    1. 没有返回值（返回undefined）：继续执行
+    2. 有返回值：结束
+  3. waterfall：
+    1. 没有返回值：用【之前有返回值的函数】的返回值（或者初始入参）
+    2. 有返回值：下一个函数的入参用上一个函数的返回值
+  4. loop：
+    1. 没有返回值（返回undefined）：继续执行
+    2. 有返回值：从头开始执行
+
+
+#### 基础使用
+
+- PS：
+  - 新建的时候，参数列表要写全，取决于后面写回调时拿到的参数的数量（参数列表里面的名字没有要求，只看数组的长度）
+  - tap第一个参数没有用
+
+
+1. 同步钩子
+
+```
+// 同步钩子basic
+let { SyncHook } = require('tapable');
+const hook = new SyncHook(['name', 'age'])
+// 1 ee ww
+// 2 ee ww
+// 3 ee ww
+// 4 ee ww
+
+
+// 同步钩子bail
+let { SyncBailHook } = require('tapable');
+const hook = new SyncBailHook(['name', 'age'])
+// 1 ee ww
+// 2 ee ww
+
+
+// 同步钩子waterfall
+let { SyncWaterfallHook } = require('tapable');
+const hook = new SyncWaterfallHook(['name', 'age'])
+// 1 ee ww
+// 2 ee ww
+// 3 A ww
+// 4 A ww
+
+
+// 订阅事件
+hook.tap('1', (name, age) => {
+  console.log(1, name,age)
+})
+hook.tap('2', (name, age) => {
+  console.log(2, name,age)
+    return 'A';
+})
+hook.tap('3', (name, age) => {
+  console.log(3, name,age)
+})
+hook.tap('4', (name, age) => {
+  console.log(4, name,age)
+})
+
+// 触发事件
+hook.call('ee', 'ww')
+
+
+// -----------------------------------------------------------
+
+
+// 同步钩子loop
+let { SyncLoopHook } = require('tapable');
+const hook = new SyncLoopHook(['name', 'age'])
+let counter1 = 0;
+let counter2 = 0;
+
+// 订阅事件
+hook.tap('A', (name, age) => {
+  console.log('A', 'counter1', counter1)
+  if (++counter1 === 1) {
+    counter1 = 0;
+    return;
+  }
+  return 'A';
+})
+hook.tap('B', (name, age) => {
+  console.log('B', 'counter2', counter2)
+  if (++counter2 === 2) {
+    counter2 = 0;
+    return;
+  }
+  return 'B';
+})
+// 触发事件
+hook.call('ee', 'ww')
+// A counter1 0
+// B counter2 0
+// A counter1 0
+// B counter2 1
+```
+
+
+
+
+2. 异步钩子
+
+```
+// 异步并行钩子
+let { AsyncParallelHook } = require('tapable');
+const hook = new AsyncParallelHook(['name'])
+// 1 ee
+// 2 ee
+// 3 ee
+// undefined
+// cost: 3.004s
+
+
+// 异步串行钩子
+let { AsyncSeriesHook } = require('tapable');
+const hook = new AsyncSeriesHook(['name'])
+// 1 ee
+// 2 ee
+// 3 ee
+// undefined
+// cost: 6.017s
+
+
+
+// 返回值的写法
+callback(null, 'A')
+resolve('A')
+
+// 加上Bail
+let { AsyncSeriesBailHook } = require('tapable');
+let { AsyncParallelBailHook } = require('tapable');
+
+// 加上Waterfall，只有串行，因为要等上一个函数执行完看有无返回值再决定下一个函数的入参
+let { AsyncSeriesWaterfallHook } = require('tapable');
+
+
+
+
+// 一种写法，用封好的异步方法
+// 订阅事件 callback表示执行完去开启下一步
+console.time('cost')
+hook.tapAsync('1', (name, callback) => {
+  setTimeout(() => {
+    console.log(1, name)
+    callback()
+  }, 1000)
+})
+hook.tapAsync('2', (name, callback) => {
+  setTimeout(() => {
+    console.log(2, name)
+    callback()
+  }, 2000)
+})
+hook.tapAsync('3', (name, callback) => {
+  setTimeout(() => {
+    console.log(3, name)
+    callback()
+  }, 3000)
+})
+
+// 触发事件 最后的回调函数
+hook.callAsync('ee', (err) => {
+  console.log(err)
+  console.timeEnd('cost')
+})
+
+
+
+
+// 第二种写法，用promise
+// 订阅事件
+console.time('cost')
+hook.tapPromise('1', (name) => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      console.log(1, name)
+      resolve()
+    }, 1000)
+  })
+})
+hook.tapPromise('2', (name) => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      console.log(2, name)
+      resolve()
+    }, 2000)
+  })
+})
+hook.tapPromise('3', (name) => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      console.log(3, name)
+      resolve()
+    }, 3000)
+  })
+})
+
+// 触发事件
+hook.promise('eeeee').then((data) => {
+  console.log(data);
+  console.timeEnd('cost')
+})
+```
+
+
+
+
+
+#### 同步钩子basic
+
+1. 供继承的大类Hook
+
+```
+class Hook {
+  constructor(args) {
+    if (!Array.isArray(args)) args = [];
+    this._args = args; // 用来放参数列表
+
+    this.taps = []; // 用来放钩子函数，存对象 { namw:钩子名称， fn:钩子函数 }
+    this._x = undefined;// 存钩子函数，只有函数 [fn1, fn2, fn3...]
+
+  }
+
+  tap(options, fn) {
+    // 创造一个对象
+    if (typeof options === 'string') {
+      options = { name: options }
+    }
+    options.fn = fn;
+    this._inert(options);
+  }
+  _inert(item) {
+    this.taps[this.taps.length] = item;
+    // this.taps.push(item);
+  }
+
+  call(...args) {
+    let callMethod = this._createCall() // 动态编译出一个函数
+    return callMethod.apply(this, args); // 然后执行这个函数
+  }
+  _createCall() {
+    return this.compile({
+      taps: this.taps,
+      _args: this._args,
+    })
+  }
+
+}
+
+module.exports = Hook;
+```
+
+
+2. 每个具体的小钩子类SyncHook
+
+```
+let Hook = require('./Hook')
+let HookCodeFactory = require('./HookCodeFactory')
+
+const factory = new HookCodeFactory();
+
+class SyncHook extends Hook{
+  compile(options) {
+    factory.setup(this, options);
+    return factory.create()
+  }
+
+}
+
+module.exports = SyncHook
+```
+
+
+
+3. 实时构造回调函数的字符串代码的工厂
+
+```
+class HookCodeFactory {
+  // 首先填充_x属性的值为单纯的回调函数数组
+  setup(instance, options) {
+    this.options = options
+    instance._x = options.taps.map(item => item.fn)
+  }
+
+  args() {
+    return this.options._args.join(',') // [name, age]变成name, age
+  }
+
+  // create函数执行的时候，是在syncHook里面执行的，this指向这个钩子的实例
+  header() {
+    return `var _x = this._x;\n`
+  }
+  content() {
+    return this.options.taps.map((item, index) => (
+      `
+        var _fn${index} = _x[${index}];\n
+        _fn${index}(${this.args()});
+      `
+    )).join('\n');
+  }
+  
+  create() {
+    return new Function(this.args(), this.header() + this.content())
+  }
+}
+
+module.exports = HookCodeFactory;
+```
+
+
+
