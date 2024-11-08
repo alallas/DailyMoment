@@ -3013,7 +3013,32 @@
     }
 
 
+    function selectSort(arr) {
+        for (let i = 0; i < arr.length; i++) {
+            let maxIndex = 0;
+            for (let j = 0; j < arr.length - i; j++) {
+                if (arr[j] > arr[maxIndex]) {
+                    maxIndex = j;
+                }
+            }
+            [arr[maxIndex], arr[arr.length - i - 1]] = [arr[arr.length - 1], arr[maxIndex]]
+        }
+    }
 
+
+    function insertSort(arr) {
+        for (let i = 0; i < arr.length; i++) {
+            let curNum = arr[i];
+            let j = i - 1;
+            while(j >= 0 && arr[j] > curNum) {
+                arr[j + 1] = arr[j];
+                j--;
+            }
+            arr[j + 1] = curNum;
+        }
+    }
+
+    
 
 
 
