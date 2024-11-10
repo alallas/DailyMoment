@@ -3076,6 +3076,38 @@
 
 
 
+    function fastSort(arr, left, right) {
+        if (left >= right) return
+        const baseIndex = findBaseIndex(arr, left, right)
+
+        fastSort(arr, left, baseIndex - 1)
+        fastSort(arr, baseIndex + 1, right)
+    }
+
+    function findBaseIndex(arr, left, right) {
+        let base = arr[left]
+        let leftPoint = left, rightPoint = right
+        while(leftPoint < rightPoint && leftPoint < arr.length && rightPoint >= 0) {
+            while(arr[rightPoint] >= base && leftPoint < rightPoint) {
+                rightPoint--
+            }
+            arr[leftPoint] = arr[rightPoint]
+            while(arr[leftPoint] <= base && leftPoint < rightPoint) {
+                leftPoint++
+            }
+            arr[rightPoint] = arr[leftPoint]
+        }
+        arr[leftPoint] = base
+        return leftPoint
+    }
+
+    // fastSort(arr, 0, arr.length - 1)
+
+
+
+
+
+
 
 
 
