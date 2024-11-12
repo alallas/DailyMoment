@@ -3142,6 +3142,24 @@
     // arr = heapSort(arr)
 
 
+    // // 深拷贝
+    function deepCopy(obj) {
+        if (!isObj(obj)) return
+        const newObj = {}
+        const keys = Object.keys(obj)
+        for (let i = 0; i < keys.length; i++) {
+            const curKey = keys[i]
+            if (isObj(obj[curKey])) {
+                const res = deepCopy(obj[curKey])
+                newObj[curKey] = res
+            } else {
+                newObj[curKey] = obj[curKey]
+            }
+        }
+        return newObj
+    }
+
+    // console.log(deepCopy(obj))
 
     
 
