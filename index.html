@@ -3185,7 +3185,24 @@
 
     function solution(arr, k) {
         let map = {};
-        let isLian = false;
+        let isOver = false;
+        let res = null;
+
+        function win(map, win) {
+            if (!map[win]) {
+                map[win] = {
+                    lastTime: 'win',
+                    num: 1,
+                    continueCount: 1,
+                }
+            } else {
+                map[win].num += 1;
+                if (map[win].lastTime === 'win') {
+                    map[win].continueCount += 1;
+                }
+            }
+        }
+
         function back(arr) {
             for (let i = 0; i < arr.length; i++) {
                 let f = arr[0]
@@ -3193,27 +3210,28 @@
                 if (f > s) {
                     arr.splice(1, 1)
                     arr.push(s)
-                    if (map[f]) {
-                        map[f] += 1
-                    } else {
-                        map[f] = 1
-                    }
-                    if (map[f] === k) {
-                        isover = true;
-                        return f
+                    win(map, f)
+                    if (map[f].continueCount === k) {
+                        isOver = true;
+                        res = f;
+                        return
                     }
                 } else {
                     arr[0] = s
                     arr.splice(1, 1)
                     arr.push(f)
+                    win(map, s)
+                    if (map[s].continueCount === k) {
+                        isOver = true;
+                        res = s;
+                        return
+                    }
                 }
             }
-            if ()
+            if (!isOver) back(arr);
         }
-
-
-
-        return 0;
+        back(arr)
+        return res;
     }
 
     function main() {
@@ -3223,6 +3241,7 @@
     }
 
     main();
+
 
 
 
