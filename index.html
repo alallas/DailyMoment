@@ -3163,85 +3163,119 @@
 
     
 
-    function promiseAll(promises) {
-        return new Promise((resolve, reject) => {
-            if (!Array.isArray(promises)) return new Error('not array')
-            let result = []
-            let resCount = 0
-            for (let i = 0; i < promises.length; i++) {
-                Promise.resolve(promises[i]).then(res => {
-                    resCount++
-                    result[i] = res
-                    if (resCount === promises.length) {
-                        return resolve(result)
-                    }
-                }).catch(err => {
-                    return reject(err)
-                })
-            }
-        })
-    }
+    // function promiseAll(promises) {
+    //     return new Promise((resolve, reject) => {
+    //         if (!Array.isArray(promises)) return new Error('not array')
+    //         let result = []
+    //         let resCount = 0
+    //         for (let i = 0; i < promises.length; i++) {
+    //             Promise.resolve(promises[i]).then(res => {
+    //                 resCount++
+    //                 result[i] = res
+    //                 if (resCount === promises.length) {
+    //                     return resolve(result)
+    //                 }
+    //             }).catch(err => {
+    //                 return reject(err)
+    //             })
+    //         }
+    //     })
+    // }
 
 
-    function solution(arr, k) {
+    // function solution(arr, k) {
+    //     let map = {};
+    //     let isOver = false;
+    //     let res = null;
+
+    //     function win(map, win) {
+    //         if (!map[win]) {
+    //             map[win] = {
+    //                 lastTime: 'win',
+    //                 num: 1,
+    //                 continueCount: 1,
+    //             }
+    //         } else {
+    //             map[win].num += 1;
+    //             if (map[win].lastTime === 'win') {
+    //                 map[win].continueCount += 1;
+    //             }
+    //         }
+    //     }
+
+    //     function back(arr) {
+    //         for (let i = 0; i < arr.length; i++) {
+    //             let f = arr[0]
+    //             let s = arr[1]
+    //             if (f > s) {
+    //                 arr.splice(1, 1)
+    //                 arr.push(s)
+    //                 win(map, f)
+    //                 if (map[f].continueCount === k) {
+    //                     isOver = true;
+    //                     res = f;
+    //                     return
+    //                 }
+    //             } else {
+    //                 arr[0] = s
+    //                 arr.splice(1, 1)
+    //                 arr.push(f)
+    //                 win(map, s)
+    //                 if (map[s].continueCount === k) {
+    //                     isOver = true;
+    //                     res = s;
+    //                     return
+    //                 }
+    //             }
+    //         }
+    //         if (!isOver) back(arr);
+    //     }
+    //     back(arr)
+    //     return res;
+    // }
+
+    // function main() {
+    //     console.log(solution([2, 1, 3, 5, 4, 6, 7, 9], 2) === 5);
+    //     console.log(solution([3, 2, 1, 4], 10) === 4);
+    //     console.log(solution([1, 9, 8, 7, 6, 5, 4, 3, 2, 11], 7) === 9);
+    // }
+
+    // main();
+
+
+
+
+
+
+    function solution(nums) {
         let map = {};
-        let isOver = false;
-        let res = null;
-
-        function win(map, win) {
-            if (!map[win]) {
-                map[win] = {
-                    lastTime: 'win',
-                    num: 1,
-                    continueCount: 1,
-                }
+        let m = 0;
+        for (let i = 0; i < nums.length; i++) {
+            const curNum = nums[i]
+            if (map[curNum]) {
+                map[curNum] += 1;
             } else {
-                map[win].num += 1;
-                if (map[win].lastTime === 'win') {
-                    map[win].continueCount += 1;
-                }
+                map[curNum] = 1;
+            }
+            if (map[curNum] % 5 === 0) {
+                m += 1;
             }
         }
-
-        function back(arr) {
-            for (let i = 0; i < arr.length; i++) {
-                let f = arr[0]
-                let s = arr[1]
-                if (f > s) {
-                    arr.splice(1, 1)
-                    arr.push(s)
-                    win(map, f)
-                    if (map[f].continueCount === k) {
-                        isOver = true;
-                        res = f;
-                        return
-                    }
-                } else {
-                    arr[0] = s
-                    arr.splice(1, 1)
-                    arr.push(f)
-                    win(map, s)
-                    if (map[s].continueCount === k) {
-                        isOver = true;
-                        res = s;
-                        return
-                    }
-                }
-            }
-            if (!isOver) back(arr);
+        if (nums.length % m === 0) {
+            return "True";
+        } else {
+            return "False";
         }
-        back(arr)
-        return res;
     }
 
     function main() {
-        console.log(solution([2, 1, 3, 5, 4, 6, 7, 9], 2) === 5);
-        console.log(solution([3, 2, 1, 4], 10) === 4);
-        console.log(solution([1, 9, 8, 7, 6, 5, 4, 3, 2, 11], 7) === 9);
+    // You can add more test cases here
+    console.log(solution([1, 3, 4, 5, 6, 5, 4]) === "False");
+    console.log(solution([1, 1, 1, 1, 2, 1, 2, 2, 2, 2]) === "True");
+    console.log(solution([11, 45, 49, 37, 45, 38, 3, 47, 35, 49, 26, 16, 24, 4, 45, 39, 28, 26, 14, 22, 4, 49, 18, 4, 4, 26, 47, 14, 1, 21, 9, 26, 17, 12, 44, 28, 24, 24, 10, 31, 33, 32, 23, 41, 41, 19, 17, 24, 28, 46, 28, 4, 18, 23, 48, 45, 7, 21, 12, 40, 2, 19, 19, 28, 32, 6, 27, 43, 6, 18, 8, 27, 9, 6, 6, 31, 37, 15, 26, 20, 43, 3, 14, 40, 20]) === "False");
     }
 
     main();
-
 
 
 
