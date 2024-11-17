@@ -3290,109 +3290,148 @@
 
 
 
-    function solution(m, n, target, array) {
-        let res = [], path = [];
-        let arr = ['A', 'B', 'C', 'D', 'E'];
-        function back(startIndex) {
-            if (path.length === 2) {
-                res.push([...path]);
-                return;
-            }
-            for (let i = startIndex; i < arr.length; i++) {
-                path.push({
-                    name: arr[i],
-                    index: i,
-                });
-                back(i + 1);
-                path.pop();
-            }
-        }
-        back(0);
+    // function solution(m, n, target, array) {
+    //     let res = [], path = [];
+    //     let arr = ['A', 'B', 'C', 'D', 'E'];
+    //     function back(startIndex) {
+    //         if (path.length === 2) {
+    //             res.push([...path]);
+    //             return;
+    //         }
+    //         for (let i = startIndex; i < arr.length; i++) {
+    //             path.push({
+    //                 name: arr[i],
+    //                 index: i,
+    //             });
+    //             back(i + 1);
+    //             path.pop();
+    //         }
+    //     }
+    //     back(0);
 
 
-        const notMatch = ['AE', 'EA', 'BD', 'DB', 'CE', 'EC', 'BE', 'EB']
+    //     const notMatch = ['AE', 'EA', 'BD', 'DB', 'CE', 'EC', 'BE', 'EB']
 
-        let map = {}
+    //     let map = {}
 
-        for (let i = 0; i < res.length; i++) {
-            const curGroup = res[i];
-            let group = '';
-            let indexA = 0, indexB = 0;
-            curGroup.map((item, index) => {
-                group += item.name;
-                if (index === 0) {
-                    indexA = item.index;
-                } else {
-                    indexB = item.index;
-                }
+    //     for (let i = 0; i < res.length; i++) {
+    //         const curGroup = res[i];
+    //         let group = '';
+    //         let indexA = 0, indexB = 0;
+    //         curGroup.map((item, index) => {
+    //             group += item.name;
+    //             if (index === 0) {
+    //                 indexA = item.index;
+    //             } else {
+    //                 indexB = item.index;
+    //             }
+    //         })
+
+    //         const otherGroup = group.split('').reverse().join('')
+
+    //         if (notMatch.indexOf(group) > -1) {
+    //             map[group] = -1
+    //             map[otherGroup] = -1
+    //         } else {
+    //             const diff = Math.abs(indexA - indexB)
+    //             map[group] = diff
+    //             map[otherGroup] = diff
+    //         }
+
+    //     }
+
+
+
+    //     let minDiff = Infinity, minSolid = '';
+    //     for (let i = 0; i < array.length; i++) {
+
+    //         let diffSum = 0;
+    //         const curSolid = array[i];
+
+    //         for (let a = 0; a < curSolid.length; a++) {
+    //             const curSolidStr = curSolid[a];
+    //             const curStr = target[a];
+    //             const group = curSolidStr + curStr;
+
+    //             if (map[group] && map[group] > -1) {
+    //                 diffSum += map[group]
+    //             } else if (map[group] && map[group] === -1) {
+    //                 diffSum = null;
+    //                 break;
+    //             } else {
+    //                 diffSum += 0;
+    //             }
+    //         }
+
+    //         if (diffSum && diffSum < minDiff) {
+    //             minDiff = diffSum
+    //             minSolid = array[i]
+    //         } else if (diffSum && diffSum === minDiff) {
+    //             minSolid += ` ${array[i]}`
+    //         }
+    //     }
+
+    //     if (minDiff === Infinity) return 'None'
+    //     return minSolid
+
+    // }
+
+
+    // function main() {
+    //     // Add your test cases here
+    //     const matrix = ["ACDC", "BBDC", "EBCB", "BBBB"];
+    //     console.log(
+    //         JSON.stringify(solution(4, 4, "AEBC", matrix)) ===
+    //             JSON.stringify("None")
+    //     );
+    // }
+
+
+    // main();
+
+
+
+
+    function solution(n, s, x) {
+        // 直接冒泡
+        // for (let i = 0; i < s.length; i++) {
+        //     let isOk = true
+        //     for (let j = 0; j < s.length - i; j++) {
+        //         if (x[j + 1] && x[j] < x[j + 1]) {
+        //             isOk = false
+        //             const temp = s[j]
+        //             s[j] = s[j + 1]
+        //             s[j + 1] = temp
+
+        //             const temp2 = x[j]
+        //             x[j] = x[j + 1]
+        //             x[j + 1] = temp2
+        //         }
+        //     }
+        //     if (isOk) break
+        // }
+        // return s
+        let map = []
+        for (let i = 0; i < s.length; i++) {
+            map.push({
+                person: s[i],
+                hongbao: x[i]
             })
-
-            const otherGroup = group.split('').reverse().join('')
-
-            if (notMatch.indexOf(group) > -1) {
-                map[group] = -1
-                map[otherGroup] = -1
-            } else {
-                const diff = Math.abs(indexA - indexB)
-                map[group] = diff
-                map[otherGroup] = diff
-            }
-
         }
+        map.sort((a, b) => 
+            b.hongbao - a.hongbao
+        )
 
-
-
-        let minDiff = Infinity, minSolid = '';
-        for (let i = 0; i < array.length; i++) {
-
-            let diffSum = 0;
-            const curSolid = array[i];
-
-            for (let a = 0; a < curSolid.length; a++) {
-                const curSolidStr = curSolid[a];
-                const curStr = target[a];
-                const group = curSolidStr + curStr;
-
-                if (map[group] && map[group] > -1) {
-                    diffSum += map[group]
-                } else if (map[group] && map[group] === -1) {
-                    diffSum = null;
-                    break;
-                } else {
-                    diffSum += 0;
-                }
-            }
-
-            if (diffSum && diffSum < minDiff) {
-                minDiff = diffSum
-                minSolid = array[i]
-            } else if (diffSum && diffSum === minDiff) {
-                minSolid += ` ${array[i]}`
-            }
-        }
-
-        if (minDiff === Infinity) return 'None'
-        return minSolid
-
+        return map.map(i => i.person)
     }
-
 
     function main() {
-        // Add your test cases here
-        const matrix = ["ACDC", "BBDC", "EBCB", "BBBB"];
-        console.log(
-            JSON.stringify(solution(4, 4, "AEBC", matrix)) ===
-                JSON.stringify("None")
-        );
+        console.log(JSON.stringify(solution(4, ["a", "b", "c", "d"], [1, 2, 2, 1])) === JSON.stringify(['b', 'c', 'a', 'd']));
+        console.log(JSON.stringify(solution(3, ["x", "y", "z"], [100, 200, 200])) === JSON.stringify(['y', 'z', 'x']));
+        console.log(JSON.stringify(solution(5, ["m", "n", "o", "p", "q"], [50, 50, 30, 30, 20])) === JSON.stringify(['m', 'n', 'o', 'p', 'q']));
     }
 
-
     main();
-
-
-
-
-
 
 
 
