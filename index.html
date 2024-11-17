@@ -3411,18 +3411,28 @@
         //     if (isOk) break
         // }
         // return s
-        let map = []
+        let map = {}
         for (let i = 0; i < s.length; i++) {
-            map.push({
-                person: s[i],
-                hongbao: x[i]
-            })
+            const curPer = s[i]
+            if (map[curPer]) {
+                map[curPer] += x[i];
+            } else {
+                map[curPer] = x[i];
+            }
         }
-        map.sort((a, b) => 
+
+        let map2 = Object.keys(map).map(i => {
+            const curV = map[i]
+            return {
+                person: i,
+                hongbao: curV,
+            }
+        })
+        map2.sort((a, b) => 
             b.hongbao - a.hongbao
         )
 
-        return map.map(i => i.person)
+        return map2.map(i => i.person)
     }
 
     function main() {
