@@ -3392,56 +3392,114 @@
 
 
 
-    function solution(n, s, x) {
-        // 直接冒泡
-        // for (let i = 0; i < s.length; i++) {
-        //     let isOk = true
-        //     for (let j = 0; j < s.length - i; j++) {
-        //         if (x[j + 1] && x[j] < x[j + 1]) {
-        //             isOk = false
-        //             const temp = s[j]
-        //             s[j] = s[j + 1]
-        //             s[j + 1] = temp
+    // function solution(n, s, x) {
+    //     // 直接冒泡
+    //     // for (let i = 0; i < s.length; i++) {
+    //     //     let isOk = true
+    //     //     for (let j = 0; j < s.length - i; j++) {
+    //     //         if (x[j + 1] && x[j] < x[j + 1]) {
+    //     //             isOk = false
+    //     //             const temp = s[j]
+    //     //             s[j] = s[j + 1]
+    //     //             s[j + 1] = temp
 
-        //             const temp2 = x[j]
-        //             x[j] = x[j + 1]
-        //             x[j + 1] = temp2
-        //         }
-        //     }
-        //     if (isOk) break
+    //     //             const temp2 = x[j]
+    //     //             x[j] = x[j + 1]
+    //     //             x[j + 1] = temp2
+    //     //         }
+    //     //     }
+    //     //     if (isOk) break
+    //     // }
+    //     // return s
+    //     let map = {}
+    //     for (let i = 0; i < s.length; i++) {
+    //         const curPer = s[i]
+    //         if (map[curPer]) {
+    //             map[curPer] += x[i];
+    //         } else {
+    //             map[curPer] = x[i];
+    //         }
+    //     }
+
+    //     let map2 = Object.keys(map).map(i => {
+    //         const curV = map[i]
+    //         return {
+    //             person: i,
+    //             hongbao: curV,
+    //         }
+    //     })
+    //     map2.sort((a, b) => 
+    //         b.hongbao - a.hongbao
+    //     )
+
+    //     return map2.map(i => i.person)
+    // }
+
+    // function main() {
+    //     console.log(JSON.stringify(solution(4, ["a", "b", "c", "d"], [1, 2, 2, 1])) === JSON.stringify(['b', 'c', 'a', 'd']));
+    //     console.log(JSON.stringify(solution(3, ["x", "y", "z"], [100, 200, 200])) === JSON.stringify(['y', 'z', 'x']));
+    //     console.log(JSON.stringify(solution(5, ["m", "n", "o", "p", "q"], [50, 50, 30, 30, 20])) === JSON.stringify(['m', 'n', 'o', 'p', 'q']));
+    // }
+
+    // main();
+
+
+
+
+
+
+    function solution(V, W) {
+        // const cusNeedToPayCount = Math.ceil(Math.log(W) / Math.log(V))
+        // if (cusNeedToPayCount > 2) {
+        //     const cusNeedToPayCountNext = cusNeedToPayCount - 2;
+        //     let cusNeedToPayNext = 
         // }
-        // return s
-        let map = {}
-        for (let i = 0; i < s.length; i++) {
-            const curPer = s[i]
-            if (map[curPer]) {
-                map[curPer] += x[i];
-            } else {
-                map[curPer] = x[i];
-            }
+        // const shopNeedToGiveBack = Math.pow(V, cusNeedToPayCount) - W
+        // console.log(cusNeedToPayCount)
+        // console.log(shopNeedToGiveBack)
+        // const shopNeedToGiveBackCount = Math.log(shopNeedToGiveBack) / Math.log(V)
+        // console.log(shopNeedToGiveBackCount)
+        // console.log(Math.log(shopNeedToGiveBack - 1) / Math.log(V))
+        // console.log(Math.log(shopNeedToGiveBack + 1) / Math.log(V))
+        // // return "-1";
+
+
+
+        let desideZhiShu = 0, desideDiff = 0;
+        const cusNeedToPayCountCeil = Math.ceil(Math.log(W) / Math.log(V))
+        const cusNeedToPayCountFloor = Math.floor(Math.log(W) / Math.log(V))
+        const diffCeil = Math.pow(V, cusNeedToPayCountCeil) - W
+        const diffFloor = Math.pow(V, cusNeedToPayCountFloor) - W
+
+        if (Math.abs(diffCeil) < Math.abs(diffFloor)) {
+            desideZhiShu = cusNeedToPayCountCeil;
+            desideDiff = diffCeil;
+        } else {
+            desideZhiShu = cusNeedToPayCountFloor;
+            desideDiff = diffFloor;
         }
 
-        let map2 = Object.keys(map).map(i => {
-            const curV = map[i]
-            return {
-                person: i,
-                hongbao: curV,
-            }
-        })
-        map2.sort((a, b) => 
-            b.hongbao - a.hongbao
-        )
+        if (desideDiff > 0) {
+            const shopNeedToGiveBackZhiShu = Math.log(desideDiff) / Math.log(V)
+            console.log(shopNeedToGiveBackZhiShu)
+        }
 
-        return map2.map(i => i.person)
+
+
+
+
+
+
+
     }
-
     function main() {
-        console.log(JSON.stringify(solution(4, ["a", "b", "c", "d"], [1, 2, 2, 1])) === JSON.stringify(['b', 'c', 'a', 'd']));
-        console.log(JSON.stringify(solution(3, ["x", "y", "z"], [100, 200, 200])) === JSON.stringify(['y', 'z', 'x']));
-        console.log(JSON.stringify(solution(5, ["m", "n", "o", "p", "q"], [50, 50, 30, 30, 20])) === JSON.stringify(['m', 'n', 'o', 'p', 'q']));
+        // Add your test cases here
+        console.log(solution(10, 9) === "Yes");
+        console.log(solution(200, 40199) === "Yes");
+        console.log(solution(108, 50) === "NO");
     }
-
     main();
+
 
 
 
