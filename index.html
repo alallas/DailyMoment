@@ -3449,49 +3449,42 @@
 
 
     function solution(V, W) {
-        // const cusNeedToPayCount = Math.ceil(Math.log(W) / Math.log(V))
-        // if (cusNeedToPayCount > 2) {
-        //     const cusNeedToPayCountNext = cusNeedToPayCount - 2;
-        //     let cusNeedToPayNext = 
-        // }
-        // const shopNeedToGiveBack = Math.pow(V, cusNeedToPayCount) - W
-        // console.log(cusNeedToPayCount)
-        // console.log(shopNeedToGiveBack)
-        // const shopNeedToGiveBackCount = Math.log(shopNeedToGiveBack) / Math.log(V)
-        // console.log(shopNeedToGiveBackCount)
-        // console.log(Math.log(shopNeedToGiveBack - 1) / Math.log(V))
-        // console.log(Math.log(shopNeedToGiveBack + 1) / Math.log(V))
-        // // return "-1";
 
+        function back(V, W) {
+            if (W === 0) return 'NO';
+            let desideZhiShu = 0, desideDiff = 0;
+            const cusNeedToPayCountCeil = Math.ceil(Math.log(W) / Math.log(V))
+            const cusNeedToPayCountFloor = Math.floor(Math.log(W) / Math.log(V))
+            const diffCeil = Math.pow(V, cusNeedToPayCountCeil) - W
+            const diffFloor = Math.pow(V, cusNeedToPayCountFloor) - W
 
+            if (Math.abs(diffCeil) < Math.abs(diffFloor)) {
+                desideZhiShu = cusNeedToPayCountCeil;
+                desideDiff = diffCeil;
+            } else {
+                desideZhiShu = cusNeedToPayCountFloor;
+                desideDiff = diffFloor;
+            }
 
-        let desideZhiShu = 0, desideDiff = 0;
-        const cusNeedToPayCountCeil = Math.ceil(Math.log(W) / Math.log(V))
-        const cusNeedToPayCountFloor = Math.floor(Math.log(W) / Math.log(V))
-        const diffCeil = Math.pow(V, cusNeedToPayCountCeil) - W
-        const diffFloor = Math.pow(V, cusNeedToPayCountFloor) - W
+            console.log(desideDiff, desideZhiShu)
 
-        if (Math.abs(diffCeil) < Math.abs(diffFloor)) {
-            desideZhiShu = cusNeedToPayCountCeil;
-            desideDiff = diffCeil;
-        } else {
-            desideZhiShu = cusNeedToPayCountFloor;
-            desideDiff = diffFloor;
+            if (desideDiff > 0) {
+                const shopNeedToGiveBackZhiShu = Math.log(desideDiff) / Math.log(V)
+                console.log(shopNeedToGiveBackZhiShu)
+                if ((shopNeedToGiveBackZhiShu + '').split('').indexOf('.') === -1) {
+                    return "Yes"
+                } else {
+                    return "No"
+                }
+            } else {
+                return back(V, Math.abs(desideDiff))
+            }
         }
 
-        if (desideDiff > 0) {
-            const shopNeedToGiveBackZhiShu = Math.log(desideDiff) / Math.log(V)
-            console.log(shopNeedToGiveBackZhiShu)
-        }
-
-
-
-
-
-
-
+        return back(V, W)
 
     }
+
     function main() {
         // Add your test cases here
         console.log(solution(10, 9) === "Yes");
@@ -3499,7 +3492,6 @@
         console.log(solution(108, 50) === "NO");
     }
     main();
-
 
 
 
