@@ -3497,6 +3497,39 @@
 
 
 
+    function heapSort(arr) {
+        const len = arr.length
+        for (let i = Math.floor(len / 2) - 1; i >= 0; i--) {
+            heapify(arr, len, i)
+        }
+        for (let i = len - 1; i >= 0; i--) {
+            [arr[i], arr[0]] = [arr[0], arr[i]]
+            heapify(arr, i, 0)
+        }
+        return arr
+    }
+
+    function heapify(arr, len, index) {
+        let maxFather = index
+        let leftChild = index * 2 + 1
+        let rightChild = index * 2 + 2
+        if (arr[leftChild] > arr[maxFather] && leftChild < len) {
+            maxFather = leftChild
+        }
+        if (arr[rightChild] > arr[maxFather] && rightChild < len) {
+            maxFather = rightChild
+        }
+        if (maxFather !== index) {
+            [arr[maxFather], arr[index]] = [arr[index], arr[maxFather]]
+            heapify(arr, len, maxFather)
+        }
+    }
+
+
+
+
+
+
 
   </script>
 </body>
