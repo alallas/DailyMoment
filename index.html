@@ -3579,6 +3579,57 @@
 
 
 
+        function insertSort(arr) {
+        for (let i = 0; i < arr.length; i++) {
+            let curNum = arr[i];
+            let j = i - 1;
+            while(j >= 0 && arr[j] > curNum) {
+                arr[j + 1] = arr[j];
+                j--;
+            }
+            arr[j + 1] = curNum;
+        }
+    }
+
+
+
+
+    function mergeSort(arr) {
+        let len = arr.length;
+        if (len <= 1) return arr;
+        const mid = Math.floor(len / 2);
+        const rightArr = arr.slice(mid);
+        const leftArr = arr.slice(0, mid);
+        const r = mergeSort(rightArr);
+        const l = mergeSort(leftArr);
+        return merge(r, l)
+    }
+
+
+    function merge(right, left) {
+        let p1 = 0, p2 = 0;
+        let temp = [];
+        while(p1 < right.length && p2 < left.length) {
+            if (right[p1] < left[p2]) {
+                temp.push(right[p1]);
+                p1++;
+            } else {
+                temp.push(left[p2]);
+                p2++;
+            }
+        }
+        if (p1 < right.length) {
+            temp.push(...right.slice(p1))
+        }
+        if (p2 < left.length) {
+            temp.push(...left.slice(p2))
+        }
+        return temp
+    }
+
+
+
+
 
   </script>
 </body>
