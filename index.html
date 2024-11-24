@@ -3579,7 +3579,7 @@
 
 
 
-        function insertSort(arr) {
+    function insertSort(arr) {
         for (let i = 0; i < arr.length; i++) {
             let curNum = arr[i];
             let j = i - 1;
@@ -3626,6 +3626,35 @@
         }
         return temp
     }
+
+
+    function insertSort(arr) {
+        for (let i = 0; i < arr.length; i++) {
+            let curNum = arr[i];
+            let j = i - 1;
+            while(j >= 0 && arr[j] > curNum) {
+                arr[j + 1] = arr[j];
+                j--;
+            }
+            arr[j + 1] = curNum;
+        }
+    }
+
+
+
+
+    function mergeSort(arr) {
+        let len = arr.length;
+        if (len <= 1) return arr;
+        const mid = Math.floor(len / 2);
+        const rightArr = arr.slice(mid);
+        const leftArr = arr.slice(0, mid);
+        const r = mergeSort(rightArr);
+        const l = mergeSort(leftArr);
+        return merge(r, l)
+    }
+
+    
 
 
 
