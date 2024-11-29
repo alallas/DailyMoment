@@ -2998,111 +2998,111 @@
 
 
 
-    function bubbleSort(arr) {
-        for (let i = 0; i < arr.length; i++) {
-            let isOk = true
-            for (let j = 0; j < arr.length - i; j++) {
-                if (arr[j] > arr[j + 1]) {
-                    isOk = false
-                    let temp = arr[j + 1];
-                    arr[j + 1] = arr[j];
-                    arr[j] = temp;
-                }
-            }
-            if (isOk) break
-        }
-    }
+    // function bubbleSort(arr) {
+    //     for (let i = 0; i < arr.length; i++) {
+    //         let isOk = true
+    //         for (let j = 0; j < arr.length - i; j++) {
+    //             if (arr[j] > arr[j + 1]) {
+    //                 isOk = false
+    //                 let temp = arr[j + 1];
+    //                 arr[j + 1] = arr[j];
+    //                 arr[j] = temp;
+    //             }
+    //         }
+    //         if (isOk) break
+    //     }
+    // }
 
 
-    function selectSort(arr) {
-        for (let i = 0; i < arr.length; i++) {
-            let maxIndex = 0;
-            for (let j = 0; j < arr.length - i; j++) {
-                if (arr[j] > arr[maxIndex]) {
-                    maxIndex = j;
-                }
-            }
-            [arr[maxIndex], arr[arr.length - i - 1]] = [arr[arr.length - 1], arr[maxIndex]]
-        }
-    }
+    // function selectSort(arr) {
+    //     for (let i = 0; i < arr.length; i++) {
+    //         let maxIndex = 0;
+    //         for (let j = 0; j < arr.length - i; j++) {
+    //             if (arr[j] > arr[maxIndex]) {
+    //                 maxIndex = j;
+    //             }
+    //         }
+    //         [arr[maxIndex], arr[arr.length - i - 1]] = [arr[arr.length - 1], arr[maxIndex]]
+    //     }
+    // }
 
 
-    function insertSort(arr) {
-        for (let i = 0; i < arr.length; i++) {
-            let curNum = arr[i];
-            let j = i - 1;
-            while(j >= 0 && arr[j] > curNum) {
-                arr[j + 1] = arr[j];
-                j--;
-            }
-            arr[j + 1] = curNum;
-        }
-    }
-
-
-
-
-    function mergeSort(arr) {
-        let len = arr.length;
-        if (len <= 1) return arr;
-        const mid = Math.floor(len / 2);
-        const rightArr = arr.slice(mid);
-        const leftArr = arr.slice(0, mid);
-        const r = mergeSort(rightArr);
-        const l = mergeSort(leftArr);
-        return merge(r, l)
-    }
-
-
-    function merge(right, left) {
-        let p1 = 0, p2 = 0;
-        let temp = [];
-        while(p1 < right.length && p2 < left.length) {
-            if (right[p1] < left[p2]) {
-                temp.push(right[p1]);
-                p1++;
-            } else {
-                temp.push(left[p2]);
-                p2++;
-            }
-        }
-        if (p1 < right.length) {
-            temp.push(...right.slice(p1))
-        }
-        if (p2 < left.length) {
-            temp.push(...left.slice(p2))
-        }
-        return temp
-    }
+    // function insertSort(arr) {
+    //     for (let i = 0; i < arr.length; i++) {
+    //         let curNum = arr[i];
+    //         let j = i - 1;
+    //         while(j >= 0 && arr[j] > curNum) {
+    //             arr[j + 1] = arr[j];
+    //             j--;
+    //         }
+    //         arr[j + 1] = curNum;
+    //     }
+    // }
 
 
 
-    function fastSort(arr, left, right) {
-        if (left >= right) return
-        const baseIndex = findBaseIndex(arr, left, right)
 
-        fastSort(arr, left, baseIndex - 1)
-        fastSort(arr, baseIndex + 1, right)
-    }
+    // function mergeSort(arr) {
+    //     let len = arr.length;
+    //     if (len <= 1) return arr;
+    //     const mid = Math.floor(len / 2);
+    //     const rightArr = arr.slice(mid);
+    //     const leftArr = arr.slice(0, mid);
+    //     const r = mergeSort(rightArr);
+    //     const l = mergeSort(leftArr);
+    //     return merge(r, l)
+    // }
 
-    function findBaseIndex(arr, left, right) {
-        let base = arr[left]
-        let leftPoint = left, rightPoint = right
-        while(leftPoint < rightPoint && leftPoint < arr.length && rightPoint >= 0) {
-            while(arr[rightPoint] >= base && leftPoint < rightPoint) {
-                rightPoint--
-            }
-            arr[leftPoint] = arr[rightPoint]
-            while(arr[leftPoint] <= base && leftPoint < rightPoint) {
-                leftPoint++
-            }
-            arr[rightPoint] = arr[leftPoint]
-        }
-        arr[leftPoint] = base
-        return leftPoint
-    }
 
-    // fastSort(arr, 0, arr.length - 1)
+    // function merge(right, left) {
+    //     let p1 = 0, p2 = 0;
+    //     let temp = [];
+    //     while(p1 < right.length && p2 < left.length) {
+    //         if (right[p1] < left[p2]) {
+    //             temp.push(right[p1]);
+    //             p1++;
+    //         } else {
+    //             temp.push(left[p2]);
+    //             p2++;
+    //         }
+    //     }
+    //     if (p1 < right.length) {
+    //         temp.push(...right.slice(p1))
+    //     }
+    //     if (p2 < left.length) {
+    //         temp.push(...left.slice(p2))
+    //     }
+    //     return temp
+    // }
+
+
+
+    // function fastSort(arr, left, right) {
+    //     if (left >= right) return
+    //     const baseIndex = findBaseIndex(arr, left, right)
+
+    //     fastSort(arr, left, baseIndex - 1)
+    //     fastSort(arr, baseIndex + 1, right)
+    // }
+
+    // function findBaseIndex(arr, left, right) {
+    //     let base = arr[left]
+    //     let leftPoint = left, rightPoint = right
+    //     while(leftPoint < rightPoint && leftPoint < arr.length && rightPoint >= 0) {
+    //         while(arr[rightPoint] >= base && leftPoint < rightPoint) {
+    //             rightPoint--
+    //         }
+    //         arr[leftPoint] = arr[rightPoint]
+    //         while(arr[leftPoint] <= base && leftPoint < rightPoint) {
+    //             leftPoint++
+    //         }
+    //         arr[rightPoint] = arr[leftPoint]
+    //     }
+    //     arr[leftPoint] = base
+    //     return leftPoint
+    // }
+
+    // // fastSort(arr, 0, arr.length - 1)
 
 
 
@@ -3143,21 +3143,21 @@
 
 
     // // 深拷贝
-    function deepCopy(obj) {
-        if (!isObj(obj)) return
-        const newObj = {}
-        const keys = Object.keys(obj)
-        for (let i = 0; i < keys.length; i++) {
-            const curKey = keys[i]
-            if (isObj(obj[curKey])) {
-                const res = deepCopy(obj[curKey])
-                newObj[curKey] = res
-            } else {
-                newObj[curKey] = obj[curKey]
-            }
-        }
-        return newObj
-    }
+    // function deepCopy(obj) {
+    //     if (!isObj(obj)) return
+    //     const newObj = {}
+    //     const keys = Object.keys(obj)
+    //     for (let i = 0; i < keys.length; i++) {
+    //         const curKey = keys[i]
+    //         if (isObj(obj[curKey])) {
+    //             const res = deepCopy(obj[curKey])
+    //             newObj[curKey] = res
+    //         } else {
+    //             newObj[curKey] = obj[curKey]
+    //         }
+    //     }
+    //     return newObj
+    // }
 
     // console.log(deepCopy(obj))
 
@@ -3448,211 +3448,211 @@
 
 
 
-    function solution(V, W) {
+    // function solution(V, W) {
 
-        function back(V, W) {
-            if (W === 0) return 'NO';
-            let desideZhiShu = 0, desideDiff = 0;
-            const cusNeedToPayCountCeil = Math.ceil(Math.log(W) / Math.log(V))
-            const cusNeedToPayCountFloor = Math.floor(Math.log(W) / Math.log(V))
-            const diffCeil = Math.pow(V, cusNeedToPayCountCeil) - W
-            const diffFloor = Math.pow(V, cusNeedToPayCountFloor) - W
+    //     function back(V, W) {
+    //         if (W === 0) return 'NO';
+    //         let desideZhiShu = 0, desideDiff = 0;
+    //         const cusNeedToPayCountCeil = Math.ceil(Math.log(W) / Math.log(V))
+    //         const cusNeedToPayCountFloor = Math.floor(Math.log(W) / Math.log(V))
+    //         const diffCeil = Math.pow(V, cusNeedToPayCountCeil) - W
+    //         const diffFloor = Math.pow(V, cusNeedToPayCountFloor) - W
 
-            if (Math.abs(diffCeil) < Math.abs(diffFloor)) {
-                desideZhiShu = cusNeedToPayCountCeil;
-                desideDiff = diffCeil;
-            } else {
-                desideZhiShu = cusNeedToPayCountFloor;
-                desideDiff = diffFloor;
-            }
-
-            console.log(desideDiff, desideZhiShu)
-
-            if (desideDiff > 0) {
-                const shopNeedToGiveBackZhiShu = Math.log(desideDiff) / Math.log(V)
-                console.log(shopNeedToGiveBackZhiShu)
-                if ((shopNeedToGiveBackZhiShu + '').split('').indexOf('.') === -1) {
-                    return "Yes"
-                } else {
-                    return "No"
-                }
-            } else {
-                return back(V, Math.abs(desideDiff))
-            }
-        }
-
-        return back(V, W)
-
-    }
-
-    function main() {
-        // Add your test cases here
-        console.log(solution(10, 9) === "Yes");
-        console.log(solution(200, 40199) === "Yes");
-        console.log(solution(108, 50) === "NO");
-    }
-    main();
-
-
-
-
-
-    function heapSort(arr) {
-        const len = arr.length
-        for (let i = Math.floor(len / 2) - 1; i >= 0; i--) {
-            heapify(arr, len, i)
-        }
-        for (let i = len - 1; i >= 0; i--) {
-            [arr[i], arr[0]] = [arr[0], arr[i]]
-            heapify(arr, i, 0)
-        }
-        return arr
-    }
-
-    function heapify(arr, len, index) {
-        let maxFather = index
-        let leftChild = index * 2 + 1
-        let rightChild = index * 2 + 2
-        if (arr[leftChild] > arr[maxFather] && leftChild < len) {
-            maxFather = leftChild
-        }
-        if (arr[rightChild] > arr[maxFather] && rightChild < len) {
-            maxFather = rightChild
-        }
-        if (maxFather !== index) {
-            [arr[maxFather], arr[index]] = [arr[index], arr[maxFather]]
-            heapify(arr, len, maxFather)
-        }
-    }
-
-    // function promiseAll(promises) {
-    //     return new Promise((resolve, reject) => {
-    //         if (!Array.isArray(promises)) return new Error('not array')
-    //         let result = []
-    //         let resCount = 0
-    //         for (let i = 0; i < promises.length; i++) {
-    //             Promise.resolve(promises[i]).then(res => {
-    //                 resCount++
-    //                 result[i] = res
-    //                 if (resCount === promises.length) {
-    //                     return resolve(result)
-    //                 }
-    //             }).catch(err => {
-    //                 return reject(err)
-    //             })
+    //         if (Math.abs(diffCeil) < Math.abs(diffFloor)) {
+    //             desideZhiShu = cusNeedToPayCountCeil;
+    //             desideDiff = diffCeil;
+    //         } else {
+    //             desideZhiShu = cusNeedToPayCountFloor;
+    //             desideDiff = diffFloor;
     //         }
-    //     })
+
+    //         console.log(desideDiff, desideZhiShu)
+
+    //         if (desideDiff > 0) {
+    //             const shopNeedToGiveBackZhiShu = Math.log(desideDiff) / Math.log(V)
+    //             console.log(shopNeedToGiveBackZhiShu)
+    //             if ((shopNeedToGiveBackZhiShu + '').split('').indexOf('.') === -1) {
+    //                 return "Yes"
+    //             } else {
+    //                 return "No"
+    //             }
+    //         } else {
+    //             return back(V, Math.abs(desideDiff))
+    //         }
+    //     }
+
+    //     return back(V, W)
+
+    // }
+
+    // function main() {
+    //     // Add your test cases here
+    //     console.log(solution(10, 9) === "Yes");
+    //     console.log(solution(200, 40199) === "Yes");
+    //     console.log(solution(108, 50) === "NO");
+    // }
+    // main();
+
+
+
+
+
+    // function heapSort(arr) {
+    //     const len = arr.length
+    //     for (let i = Math.floor(len / 2) - 1; i >= 0; i--) {
+    //         heapify(arr, len, i)
+    //     }
+    //     for (let i = len - 1; i >= 0; i--) {
+    //         [arr[i], arr[0]] = [arr[0], arr[i]]
+    //         heapify(arr, i, 0)
+    //     }
+    //     return arr
+    // }
+
+    // function heapify(arr, len, index) {
+    //     let maxFather = index
+    //     let leftChild = index * 2 + 1
+    //     let rightChild = index * 2 + 2
+    //     if (arr[leftChild] > arr[maxFather] && leftChild < len) {
+    //         maxFather = leftChild
+    //     }
+    //     if (arr[rightChild] > arr[maxFather] && rightChild < len) {
+    //         maxFather = rightChild
+    //     }
+    //     if (maxFather !== index) {
+    //         [arr[maxFather], arr[index]] = [arr[index], arr[maxFather]]
+    //         heapify(arr, len, maxFather)
+    //     }
+    // }
+
+    // // function promiseAll(promises) {
+    // //     return new Promise((resolve, reject) => {
+    // //         if (!Array.isArray(promises)) return new Error('not array')
+    // //         let result = []
+    // //         let resCount = 0
+    // //         for (let i = 0; i < promises.length; i++) {
+    // //             Promise.resolve(promises[i]).then(res => {
+    // //                 resCount++
+    // //                 result[i] = res
+    // //                 if (resCount === promises.length) {
+    // //                     return resolve(result)
+    // //                 }
+    // //             }).catch(err => {
+    // //                 return reject(err)
+    // //             })
+    // //         }
+    // //     })
+    // // }
+
+
+
+
+    
+    // function fastSort(arr, left, right) {
+    //     if (left >= right) return
+    //     const baseIndex = findBaseIndex(arr, left, right)
+
+    //     fastSort(arr, left, baseIndex - 1)
+    //     fastSort(arr, baseIndex + 1, right)
+    // }
+
+    // function findBaseIndex(arr, left, right) {
+    //     let base = arr[left]
+    //     let leftPoint = left, rightPoint = right
+    //     while(leftPoint < rightPoint && leftPoint < arr.length && rightPoint >= 0) {
+    //         while(arr[rightPoint] >= base && leftPoint < rightPoint) {
+    //             rightPoint--
+    //         }
+    //         arr[leftPoint] = arr[rightPoint]
+    //         while(arr[leftPoint] <= base && leftPoint < rightPoint) {
+    //             leftPoint++
+    //         }
+    //         arr[rightPoint] = arr[leftPoint]
+    //     }
+    //     arr[leftPoint] = base
+    //     return leftPoint
+    // }
+
+    // // fastSort(arr, 0, arr.length - 1)
+
+
+
+
+
+    // function insertSort(arr) {
+    //     for (let i = 0; i < arr.length; i++) {
+    //         let curNum = arr[i];
+    //         let j = i - 1;
+    //         while(j >= 0 && arr[j] > curNum) {
+    //             arr[j + 1] = arr[j];
+    //             j--;
+    //         }
+    //         arr[j + 1] = curNum;
+    //     }
     // }
 
 
 
 
-    
-    function fastSort(arr, left, right) {
-        if (left >= right) return
-        const baseIndex = findBaseIndex(arr, left, right)
-
-        fastSort(arr, left, baseIndex - 1)
-        fastSort(arr, baseIndex + 1, right)
-    }
-
-    function findBaseIndex(arr, left, right) {
-        let base = arr[left]
-        let leftPoint = left, rightPoint = right
-        while(leftPoint < rightPoint && leftPoint < arr.length && rightPoint >= 0) {
-            while(arr[rightPoint] >= base && leftPoint < rightPoint) {
-                rightPoint--
-            }
-            arr[leftPoint] = arr[rightPoint]
-            while(arr[leftPoint] <= base && leftPoint < rightPoint) {
-                leftPoint++
-            }
-            arr[rightPoint] = arr[leftPoint]
-        }
-        arr[leftPoint] = base
-        return leftPoint
-    }
-
-    // fastSort(arr, 0, arr.length - 1)
+    // function mergeSort(arr) {
+    //     let len = arr.length;
+    //     if (len <= 1) return arr;
+    //     const mid = Math.floor(len / 2);
+    //     const rightArr = arr.slice(mid);
+    //     const leftArr = arr.slice(0, mid);
+    //     const r = mergeSort(rightArr);
+    //     const l = mergeSort(leftArr);
+    //     return merge(r, l)
+    // }
 
 
+    // function merge(right, left) {
+    //     let p1 = 0, p2 = 0;
+    //     let temp = [];
+    //     while(p1 < right.length && p2 < left.length) {
+    //         if (right[p1] < left[p2]) {
+    //             temp.push(right[p1]);
+    //             p1++;
+    //         } else {
+    //             temp.push(left[p2]);
+    //             p2++;
+    //         }
+    //     }
+    //     if (p1 < right.length) {
+    //         temp.push(...right.slice(p1))
+    //     }
+    //     if (p2 < left.length) {
+    //         temp.push(...left.slice(p2))
+    //     }
+    //     return temp
+    // }
 
 
-
-    function insertSort(arr) {
-        for (let i = 0; i < arr.length; i++) {
-            let curNum = arr[i];
-            let j = i - 1;
-            while(j >= 0 && arr[j] > curNum) {
-                arr[j + 1] = arr[j];
-                j--;
-            }
-            arr[j + 1] = curNum;
-        }
-    }
-
-
-
-
-    function mergeSort(arr) {
-        let len = arr.length;
-        if (len <= 1) return arr;
-        const mid = Math.floor(len / 2);
-        const rightArr = arr.slice(mid);
-        const leftArr = arr.slice(0, mid);
-        const r = mergeSort(rightArr);
-        const l = mergeSort(leftArr);
-        return merge(r, l)
-    }
-
-
-    function merge(right, left) {
-        let p1 = 0, p2 = 0;
-        let temp = [];
-        while(p1 < right.length && p2 < left.length) {
-            if (right[p1] < left[p2]) {
-                temp.push(right[p1]);
-                p1++;
-            } else {
-                temp.push(left[p2]);
-                p2++;
-            }
-        }
-        if (p1 < right.length) {
-            temp.push(...right.slice(p1))
-        }
-        if (p2 < left.length) {
-            temp.push(...left.slice(p2))
-        }
-        return temp
-    }
-
-
-    function insertSort(arr) {
-        for (let i = 0; i < arr.length; i++) {
-            let curNum = arr[i];
-            let j = i - 1;
-            while(j >= 0 && arr[j] > curNum) {
-                arr[j + 1] = arr[j];
-                j--;
-            }
-            arr[j + 1] = curNum;
-        }
-    }
+    // function insertSort(arr) {
+    //     for (let i = 0; i < arr.length; i++) {
+    //         let curNum = arr[i];
+    //         let j = i - 1;
+    //         while(j >= 0 && arr[j] > curNum) {
+    //             arr[j + 1] = arr[j];
+    //             j--;
+    //         }
+    //         arr[j + 1] = curNum;
+    //     }
+    // }
 
 
 
 
-    function mergeSort(arr) {
-        let len = arr.length;
-        if (len <= 1) return arr;
-        const mid = Math.floor(len / 2);
-        const rightArr = arr.slice(mid);
-        const leftArr = arr.slice(0, mid);
-        const r = mergeSort(rightArr);
-        const l = mergeSort(leftArr);
-        return merge(r, l)
-    }
+    // function mergeSort(arr) {
+    //     let len = arr.length;
+    //     if (len <= 1) return arr;
+    //     const mid = Math.floor(len / 2);
+    //     const rightArr = arr.slice(mid);
+    //     const leftArr = arr.slice(0, mid);
+    //     const r = mergeSort(rightArr);
+    //     const l = mergeSort(leftArr);
+    //     return merge(r, l)
+    // }
 
     
 
@@ -3662,35 +3662,43 @@
 
 
 
+    class Parent {
+        constructor() {
+            this.a = '22';
+            this.parent = 'parent';
+            this._x = undefined
+        }
+        parentThis() {
+            console.log('parent this', this)
+            return this
+        }
+    }
+
+    class Child extends Parent {
+        constructor() {
+            super()
+            this.a = '33';
+            this.child = 'child'
+        }
+        childThis() {
+            console.log('child this', this)
+            return this
+        }
+        change() {
+            this._x = [1,2]
+        }
+    }
+
+    const c = new Child()
+    const this1 = c.parentThis()
+    const this2 = c.childThis()
+    console.log(this1 === this2)
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-    
-
-
-
-    
-
-
-
-
-
-
-
-
-    
-    
 
 
 

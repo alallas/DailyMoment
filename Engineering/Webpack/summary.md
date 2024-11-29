@@ -2390,6 +2390,57 @@ module.exports = SyncHook
 
 
 
+PS：这里补充一下有两种情况：
+- 如果子类没有constructor函数，那么子类的this===父类的this
+- 如果子类有constructor函数，首先必须用super继承父类的constructor（父类有constructor的前提），然后此时子类的this是两者的结合
+
+```
+class Parent {
+    constructor() {
+        this.a = '22';
+        this.parent = 'parent';
+        this._x = undefined
+    }
+    parentThis() {
+        console.log('parent this', this)
+        return this
+    }
+}
+
+class Child extends Parent {
+    // constructor() {
+    //     super()
+    //     this.a = '33';
+    //     this.child = 'child'
+    // }
+    childThis() {
+        console.log('child this', this)
+        return this
+    }
+    change() {
+        this._x = [1,2]
+    }
+}
+
+const c = new Child()
+const this1 = c.parentThis()
+const this2 = c.childThis()
+console.log(this1 === this2)
+
+// 子类没有constructor的情况：
+// parentThis和childThis都是打印下面
+// {a: '22', parent: 'parent', _x: undefined}
+// 且两者===为true
+
+// 子类有constructor的情况：
+// parentThis和childThis都是打印下面
+// {a: '33', parent: 'parent', _x: undefined, child: 'child'}
+// 且两者===为true
+```
+
+
+
+
 3. 实时构造回调函数的字符串代码的工厂
 
 ```
@@ -2426,4 +2477,354 @@ module.exports = HookCodeFactory;
 ```
 
 
+
+
+
+
+### babel插件
+#### ast（抽象语法树）
+
+PS：不同引擎的抽象语法树不一样
+
+
+- 谁负责生成ast树：parser
+
+
+- 步骤
+
+1. Esprima：把源码转化为AST
+  5. 一条语句分词，得到token
+  6. token信息转化成一个对象
+2. Estraverse：遍历并更新AST
+3. Escodegen：将AST重新生成源码
+
+
+- ast的生成、遍历与原地修改
+
+```
+let esprima = require('esprima');
+let estraverse = require('estraverse');
+let escodegen = require('escodegen');
+
+let indent = 0
+function padding() {
+  return ' '.repeat(indent)
+}
+
+let code = `function ast() {}`;
+let ast = esprima.parse(code);
+
+estraverse.traverse(ast, {
+  // 这里的node相当于一个层级的一个对象
+  enter(node) {
+    console.log(padding() + node.type + '进入');
+    indent+=2;
+
+    if (node.type === 'FunctionDeclaration') {
+      node.id.name = 'newAst';
+    }
+  },
+  leave(node) {
+    indent-=2;
+    console.log(padding() + node.type + '离开');
+
+  }
+})
+
+// 打印得到
+// Program进入
+//   FunctionDeclaration进入
+//     Identifier进入
+//     Identifier离开
+//     BlockStatement进入
+//     BlockStatement离开
+//   FunctionDeclaration离开
+// Program离开
+
+// 相当于Program表示一条语句
+// FunctionDeclaration表示这条语句的类型
+// Identifier表示这条语句的标识（也就是名字）
+// BlockStatement表示这条语句的具体值（函数的块声明，字符串，xxxx）
+
+let newCode = escodegen.generate(ast);
+console.log(newCode)
+
+// 打印得到
+// function newAst() {
+// }
+```
+
+
+- 为什么在babel插件里面用上了ast树？？？？？
+  - 因为babel是转换语法的，需要一个【共同的规则】来实现新旧语法之间的切换。
+  - 这个共同的规则就是ast树
+
+
+
+#### 几个插件源码
+##### 转换箭头函数为普通函数
+
+- 核心思路是：
+1. 找到箭头函数的函数名字、函数参数、函数体，
+2. 然后构造一个函数声明或函数表达式，
+3. 进行替换
+
+```
+let babel = require('@babel/core'); // babel引擎
+let t = require('babel-types'); // 判断某个节是否某个类型，或者生成某个类型的节点
+
+// 转换箭头函数的插件
+// let arrowFunctionPlugin = require('babel-plugin-transform-es2015-arrow-functions')
+
+// 手写转换箭头函数的babel插件
+
+let arrowFunctionPlugin = {
+  visitor: {
+    // 遍历到ArrowFunctionExpression类型的节点（层级对象）的时候，把响应的路径作为path传入
+    // 目的是让这个类型转化为FunctionExpression的类型
+
+    ArrowFunctionExpression: (path) => {
+      let node = path.node; // 当前路径的节点对象
+      let id = path.parent.id; // 父路径的id，就是父节点的标识符identifier，即函数的名字
+      let params = node.params; // 参数
+      let body = node.body; // 函数体
+
+      // ****这种是箭头函数后面没有大括号的表达式
+      // ****(a, b) => a + b
+
+      // 构造一个returnStatement
+      let returnStatement = t.returnStatement(body)
+      // 构造一个blockStatement
+      let blockStatement = t.blockStatement([returnStatement])
+
+      let functionExpression = t.functionExpression(id, params, blockStatement, node.generator, node.async)
+
+      // 替换节点
+      path.replaceWith(functionExpression)
+
+
+
+      // ****这种是箭头函数后面有大括号的表达式，且含有this
+      // ****{ console.log(this); return a + b; }
+
+      let functionExpression2 = t.functionExpression(id, params, body, false, false);
+
+      // 新造一个 var _this = this 的语句
+      let thisVariableDeclaration = t.variableDeclaration('var', [
+        t.variableDeclarator(t.identifier('_this'), t.thisExpression())
+      ])
+
+      // 让这个新语句在函数体外面，相当于【把箭头函数里面的this变成全局的this】
+      let newNodes = [thisVariableDeclaration, functionExpression2]
+
+      path.replaceWithMultiple(newNodes);
+
+    },
+
+    // 把【箭头函数体内】的所有this的标识符转换成_this，以使用刚才新造的_this
+    // 注意是箭头函数体，所以才要加上这个callExpression的判断，外面的this不能被替换成_this
+    ThisExpression(path) {
+      if (path.parent.type === 'CallExpression') {
+        path.replaceWith(t.identifier('_this'))
+      }
+    }
+  }
+}
+
+let code = `const sum = (a, b) => a + b;`;
+
+let code2 = `const sum = (a, b) => {
+  console.log(this);
+  return a + b;
+};`;
+
+// babel本身只是一个引擎，不会转换源代码，需要使用插件
+let result = babel.transform(code2, {
+  plugins: [arrowFunctionPlugin]
+})
+
+console.log(result.code)
+
+// ****这种是箭头函数后面没有大括号的表达式
+// const sum = function (a, b) {
+//   return a + b;
+// };
+
+
+// ****这种是箭头函数后面有大括号的表达式，且含有this
+// var _this = this;
+// const sum = function (a, b) {
+//   console.log(_this);
+//   return a + b;
+// };
+```
+
+
+
+##### 转换类写法为原型写法
+
+
+- 核心思路是：
+1. 判断区分constructor和其他函数
+2. 新建一个【构造函数】声明，作为constructor的替代
+3. 新建一个assignmentExpression，作为自定义方法的替代
+4. 用两个语句替换原本的一个class语句
+
+
+```
+let babel = require('@babel/core'); // babel引擎
+let t = require('babel-types'); // 判断某个节是否某个类型，或者生成某个类型的节点
+
+// let classesPlugin = require('babel-plugin-transform-es2015-classes')
+
+let classesPlugin = {
+  visitor: {
+    ClassDeclaration(path) {
+      let node = path.node
+      let id = node.id //就是Person
+
+      let newNodes = [];
+      let methods = node.body.body; // 拿到的是方法名数组[constructor, getName]
+      
+      methods.forEach((item, index) => {
+        if(item.kind === 'constructor') {
+          // 首先是function Person的部分，构造一个普通函数
+          
+          let constructorFunction = t.functionDeclaration(id, item.params, item.body, item.generator, item.async)
+          newNodes.push(constructorFunction);
+          
+        } else {
+          // 其次是原型方法赋值的部分，构造一个AssignmentExpression
+          // left是MemberExpression（a.b这种叫成员表达式），right是FunctionExpression
+
+          let memberExpression = t.memberExpression(
+            t.memberExpression(id, t.identifier('prototype')), // 就是Person.prototype
+            item.key // 就是getName
+          );
+
+          // 注意：这里是functionExpression，因为前面有等于号，而不是functionDeclaration
+          let functionExpression = t.functionExpression(null, item.params, item.body, item.generator, item.async);
+
+          let assignmentExpression = t.assignmentExpression('=', memberExpression, functionExpression);
+          newNodes.push(assignmentExpression);
+
+        }
+      })
+
+      path.replaceWithMultiple(newNodes);
+
+    }
+  }
+}
+
+let code = `
+  class Person {
+    constructor(name) {
+      this.name = name
+    }
+    getName() {
+      return this.name
+    }
+  }
+`
+
+// babel本身只是一个引擎，不会转换源代码，需要使用插件
+let result = babel.transform(code, {
+  plugins: [classesPlugin]
+})
+
+console.log(result.code)
+
+
+// 转化成es5应该是这样
+// function Person(name) {
+//   this.name = name;
+// }
+// Person.prototype.getName = function () {
+//   return this.name;
+// }
+```
+
+
+
+
+##### Tree shaking（树摇）
+
+- 本质是：引入库里面那些没有用到的代码模块（就是js文件）都删掉，不要打包进来，甚至有些变量没用到都可以被删掉
+
+
+- 核心思路是：
+1. 把原来import的模块（Specifier）和来源（Source）找到，
+2. 构造两个import语句
+3. 替换
+
+```
+let t = require('babel-types'); // 判断某个节是否某个类型，或者生成某个类型的节点
+
+// let classesPlugin = require('babel-plugin-transform-es2015-classes')
+
+// ！！！这里只针对那些库的工具是分成一个一个js的情况，如果所有的都放在一个大js里面就shake不了了
+
+// tree-shaking是严重依赖es module的，非而es module不能使用tree shaking
+// es module是静态依赖，编译的时候就能判断，因为我在import的时候提前把source里面的名字拿出来了。
+// require 运行时依赖，不到支持的时候不知道如何依赖
+// 比如require(window.xxxx)，我怎么知道你这个里面有啥，必须去里面把所有与文件都读取了，然后导出的exports对象拿到之后才知道是啥
+
+let visitor = {
+  // 除了写函数之外还可以写对象
+  ImportDeclaration: {
+    enter(path, state = {opts}) {
+      const specifiers = path.node.specifiers; // 是一个数组，里面是每个导入的模块 [ImportSpecifier, ImportSpecifier]
+      const source = path.node.source // 是模块的来源
+
+      // 判断一下来源是不是和options里面要求的是一样的
+      // 并且如果导入已经是默认的，那就不用转化了，只处理非默认导入
+      if (state.opts.libraries.includes(source.value) && !t.isImportDefaultSpecifier(specifiers[0])) {
+
+        const newNodes = specifiers.map((item) => {
+          // 单个模块(默认)
+          let importDefaultSpecifier = t.importDefaultSpecifier(item.local)
+          // 来源
+          let newSource = t.stringLiteral(`${source.value}/${item.imported.name}`)
+          // 构造import声明语句
+          return t.importDeclaration([importDefaultSpecifier], newSource)
+        })
+        path.replaceWithMultiple(newNodes)
+      }
+    }
+  }
+}
+
+// 插件的写法
+// babel的插件是一个函数，函数返回一个对象，里面有visitor属性
+module.exports = function() {
+  return {
+    visitor
+  }
+}
+```
+
+
+
+（config文件那边的插件配置写法，module里面的rules里面）
+
+```
+{
+    test: /\.js$/,
+    use: [
+      {
+        loader: 'babel-loader', // 相对路径默认去node modules里面找
+        options: {
+          // 官方的插件写法（需要用二维数组！！！前面是插件名称，后面是options）
+          plugins: [['import', { library: 'lodash' }]]
+    
+          // 改了一下路径来源（后面的libraries也可以用数组的，指定多个需要树摇的库！！）
+          plugins: [
+            [path.resolve(__dirname, 'plugins/babel-plugin-import.js'), { libraries: ['lodash'] }]
+          ]
+        }
+      }
+    ]
+},
+```
 
