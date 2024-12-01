@@ -2766,6 +2766,13 @@ console.log(result.code)
 - 本质是：引入库里面那些没有用到的代码模块（就是js文件）都删掉，不要打包进来，甚至有些变量没用到都可以被删掉
 
 
+- 注意：
+1. 只能使用import和export，require不行
+2. 配合js代码压缩插件，uglifyJS、terserPlugin
+3. 不让bebel-loader进行转换（会把es6变成commonJS，这时就不能判断了，除非babel转换保留import和export关键字，后面让webpack转换）
+4. 浏览器跑代码，使用import，减少文件体积。node跑代码不关心文件体积
+
+
 - 核心思路是：
 1. 把原来import的模块（Specifier）和来源（Source）找到，
 2. 构造两个import语句
@@ -3004,5 +3011,328 @@ plugins: [
 ]
 ```
 
+
+
+
+#### 自动添加外链插件
+
+
+- 使用场景：某些库很大，我希望用cdn引入，但是要在html写script且在config配置external，然后直接在window上面取对象，很麻烦，直接用插件帮我解决
+
+
+```
+// HTML处：
+
+<script src="https://cdn.bootcss.com/jquery/3.1.0/jquery.js"></script>
+<script>
+    console.log('jquery $', window.$)
+    console.log('jquery _', window._)
+</script>
+
+
+
+// webpack.config.js处：
+
+  // 把cdn的库变成window的内置对象
+externals: {
+    // key是模块的名称，值是window上面的全局变量
+    'jquery': '$',
+    'lodash': '_',
+},
+```
+
+
+
+- 核心思路：
+1. 自动在html里面插入script标签，src使用config配置的
+2. 在生成normalModule阶段，判断如果导入的是目标转换的库，改为externalModule
+3. 注意，如果config配置了，但代码实际没用上，就不需要生成script标签（拿到所有导入的modules和配置的库的交集）
+
+
+```
+// 向html里面插入script标签，
+// 引入lodash等库，自动转为外部模块，直接读window的对象
+// 只引入项目中使用的脚本，即使在config里面配置了，我实际的代码没有用到相应的模块，就不要引用（找到项目所有依赖（依赖在ast阶段查找，找到这个阶段的钩子）和配置的external的交集部分）
+
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const ExternalModule = require('webpack/lib/ExternalModule')
+
+class AutoExternalPlugin{
+  constructor(options) {
+    this.options = options
+  }
+
+  apply(compiler) {
+    // 先缓存一个this，永远指向插件类的实例
+    let _this = this;
+    let { options } = this;
+    let usedExternalModules = new Set();
+
+    // 2. 引入lodash等库，自动转为外部模块，直接读window的对象
+
+    // webpack module
+    // NormalModule普通模块，普通的js模块，由NormalModuleFactory创建
+    // 要把普通模块变为一个外部模块
+
+    compiler.hooks.normalModuleFactory.tap('AutoExternalPlugin', (normalModuleFactory) => {
+
+      // 3. 优化：没用的库别引入
+      // 这里用到的parser，parser本质上是一个hookmap，映射的是synchook，有两个参数parse和paeseOption
+      // 为什么要用hookmap的形式呢？因为parser有很多类型，'javascript/auto'只是其中的一种
+
+      normalModuleFactory.hooks.parser.for('javascript/auto').tap('AutoExternalPlugin', (parser) => {
+
+        // import识别
+        // 下面这个hook的执行时机是parser把js转化成ast，然后找里面的import，找到就来执行这个回调函数
+        parser.hooks.import.tap('AutoExternalPlugin', (statement, source) => {
+
+          // 这里的statement就是：let $ = require('jquery')，source就是：jquery
+          if (options[source]) {
+            // 把source模块添加到set里面，且不重复
+            usedExternalModules.add(source)
+          }
+        });
+
+        // require识别
+        parser.hooks.call.for('require').tap('AutoExternalPlugin', (expression) => {
+          let value = expression.arguments[0].value;
+          if (options[value]) {
+            usedExternalModules.add(value)
+          }
+        });
+      });
+
+      // ******这是webpack4的旧方法******
+      // 拿到了普通模块的工厂
+      // 每个工厂都有一个factory，是用来生产模块的钩子
+      // 回调根据data创建模块，且提供了一个factory的原本的创建模块的方法
+
+      normalModuleFactory.hooks.factory.tap('AutoExternalPlugin', (factory) => {
+        (data, callback) => {
+
+          // data是一个对象，上面的核心信息就是一个要加载的模块：jquery，lodash
+          // 正常来说会直接创建模块，并把模块传给callback，没有别的判断逻辑
+          // factory(data, callback)
+
+          // 现在要改造这个逻辑，不再统一生成normalModule，normalModule是要被一起打包到main.js的，现在如果某个module已经被cdn引入了，那不需要生成normalModule了
+
+          // 拿到所有要加载的模块的名字
+          let request = data.request;
+
+          if (options[request]) {
+            let { variable } = options[request] // 拿到$或者_
+            
+            // 外部模块参数包括：新的变量名字、挂在那个对象上、旧的模块名字
+            let newModule = new ExternalModule(variable, 'window', request)
+            callback(null, newModule)
+
+          } else {
+
+            // 走正常的生产逻辑，生成普通模块
+            factory(data, callback);
+          }
+        }
+      })
+
+      // ******这是webpack5的新方法******
+      // 把factory的方法改成了resolve的方法
+
+      normalModuleFactory.hooks.resolve.tapAsync('AutoExternalPlugin', (resolveData, callback) => {
+
+        let request = resolveData.request;
+
+        if (options[request]) {
+          let { variable } = options[request];
+          let newModule = new ExternalModule(variable, 'window', request);
+          callback(null, newModule)
+        } else {
+          callback(null);
+        }
+      });
+
+    })
+
+    // 1. 向html里面插入script标签，
+    // 通过监听compilation钩子，可以在compiler开启新编译的时候把compilation传过来
+    compiler.hooks.compilation.tap('AutoExternalPlugin', (compilation) => {
+
+      // 这个html的插件可以向compilation里面挂上额外的钩子（getHooks方法），供其他插件使用
+      // 相当于compilation.hooks.htmlWebpackPluginAlterAssetTags = new xxx()
+      HtmlWebpackPlugin.getHooks(compilation).alterAssetTags.tapAsync('AutoExternalPlugin', (htmlPluginData, callback) => {
+
+        // htmlPluginData是一个对象，里面有assetTags属性，表明html里面的script标签的所有信息
+        // "assetTags": {
+        //   "scripts": [
+        //     {
+        //       "tagName": "script",
+        //       "voidTag": false,
+        //       "meta": {
+        //         "plugin": "html-webpack-plugin"
+        //       },
+        //       "attributes": {
+        //         "defer": true,
+        //         "src": "main.js"
+        //       }
+        //     }
+        //   ],
+        //   "styles": [],
+        //   "meta": []
+        // },
+
+        let scriptsUrl = Object.keys(options).filter(key => usedExternalModules.has(key)).map(key => options[key].url)
+
+        scriptsUrl.forEach(url => {
+
+          let newScript = {
+            "tagName": "script",
+            "voidTag": false,
+            "attributes": {
+              "defer": true,
+              "src": url
+            }
+          }
+
+          // 必须要unshift，因为要把库插入到main.js前面，因为main用到这些库
+          htmlPluginData.assetTags.scripts.unshift(newScript)
+        })
+
+        // 这是异步串行的瀑布流钩子，需要把返回值传入
+        callback(null, htmlPluginData)
+      })
+    })
+
+  }
+
+}
+
+module.exports = AutoExternalPlugin;
+```
+
+
+
+- 其中parser是一个hookmap，hookmap实际上是一个变量到钩子的映射工厂
+
+```
+// hookmap是一个帮助类，使用方式如下，可以帮助创建一个映射函数，映射某个变量为一个hook
+
+let { SyncHook, HookMap } = require('tapable');
+
+const keyedHook = new HookMap(key => new SyncHook(['name']))
+
+// 下面两种写法是一样的，本意是拿到key所映射的hook，然后去订阅他
+keyedHook.tap('key', 'plugin1', (name) => { console.log(1, name) })
+keyedHook.for('key').tap('plugin2', (name) => { console.log(2, name) })
+
+// 拿到key所映射的hook，然后call发布
+// 用get拿是因为这是一个map
+const hook = keyedHook.get('key')
+hook.call('zzzzz')
+
+
+
+// 手写hookMap
+class HookMap{
+  constructor(factory) {
+    this._map = new Map();
+    this._factory = factory;
+  }
+
+  tap(key, options, fn) {
+    return this.for(key).tap(options, fn)
+  }
+  tapAsync(key, options, fn) {
+    return this.for(key).tapAsync(options, fn)
+  }
+  tapPromise(key, options, fn) {
+    return this.for(key).tapAsync(options, fn)
+  }
+
+  for(key) {
+    const hook = this.get(key)
+    if (!!hook) {
+      return hook
+    }
+    let newHook = this._factory(key)
+    this._map.set(key, newHook)
+    return newHook
+  }
+
+  get(key) {
+    return this._map.get(key)
+  }
+
+}
+```
+
+
+
+
+#### 改变HASH插件
+
+- 核心思路：
+1. 在compilation的afterHash阶段改变
+2. hash改compilation.hash
+3. chunkhash改compilation.chunks数组的chunk.renderedHash
+4. contenthash改compilation.chunks数组的chunk.contentHash
+
+
+```
+// hash每次编译都会产生一个hash值，整个项目只要有一个文件发生轻微改变，hash都会改变
+// chunkhash是代码块hash，每一个chunk都有自己的hash，每个入口的文件变化只会影响到自己的，其他的直接复用同hash的缓存
+// contentHash是内容hash，和内容有关，内容不变就不变（比如外部的css）
+
+// hash的最小单位是chunk
+
+// hash与什么有关系？
+// 普通依赖（import和require）
+// 异步依赖（import()）
+// 模块ID
+// usedExport导出对象
+// 本次编译的hash
+
+// chunkHash和什么有关系？
+// hashSalt的盐值（hash加一些定制的标识语句）
+// 代码块的ID
+// 代码块的名称
+// 代码块包含的模块
+// 最终代码的template
+
+// hash生成的流程：
+// 拿到每一个module的hash
+// 遍历所有的chunk，生成每一个chunkHash，同时生成contentHash（实际上是调用contentHash的call方法，有可能没有）
+// 整合所有的chunkhash
+
+class HashPlugin{
+  constructor() {
+  }
+
+  apply(compiler) {
+    compiler.hooks.compilation.tap('HashPlugin', (compilation) => {
+      compilation.hooks.afterHash.tap('HashPlugin', () => {
+
+        // webpack把hash值放在了compilation.hash属性上面
+        // 相当于如果我要改hash，我只需要直接改compilation.hash属性就可以
+        compilation.hash = 'hash' + Date.now();
+
+        // 拿到本次编译的所有的代码块
+        let chunks = compilation.chunks;
+        for (let chunk of compilation.chunks) {
+
+          // 每个chunkHash计算结果会放在chunk.renderedHash属性里面
+          chunk.renderedHash = chunk.name + '_chunkHash';
+
+          // 每个contentHash计算结果会放在chunk.contentHash属性里面
+          // 这里的key是因为源码就是这么写的
+          chunk.contentHash = { 'javascript': 'contentHash' };
+        }
+
+      })
+    })
+  }
+
+}
+
+module.exports = HashPlugin
+```
 
 
