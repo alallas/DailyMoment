@@ -1,12 +1,25 @@
 
 ## 导包类型
 ### common.js
+- 基础使用
 1. 使用require()导入其他JS
 2. 使用module.exports = xxxx导出本JS
 
+
+- 特点
+1. 运行时加载，不真正把整个文件加载下来不知道里面是啥，无法实现静态分析
+2. 导入的模块（source）不能是变量
+
 ### es6Module
+- 基础使用
 1. 使用import xx from xx导入其他JS
 2. 使用export const xx = xx  或者  export default xx  导出本JS
+
+
+- 特点
+1. 可以实现静态分析，事先知道了导出的东西是什么
+2. 导入的模块（source）必须是常量
+3. import只能出现在顶层
 
 
 ## 打包结果
@@ -2990,3 +3003,6 @@ plugins: [
   new ZipPlugin(),
 ]
 ```
+
+
+
