@@ -121,7 +121,7 @@ function cssLoader(source) {
 
 // 1. 初始化：
 // 从配置文件和shell语句读取、合并参数，得到最终参数，并初始化compiler对象
-let config = require('./webpack.config.js');
+let config = require('../webpack.config.js');
 let compiler = new Compiler(config);
 
 // 2. 加载所有配置的插件（订阅所有插件！）
