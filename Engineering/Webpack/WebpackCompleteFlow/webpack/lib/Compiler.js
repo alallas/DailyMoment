@@ -2,6 +2,8 @@ const { AsyncParallelHook, Tapable, SyncBailHook, AsyncSeriesHook, SyncHook } = 
 const NormalModuleFactory = require('./NormalModuleFactory.js')
 const Compilation = require('./Compilation.js');
 const Stats = require('./Stats.js');
+const { mkdirp } = require('mkdirp') 
+const path = require('path')
 
 class Compiler {
   constructor(context) {
@@ -33,22 +35,29 @@ class Compiler {
       afterCompile: new AsyncSeriesHook(['compilation']),
 
 
-
+      emit: new AsyncSeriesHook(['compilation']),
+      done: new AsyncSeriesHook(['stats'])
+      
 
     }
   }
 
   // 开始编译的入口
-  run(callback) {
+  run(finalCallback) {
     console.log('run ing----')
 
-    // 编译完成之后的最终函数
-    const finalCallback = (err, stats) => {
-      callback(err, stats);
-    }
-
     const onCompiled = (err, compilation) => {
-      finalCallback(err, new Stats(compilation))
+
+      // 编译完之后生成资源，把资源文件根据模板写入dist文件夹
+      this.emitAssets(compilation, err => {
+
+        // 然后最后的最后！！终于！done钩子触发
+        let stats = new Stats(compilation);
+        this.hooks.done.callAsync(stats, err => {
+          finalCallback(err, stats)
+        })
+      })
+
     }
 
     this.hooks.beforeRun.callAsync(this, err => {
@@ -56,7 +65,38 @@ class Compiler {
         this.compile(onCompiled);
       })
     })
+  }
 
+  emitAssets(compilation, callback) {
+    // 把chunk变成文件，写入硬盘
+    // const emitFile = (err) => {
+
+    //   const outputPath = this.options.output.path
+
+    //   const assets = compilation.assets;
+    //   for (let file in assets) {
+    //     let source = assets[file];
+    //     let targetPath = path.posix.join(outputPath, file)
+    //     this.outputFileSystem.writeFileSystem(targetPath, source, 'utf8')
+    //   }
+    //   callback();
+    // }
+
+    // 先触发emit的钩子，因为这个钩子被使用的很多，是输出文件的而最后阶段对文件内容的修改。
+    this.hooks.emit.callAsync(compilation, () => {
+      // 创建一个输出目录，然后再写入文件到目录中, emitFile相当于是callback
+      mkdirp(this.options.output.path).then(err => {
+        const outputPath = this.options.output.path
+
+        const assets = compilation.assets;
+        for (let file in assets) {
+          let source = assets[file];
+          let targetPath = path.posix.join(outputPath, file)
+          this.outputFileSystem.writeFileSync(targetPath, source, 'utf8')
+        }
+        callback();
+      })
+    })
   }
 
   compile(onCompiled) {
@@ -73,7 +113,16 @@ class Compiler {
       // compilation里面的_source和_ast数组已经充满了
       this.hooks.make.callAsync(compilation, err => {
         console.log('make done!');
-        onCompiled(err, compilation);
+
+        // 封装代码块之后，编译就完成了
+        compilation.seal(err => {
+          this.hooks.afterCompile.callAsync(compilation, err => {
+            onCompiled(err, compilation);
+          })
+        })
+
+
+
       })
     });
   }

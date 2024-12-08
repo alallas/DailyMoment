@@ -1,0 +1,13 @@
+(self["webpackChunkzyl"] = self["webpackChunkzyl"] || []).push([["<%-chunkName%>"],{
+  <%
+    for (let mod of modules)
+    {%>
+      "<%-mod.moduleId%>": ((module) => 
+      {
+        <%-mod._source%>
+      }),
+    <%}
+  %>
+
+}]);
+
