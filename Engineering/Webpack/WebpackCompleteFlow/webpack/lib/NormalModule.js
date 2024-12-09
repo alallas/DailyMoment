@@ -4,6 +4,7 @@ const types = require('babel-types')
 const generate = require('babel-generator').default;
 const traverse = require('babel-traverse').default;
 const async = require('neo-async')
+const { runLoaders } = require('./loader-runner');
 
 
 class NormalModule {
@@ -58,11 +59,8 @@ class NormalModule {
 
             // 获取模块的名称(有可能有后缀，有可能没有后缀)
             let moduelName = node.arguments[0].value;
-            console.log('moduelName', moduelName)
-
             // 依赖的绝对路径
             let depResource;
-
 
             // 判断一下哪些是第三方依赖，哪些是自己项目里面的组件依赖
             if(moduelName.startsWith('.')) {
@@ -213,17 +211,40 @@ class NormalModule {
   }
 
   // 一个中转站，目的是存一下读取出来的源代码
+  // 可以理解为准备要build了，但是还没build，要确保所有文件都是js格式,doBuild的do表示准备的意思
   // 以及loader逻辑处理
   doBuild(compilation, callback) {
     this.getSource(compilation, (err, source) => {
 
+      // 把硬盘的内容读出来之后，交给loadRunner进行转换
+      let { module: { rules } } = compilation.options;
+      let loaders = [];
+      for (let i = 0; i < rules.length; i++) {
+        let rule = rules[i];
+        if (rule.test.test(this.resource)) {
+          loaders.push(...rule.use);
+        }
+      }
 
-      // loader写在这里
-      // TODO
+      // 把名字转化为绝对路径
+      loaders = loaders.map((item) => {
+        if (typeof item === 'string') {
+          return require.resolve(path.posix.join(this.context, 'loaders', item))
+        } else {
+          return require.resolve(path.posix.join(this.context, 'loaders', item.loader))
+        }
+      })
 
+      console.log('loaders', loaders)
 
-      this._source = source;
-      callback();
+      runLoaders({
+        resource: this.resource,
+        loaders,
+      }, (err, { result }) => {
+        this._source = result.toString();
+        callback()
+      })
+
     });
   }
 

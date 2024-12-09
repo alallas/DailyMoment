@@ -27,12 +27,17 @@ class Compilation {
     this.outputFileSystem = compiler.outputFileSystem;
 
     this.entries = []; // 入口模块的数组
-    this.modules = []; // 所有模块的数组
     this.chunks = [];
+    this.modules = []; // 所有模块的数组
 
     // 输出的时候用
-    this.files = [];
+    this.files = []; // chunk到时候出来的文件的名字数组
     this.assets = {}; // key是文件名字，value是文件内容
+
+    // splitChunk的时候用
+    this.vendors = []; // 所有第三方模块
+    this.commons = []; // 被多个模块加载的模块
+    this.moduleCount = {}; // 记录每个模块被引用的次数，大于2就放到commons数组里面
 
     // ! *** 我自己加的，目的是把es6Export的变量名字组成一个数组
     this.es6ExportVariableName = [];
@@ -90,13 +95,14 @@ class Compilation {
 
 
 
+    // 这边只是入口（也就是config里面配置的entry）的模块才会进入这里
     this.createModule({
       name,
       context,
       rawResource,
       parser,
       resource: path.posix.join(context, rawResource), // 模块的绝对路径
-      moduleId: path.posix.relative(context, path.posix.join(context, rawResource)),
+      moduleId: './' + path.posix.relative(context, path.posix.join(context, rawResource)),
       async,
     }, entryModule => this.entries.push(entryModule), callback)
 
@@ -170,13 +176,68 @@ class Compilation {
   seal(callback) {
     this.hooks.seal.call();
     this.hooks.beforeChunk.call();
-    // 每个入口生成一个代码块
+
+    // 开始封装成chunk
+    // 首先找一下vendor和commons的模块以及剩下的其他模块
+    for (const module of this.modules) {
+      if (/node_modules/.test(module.moduleId)) {
+        module.name = 'vendors';
+        // 注意vendors有可能会有重复的模块，因为一个文件引用相同的模块，遍历的时候就会重复监测到，且同样push进去数组
+        if (this.vendors.findIndex(item => item.moduleId === module.moduleId) === -1) {
+          this.vendors.push(module);
+        }
+
+      } else {
+        let curModule = this.moduleCount[module.moduleId]
+        if (curModule) {
+          this.moduleCount[module.moduleId].count++;
+        } else {
+          this.moduleCount[module.moduleId] = {
+            module,
+            count: 1,
+          };
+        }
+
+        if (curModule && curModule.count >= 2) {
+          module.name = 'commons';
+          this.commons.push(module)
+        }
+
+      }
+    }
+
+    let deferedModules = [...this.vendors, ...this.commons].map(i => i.moduleId)
+    let mainModules = this.modules.filter(module => !deferedModules.includes(module.moduleId))
+
+
+    // 构建入口模块
+    // main部分
     for (let entryModule of this.entries) {
       const chunk = new Chunk(entryModule);
       this.chunks.push(chunk)
-      // 把module的name和当前的chunk的名字相同的筛选出来
-      chunk.modules = this.modules.filter(module => module.name === chunk.name)
+      chunk.modules = mainModules.filter(module => module.name === chunk.name);
     }
+
+    // vendor部分
+    // 这里为什么只是拿取其中的一个vendor来造一个chunk，是因为所有的被引用的第三方模块都可以整合到一个chunk文件里面
+    if(this.vendors.length > 0) {
+      const chunk = new Chunk(this.vendors[0]);
+      chunk.async = true;
+      this.chunks.push(chunk)
+      // 把module的name和当前的chunk的名字相同的筛选出来
+      chunk.modules = this.vendors;
+    }
+
+    // commons部分
+    if(this.commons.length > 0) {
+      const chunk = new Chunk(this.commons[0]);
+      chunk.async = true;
+      this.chunks.push(chunk)
+      // 把module的name和当前的chunk的名字相同的筛选出来
+      chunk.modules = this.commons;
+    }
+
+
     this.hooks.afterChunk.call(this.chunks);
 
     // 创建代码块对应的资源
@@ -196,12 +257,24 @@ class Compilation {
           modules: chunk.modules,
         })
       } else {
+        // 正常的main的模板
         source = mainRender({
           entryModule: chunk.entryModule,
           modules: chunk.modules,
           entries: this.entries,
           es6ExportVariableName: this.es6ExportVariableName,
         })
+
+        // splitChunk的模板
+        // let deferredChunks = ([...this.vendors, ...this.commons].map(i => i.name));
+        // deferredChunks = '"' + deferredChunks.join('","') + '"';
+
+        // source = mainRender({
+        //   entryModuleId: chunk.entryModule.moduleId,
+        //   modules: chunk.modules,
+        //   deferredChunks,
+        //   es6ExportVariableName: this.es6ExportVariableName,
+        // })
       }
 
       this.emitAssets(file, source);

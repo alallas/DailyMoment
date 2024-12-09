@@ -120,9 +120,7 @@ class Compiler {
             onCompiled(err, compilation);
           })
         })
-
-
-
+        
       })
     });
   }
