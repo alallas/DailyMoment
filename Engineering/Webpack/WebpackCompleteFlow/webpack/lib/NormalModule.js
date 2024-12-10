@@ -105,7 +105,6 @@ class NormalModule {
             // 另一种写法更好！！依赖的路径减去根目录的路径：
             let depModuleId = '.' + depResource.substring(this.context.length)
 
-
             // moduelName ./content.js
             // depResource D:/aa_qianduan/webpack_learn_test/src/content.js
             // depModuleId ./src/content.js
@@ -138,7 +137,7 @@ class NormalModule {
             // webpackChunkname: 'content'
             if (Array.isArray(node.arguments[0].leadingComments) && node.arguments[0].leadingComments.length > 0) {
               let leadingComments = node.arguments[0].leadingComments[0].value;
-              console.log('leadingComments', leadingComments)
+
               let regexp = /webpackChunkName:\s*['"]([^'"]+)['"]/;
               chunkName = leadingComments.match(regexp)[1];
             }

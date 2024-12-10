@@ -195,7 +195,7 @@ function runSyncOrAsync(fn, context, fnArgs, switchNextCallback) {
     isSync = false;
 
     // 为什么要把这个函数赋予给两个变量，因为：可以从不同的方式拿到这个函数然后手动调用
-    const innerCallback = context.callback = function (...args) {
+    const innerCallback = context.callback = function (err, ...args) {
       isDone = true;
       // 保证不会走下面的同步函数了
       isSync = false;
