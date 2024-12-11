@@ -171,9 +171,6 @@ function iteratePitchingLoaders(processOptions, loaderContext, callback) {
       }
     }
   );
-
-
-
 }
 
 
@@ -195,7 +192,7 @@ function runSyncOrAsync(fn, context, fnArgs, switchNextCallback) {
     isSync = false;
 
     // 为什么要把这个函数赋予给两个变量，因为：可以从不同的方式拿到这个函数然后手动调用
-    const innerCallback = context.callback = function (...args) {
+    const innerCallback = context.callback = function (err, ...args) {
       isDone = true;
       // 保证不会走下面的同步函数了
       isSync = false;
@@ -242,7 +239,7 @@ exports.runLoaders = function(options, callback) {
 
   // 生成loader对象数组，保存
   loaders = loaders.map(createLoaderObject)
-  
+
 
   // 保存当前loader的索引
   loaderContext.loaderIndex = 0;
@@ -295,6 +292,7 @@ exports.runLoaders = function(options, callback) {
   })
 
 
+
   // 当前的loader的options或者query
   Object.defineProperty(loaderContext, 'query', {
     get() {
@@ -302,6 +300,7 @@ exports.runLoaders = function(options, callback) {
       return loader.options || loader.query;
     }
   })
+
 
   // 当前的loader的data
   Object.defineProperty(loaderContext, 'data', {

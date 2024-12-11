@@ -19,4 +19,9 @@ function normal(source) {
   // loader执行的时候，this指向loaderContext对象，上面有一个callback方法
   return this.callback(null, code, map, ast);
 }
+
+
 module.exports = normal
+
+
+
