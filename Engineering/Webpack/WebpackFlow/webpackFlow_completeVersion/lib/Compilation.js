@@ -26,18 +26,20 @@ class Compilation {
     this.inputFileSystem = compiler.inputFileSystem;
     this.outputFileSystem = compiler.outputFileSystem;
 
+    // 编译主要过程使用（处理模块）
     this.entries = []; // 入口模块的数组
-    this.chunks = [];
     this.modules = []; // 所有模块的数组
 
-    // 输出的时候用
-    this.files = []; // chunk到时候出来的文件的名字数组
-    this.assets = {}; // key是文件名字，value是文件内容
-
+    // 整合代码块的阶段使用
+    this.chunks = [];
     // splitChunk的时候用
     this.vendors = []; // 所有第三方模块
     this.commons = []; // 被多个模块加载的模块
     this.moduleCount = {}; // 记录每个模块被引用的次数，大于2就放到commons数组里面
+
+    // 输出的时候用
+    this.files = []; // chunk到时候出来的文件的名字数组
+    this.assets = {}; // key是文件名字，value是文件内容
 
     // ! *** 我自己加的，目的是把es6Export的变量名字组成一个数组
     this.es6ExportVariableName = [];
@@ -50,6 +52,7 @@ class Compilation {
       afterChunk: new SyncHook(),
     };
   }
+
 
   // context是文件夹的根目录的绝对路径
   // entry是config里面的相对入口路径
@@ -276,10 +279,11 @@ class Compilation {
         //   es6ExportVariableName: this.es6ExportVariableName,
         // })
       }
-
       this.emitAssets(file, source);
     }
   }
+
+
   emitAssets(file, source) {
     this.assets[file] = source;
     this.files.push(file)

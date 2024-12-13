@@ -8,13 +8,14 @@ const { runLoaders } = require('./loader-runner');
 
 
 class NormalModule {
-  constructor({ name, context, rawResource, resource, parser, moduleId, async }) {
+  constructor({ name, context, rawResource, resource, moduleId, parser, async }) {
     this.name = name;
     this.context = context;
     this.rawResource = rawResource;
     this.resource = resource; // 绝对路径
-    this.parser = parser; // ast解析器，把源代码转化成ast
     this.moduleId = moduleId;
+    this.parser = parser; // ast解析器，把源代码转化成ast
+    this.async = async; // 当前模块是异步的还是同步的（自己本身！！）
 
     // 模块对应的源代码，不是模块的路径或名字等信息，而是里面的代码内容
     this._source;
@@ -22,15 +23,11 @@ class NormalModule {
     this._ast;
     // 当前模块的所有依赖的模块信息
     this.dependencies = [];
+    // 当前模块依赖的所有的异步模块（儿子们）
+    this.blocks = [];
 
     // ! *** 我自己加的，目的是把es6Export的变量名字组成一个数组，然后外compilation传。
     this.es6ExportVariableName = [];
-
-
-    // 当前模块依赖的所有的异步模块（儿子们）
-    this.blocks = [];
-    // 当前模块是异步的还是同步的（自己本身！！）
-    this.async = async;
 
   }
 

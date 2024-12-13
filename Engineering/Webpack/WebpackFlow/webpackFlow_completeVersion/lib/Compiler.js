@@ -70,9 +70,7 @@ class Compiler {
   emitAssets(compilation, callback) {
     // 把chunk变成文件，写入硬盘
     // const emitFile = (err) => {
-
     //   const outputPath = this.options.output.path
-
     //   const assets = compilation.assets;
     //   for (let file in assets) {
     //     let source = assets[file];
