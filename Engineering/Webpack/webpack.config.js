@@ -53,7 +53,7 @@ module.exports = {
     // path只能是绝对路径
     path: path.resolve(__dirname, 'dist'), // 打包后的文件在哪个目录下
     filename: '[name].[chunkhash].js', // 打包后的文件名(一个变量，是入口的对象的属性名key)
-    // publicPath: 'http://img.zyl.com' // 把上面的filename和这个path组合起来，作为html里面的script的src的绝对路径
+    publicPath: 'http://img.zyl.com' // 把上面的filename和这个path组合起来，作为html里面的script的src的绝对路径
   },
 
 
@@ -64,7 +64,7 @@ module.exports = {
   },
 
 
-  // 外链设置
+  // 外链设置（不用cdn外链插件的时候要写这个，同时在html里面用script引入外链的url）
   // 把cdn的库变成window的内置对象
   externals: {
     // key是模块的名称，值是window上面的全局变量
@@ -76,17 +76,19 @@ module.exports = {
   // loader设置
   module: {
     rules: [
-      // {
-      //   test: /\.(jpg|png|gif|bmp)$/,
-      //   use: [
-      //     {
-      //       loader: 'file-loader2',
-      //       options: {
-      //         filename: '[hash].[ext]'
-      //       }
-      //     }
-      //   ]
-      // },
+      // 图片使用file也就是生成一个额外的文件到dist
+      {
+        test: /\.(jpg|png|gif|bmp)$/,
+        use: [
+          {
+            loader: 'file-loader2',
+            options: {
+              filename: '[hash].[ext]'
+            }
+          }
+        ]
+      },
+      // 使用url和file结合的loader，小于limit可以直接内置到文件中，不用额外输出一个文件到dist
       {
         test: /\.(jpg|png|gif|bmp)$/,
         use: [
@@ -127,13 +129,13 @@ module.exports = {
         ]
       },
       // css的mini提取演示
-      // {
-      //   test: /\.css$/,
-      //   use: [
-      //     MiniCssExtractPlugin.loader,
-      //     'css-loader',
-      //   ],
-      // },
+      {
+        test: /\.css$/,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader',
+        ],
+      },
 
       {
         test: /\.js$/,
@@ -155,16 +157,16 @@ module.exports = {
         ]
       },
       // source-map-loader的作用是，为【被引入的文件】生成一个sourceMap文件使得他可以被解析成源码的样子
-      // {
-      //   test: /\.js$/,
-      //   use: [
-      //     {
-      //       loader: 'source-map-loader',
-      //     }
-      //   ],
-      //   // 设置loader的优先级，不管写的顺序，只要enforce写了pre，就先执行这个loader
-      //   enforce: 'pre',
-      // }
+      {
+        test: /\.js$/,
+        use: [
+          {
+            loader: 'source-map-loader',
+          }
+        ],
+        // 设置loader的优先级，不管写的顺序，只要enforce写了pre，就先执行这个loader
+        enforce: 'pre',
+      }
     ]
   },
 
