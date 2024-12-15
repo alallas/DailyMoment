@@ -24,6 +24,16 @@ class TextUnit extends Unit {
     this._reactid = reactid;
     return `<span data-reactid="${reactid}">${this._currentElement}</span>`;
   }
+  update(nextElement) {
+
+    // 等等，为什么对文本节点更新肯定是一个新的dom元素？？？，不可能是一个文本吗
+
+    if (this._currentElement !== nextElement) {
+      this._currentElement = nextElement;
+      $(`[data-reactid="${this._reactid}"]`).html(this._currentElement);
+    }
+
+  }
 }
 
 // 这种情况是处理原生dom对象
@@ -97,6 +107,61 @@ class NativeUnit extends Unit {
 
 
 class CompositeUnit extends Unit {
+  // 这个负责组件的更新操作
+  update(nextElement, partialState) {
+    // 先获取到当前的需要更新的最新的元素
+    this._currentElement = nextElement || this._currentElement;
+
+    // 获取新的状态
+    // 并且不管要不要更新组件，状态都要修改，这个时候的组件的state已经被改变了！！！！
+    // 也就是说如果在这句之后重新执行一下render，肯定在内容上有所变化！！！
+    let nextState = this._componentInstance.state = Object.assign(this._componentInstance.state, partialState);
+
+    // 获取到最新的元素的属性和children内容（有改变的话）
+    let nextProps = this._currentElement.props;
+
+    if(this._componentInstance.shouldComponentUpdate && !this._componentInstance.shouldComponentUpdate(nextProps, nextState)) {
+      return
+    }
+
+
+    // 下面要进行比较更新
+    // 先得到上次渲染的单元，
+    let preRenderedUnitInstance = this._renderedUnitInstance;
+    // 再拿到这个单元的这个element(就是上一次执行组件实例的render方法执行的返回值)，也就是拿到上次渲染的DOM或组件元素
+    let preRenderedELement = preRenderedUnitInstance._currentElement;
+
+
+    // 然后再拿到这次渲染之后的新的元素(这个时候的state是已经变化了的)
+    let nextRenderElement = this._componentInstance.render()
+
+    // 开始比较
+    // 比较的时候依次比较类型、属性和孩子（内容）
+    // 1.然后先判断新旧两个元素的类型是否一样
+    // 如果是false直接用新的元素替换原element
+    // 如果比较出来的结果是true也就是两者类型一样，需要进一步深度比较
+    // 2.深度比较：也就是将这个工作给到上一个节点工具包，上一个节点工具包实现update方法，直接对比【这里因为上一个节点是文本，而更新之后的节点类型已经判断过没变化，且一般都不变，所以可以直接===对比】
+
+    if (shouldDeepCompare(preRenderedELement, nextRenderElement)) {
+
+      // !  如果可以进行深度比较的话，把更新工作交给上一次渲染出来的那个element的unit来处理
+      
+      preRenderedUnitInstance.update(nextRenderElement);
+
+      // 更新完之后执行一下生命周期函数！！
+      this._componentInstance.componentDidUpdate && this._componentInstance.componentDidUpdate();
+
+
+    } else {
+      // 更新一下已经渲染的原来的单元实例
+      this._renderedUnitInstance = createUnit(nextElement)
+      let nextMarkUp = this._renderedUnitInstance.getMarkUp(this._reactid);
+
+      // 把新的html内容进行原地替换
+      $(`[data-reactid="${this.reactid}"]`).replaceWith(nextMarkUp)
+    }
+
+  }
   getMarkUp(reactid) {
     this._reactid = reactid;
     // 此时这个type是一个类组件
@@ -107,8 +172,9 @@ class CompositeUnit extends Unit {
     let componentInstance = this._componentInstance = new Component(props);
 
     // 同时让组件的实例的currentUnit属性等于当前的unit【也就是CompositeUnit】
+    // ! 其实就相当于是互相引用对方，组件实例可以找到对应的unit工具包，unit工具包也可以找到当前的组件实例
     // 后面会有setState的组件更新，可以通过组件的实例拿到当前的unit
-    this._componentInstance.currentUnit = this;
+    componentInstance._currentUnit = this;
 
     // 执行一下生命周期函数，在渲染之前
     componentInstance.componentWillMount && componentInstance.componentWillMount();
@@ -148,5 +214,34 @@ function createUnit(element) {
     return new CompositeUnit(element);
   }
 }
+
+
+// 判断两个元素的类型是否一致
+function shouldDeepCompare(oldElement, newElement) {
+  // 这个时候两个元素都是element的实例
+  if(oldElement !== null && newElement !== null) {
+    // ! element有可能不是一个React.createElement的产物，有可能是普通的字符串和数字。就要看render方法导出的是什么
+    // ! 但是下面的写法用点没懂，实现就默认了element是有type属性的，那不就默认了他是Element的实例吗，那为什么后面还要再写多一个判断呢
+
+
+    // let oldType = typeof oldElement.type;
+    // let newType = typeof oldElement.type;
+    let oldType = typeof oldElement;
+    let newType = typeof oldElement;
+    if ((oldType === 'string' || oldType === 'number') && (newType === 'string' || newType === 'number')) {
+      return true;
+    }
+
+    if ((oldElement instanceof Element) && (newElement instanceof Element)) {
+      return oldElement.type === newElement.type;
+    }
+  }
+  // 没有传递两个参数，肯定要重新更新以下
+  return false
+}
+
+
+
+
 
 export { createUnit, Unit, TextUnit, NativeUnit };
