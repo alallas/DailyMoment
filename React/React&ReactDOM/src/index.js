@@ -1,5 +1,6 @@
 import React from "./React.js";
 import Counter from "./Counter.js";
+import Todo from "./Todo.js";
 
 function sayHello() {
   console.log("hello");
@@ -18,7 +19,7 @@ function sayHello() {
 // babel会把上面的语法转化为下面的语法
 // createElement的参数是1.元素名字2.属性3.内容
 // 其中第一个参数有可能是别的组件，不是原生的dom。如果是原生的dom第一个参数就是一个字符串
-const element = React.createElement(
+const element1 = React.createElement(
   "button",
   {
     id: "sayHello",
@@ -36,10 +37,14 @@ const element = React.createElement(
 //   <b>Hello</b>
 // </button>
 
+
+
 let element2 = React.createElement(Counter, { name: "计数器" });
+
+let element3 = React.createElement(Todo, {});
 
 // import ReactDOM from "react-dom";
 // 最早没有react-dom这个库
 // 后来有了两个库
 // react18版本显示React没有render这个函数，ReactDOM倒是有，但不用了
-React.render(element2, document.getElementById("root"));
+React.render(element3, document.getElementById("root"));

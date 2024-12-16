@@ -83,6 +83,7 @@ class NativeUnit extends Unit {
     let tagEnd = `</${type}>`;
 
     // ! 需要收集所有的孩子的单元，用来在更新的时候拿到“老状态”的孩子工具集和信息
+    // ! 但是这里有一个问题，有一种情况是假如render出来的节点的孩子一直在增加，数量上有变化，那getMarkUp又只执行了一次，（最外层组件是不断的update，但是type一样的话就会走nativeUnit的update，不可能重新走nativeUnit的MarkUp）那么这个_renderedChildrenUnits就不对了，后面要依靠他拿到老的孩子数组的信息的！！！
     this._renderedChildrenUnits = [];
 
     for (let propName in props) {
@@ -144,7 +145,6 @@ class NativeUnit extends Unit {
   }
 
   update(nextElement) {
-
     let oldProps = this._currentElement.props;
     let newProps = nextElement.props;
 
@@ -183,9 +183,15 @@ class NativeUnit extends Unit {
           $(`[data-reactid="${this._reactid}"]`).css(attr, value);
         });
       } else if (propName === "className") {
-        $(`[data-reactid="${this._reactid}"]`).attr("class", newProps[propName]);
+        $(`[data-reactid="${this._reactid}"]`).attr(
+          "class",
+          newProps[propName]
+        );
       } else {
-        $(`[data-reactid="${this._reactid}"]`).attr(propName, newProps[propName]);
+        $(`[data-reactid="${this._reactid}"]`).attr(
+          propName,
+          newProps[propName]
+        );
       }
     }
   }
@@ -205,12 +211,16 @@ class NativeUnit extends Unit {
     }
   }
 
-
   diff(diffQueue, newChildrenElements) {
     // ! 第一步生成一个map，拿到老的unit对象
-    let oldChildrenUnitMap = this.getOldChildrenMap(this._renderedChildrenUnits);
+    let oldChildrenUnitMap = this.getOldChildrenMap(
+      this._renderedChildrenUnits
+    );
     // ! 第二步生成一个新的unit数组（！处理孩子数组的元素本身（类型、属性、内容）问题，主要是做属性和内容的更新）
-    let { newChildrenUnits, newChildrenUnitMap } = this.getNewChildren(oldChildrenUnitMap, newChildrenElements);
+    let { newChildrenUnits, newChildrenUnitMap } = this.getNewChildren(
+      oldChildrenUnitMap,
+      newChildrenElements
+    );
 
     // 上一个已经确定位置的索引。
     let lastIndex = 0;
@@ -219,15 +229,16 @@ class NativeUnit extends Unit {
     // 第三步开始回到处理孩子数组的顺序问题，收集孩子的移动或删除或新建的操作
     for (let i = 0; i < newChildrenUnits.length; i++) {
       let newUnit = newChildrenUnits[i];
-      let newKey = (newUnit._currentElement.props && newUnit._currentElement.props.key) || i.toString();
+      let newKey =
+        (newUnit._currentElement.props && newUnit._currentElement.props.key) || i.toString();
       let oldChildUnit = oldChildrenUnitMap[newKey];
 
       // 第一种情况是，新老一致，两个对象完全一样（内存地址一样，因为是直接复用的，在处理孩子的时候已经把老节点更新过了）
       if (oldChildUnit === newUnit) {
         // 第1.1种情况是，新老元素在母节点中的位置一样，那就什么也不用处理
         // 第1.2种情况是，新老元素在母节点中的位置不一样，
-          // 1.2.1的情况是，此时的元素在老数组中的位置是最大的（位于最右边的）（也就是lastIndex是最大的时候），这时什么也不用处理
-          // 1.2.2的情况是，此时的元素在老数组中的位置不是最大的（小于lastIndex），就要把这个元素从左往右移动
+        // 1.2.1的情况是，此时的元素在老数组中的位置是最大的（位于最右边的）（也就是lastIndex是最大的时候），这时什么也不用处理
+        // 1.2.2的情况是，此时的元素在老数组中的位置不是最大的（小于lastIndex），就要把这个元素从左往右移动
 
         if (oldChildUnit._mountIndex < lastIndex) {
           diffQueue.push({
@@ -236,9 +247,9 @@ class NativeUnit extends Unit {
             type: types.MOVE,
             fromIndex: oldChildUnit._mountIndex,
             toIndex: i,
-          })
+          });
         }
-        lastIndex = Math.max(lastIndex, oldChildUnit._mountIndex)
+        lastIndex = Math.max(lastIndex, oldChildUnit._mountIndex);
       } else {
         // 第二种情况是，oldChildUnit为null，老数组没有这个节点，新数组有这个节点，相当于新建了一个！！
         // 但是还有另外一个情况！oldChildUnit和newUnit的key一样，可以拿到，但是两者不===，比如新的元素改了他的type，他在进行第二步的getNewChildren的时候往新数组里面加入的是一个新创建的unit，内存地址肯定不一样！
@@ -251,28 +262,28 @@ class NativeUnit extends Unit {
             type: types.REMOVE,
             fromIndex: oldChildUnit._mountIndex,
           });
-          $(document).undelegate(`.${oldChildUnit._reactid}`)
+          $(document).undelegate(`.${oldChildUnit._reactid}`);
         }
         diffQueue.push({
           parentId: this._reactid,
           parentNode: $(`[data-reactid="${this._reactid}"]`),
           type: types.INSERT,
           toIndex: i,
-          markUp: newUnit.getMarkUp(`${this._reactid}.${i}`)
-        })
+          markUp: newUnit.getMarkUp(`${this._reactid}.${i}`),
+        });
       }
       // 这个是保证当前的遍历的index和新节点的index一样
       newUnit._mountIndex = i;
     }
     // 第三种情况是，老数组有这个节点，但是新数组没有这个节点，需要删掉！！
-    for(let oldKey in oldChildrenUnitMap) {
-      if(!newChildrenUnitMap.hasOwnProperty(oldKey)) {
+    for (let oldKey in oldChildrenUnitMap) {
+      if (!newChildrenUnitMap.hasOwnProperty(oldKey)) {
         diffQueue.push({
           parentId: this._reactid,
           parentNode: $(`[data-reactid="${this._reactid}"]`),
           type: types.REMOVE,
           fromIndex: oldChildrenUnitMap[oldKey]._mountIndex,
-        })
+        });
       }
     }
   }
@@ -282,11 +293,7 @@ class NativeUnit extends Unit {
     let map = {};
     for (let i = 0; i < childrenUnits.length; i++) {
       let childUnit = childrenUnits[i];
-      let key =
-        (childUnit &&
-          childUnit._currentElement.props &&
-          childUnit._currentElement.props.key) ||
-        i.toString();
+      let key = (childUnit && childUnit._currentElement.props && childUnit._currentElement.props.key) || i.toString();
       map[key] = childUnit;
     }
     return map;
@@ -338,10 +345,10 @@ class NativeUnit extends Unit {
     // 首先先收集所有需要删除的元素（包括确实要删除的元素和需要移动的元素，因为移动的元素需要先删除然后再添加）
     for (let i = 0; i < diffQueue.length; i++) {
       let difference = diffQueue[i];
-      if(difference.type === types.MOVE || difference.type === types.REMOVE) {
+      if (difference.type === types.MOVE || difference.type === types.REMOVE) {
         let fromIndex = difference.fromIndex;
         // 这里拿到要删除的那个孩子节点
-        let oldChild = difference.parentNode.children().get(fromIndex)
+        let oldChild = difference.parentNode.children().get(fromIndex);
 
         // 收集所有节点，并保存一些他们的fromIndex信息，等会插入的时候要用到
         deleteMap[fromIndex] = oldChild;
@@ -352,19 +359,26 @@ class NativeUnit extends Unit {
     // $().remove()这个方法相当于先去找html树里面的某个节点，然后删除。
     // 而删除什么节点，遍历整个数组删除里面的节点
     // 这是绕过了已经生成的各种Element和unit的内部属性，直接去到html树上面删除
-    $.each(deleteChildren, (idx, item) => $(item).remove())
-
+    $.each(deleteChildren, (idx, item) => $(item).remove());
 
     // 然后这个时候的html的children已经是删除过的样子了，注意是原地删除，在例子中此时为AC。接下来要进行移动节点的添加和新建节点的添加
     for (let i = 0; i < diffQueue.length; i++) {
       let difference = diffQueue[i];
       switch (difference.type) {
         case types.INSERT:
-          this.insertChildAt(difference.parentNode, difference.toIndex, $(difference.markUp))
+          this.insertChildAt(
+            difference.parentNode,
+            difference.toIndex,
+            $(difference.markUp)
+          );
           break;
         // 这个时候使用fromIndex拿到对应的要移动的原节点
         case types.MOVE:
-          this.insertChildAt(difference.parentNode, difference.toIndex, deleteMap[difference.fromIndex])
+          this.insertChildAt(
+            difference.parentNode,
+            difference.toIndex,
+            deleteMap[difference.fromIndex]
+          );
           break;
         default:
           break;
@@ -380,9 +394,10 @@ class NativeUnit extends Unit {
     // 如果当前位置没有节点
     // 最后一个位置肯定是当前的新数组的节点需要加入的位置，所以用appendTo母亲节点的形式
     // ! 其实这里有比较巧的构思吧我觉得！因为需要删除的都是排在前面或左边的节点，跟随着前一个节点的节点已经被相对移动到他后面了
-    oldChild ? $(newNode).insertBefore(oldChild) : $(newNode).appendTo(parentNode)
+    oldChild
+      ? $(newNode).insertBefore(oldChild)
+      : $(newNode).appendTo(parentNode);
   }
-
 }
 
 class CompositeUnit extends Unit {
