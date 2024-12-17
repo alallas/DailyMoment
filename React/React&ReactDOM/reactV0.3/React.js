@@ -1,6 +1,6 @@
 import $ from "jquery";
-import { createUnit } from "./Unit.js";
-import { createElement } from "./Element.js";
+import { createUnit } from "./unit.js";
+import { createElement } from "./element.js";
 import { Component } from "./Component.js";
 
 let React = {
@@ -34,11 +34,8 @@ function render(element, container) {
   // 原生的：dom.dataset.reactid
   // jquery的：$(dom).data('reactid')
 
-
   // 这里触发一下didMount的事件(相当于发布事件)
-  $(document).trigger('mounted');
+  $(document).trigger("mounted");
 }
 
 export default React;
-
-

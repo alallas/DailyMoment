@@ -1,5 +1,5 @@
 
-import React from "./React.js";
+import React from "./react.js";
 import Test from "./Test.js";
 
 class Counter extends React.Component {
@@ -76,6 +76,14 @@ class Counter extends React.Component {
 
 
     if(this.state.odd) {
+      // return React.createElement(
+      //   'ul',
+      //   { id: 'oldCounter' },
+      //   React.createElement('li', { key: 'A' }, 'A'),
+      //   React.createElement('li', { key: 'B' }, 'B'),
+      //   React.createElement('li', { key: 'C' }, 'C'),
+      //   React.createElement('li', { key: 'D' }, 'D'),
+      //   )
       return React.createElement(
         'ul',
         { id: 'oldCounter' },
@@ -83,21 +91,36 @@ class Counter extends React.Component {
         React.createElement('li', { key: 'B' }, 'B'),
         React.createElement('li', { key: 'C' }, 'C'),
         React.createElement('li', { key: 'D' }, 'D'),
+        React.createElement('li', { key: 'E' }, 'E'),
+        React.createElement('li', { key: 'F' }, 'F'),
+        React.createElement('li', { key: 'G' }, 'G'),
         )
     } else {
+      // return React.createElement(
+      //   'ul',
+      //   { id: 'newCounter' },
+      //   React.createElement('span', { key: 'A' }, 'A1'),
+      //   React.createElement('li', { key: 'C' }, 'C1'),
+      //   React.createElement('li', { key: 'B' }, 'B1'),
+      //   React.createElement('li', { key: 'E' }, 'E1'),
+      //   React.createElement('li', { key: 'F' }, 'F1'),
+      // )
       return React.createElement(
         'ul',
         { id: 'newCounter' },
         React.createElement('span', { key: 'A' }, 'A1'),
+        React.createElement('li', { key: 'D' }, 'D1'),
+        React.createElement('li', { key: 'H' }, 'H1'),
         React.createElement('li', { key: 'C' }, 'C1'),
-        React.createElement('li', { key: 'B' }, 'B1'),
-        React.createElement('li', { key: 'E' }, 'E1'),
         React.createElement('li', { key: 'F' }, 'F1'),
       )
     }
   }
 }
 
+
 export default Counter;
+
+
 
 
