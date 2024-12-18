@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  </head>
+  <body>
+    <script>
+
+      // 下面这段函数执行的结果是什么，打印出来是什么
+      // 首先立刻打印出{ 'test': 111111 }
+      // 然后两秒之后打印出来还是{ 'test': 111111 }
+
+      // 如果asyncFunc中间没有persist函数的话
+      // 第一次打印出{ 'test': 111111 }
+      // 第二次打印出{ 'test': null }
+
+
+      // 一、预编译阶段
+      // 1.1全局预编译
+      // 1.1.1变量声明提升：
+      // GO: {
+      //   obj: undefined,
+      // }
+      // 1.1.2函数声明提升
+      // GO: {
+      //   obj: undefined,
+      //   asyncFunc: function asyncFunc() {},
+      //   persist: function persist() {},
+      // }
+
+      // 1.2局部预编译（asyncFunc和persist都会执行，在函数执行前一刻进行局部预编译，这里先集中写到一起）
+      // 1.2.1变量声明和形式参数声明提升：
+      // asyncFunc函数
+      // AO: {
+      //   obj: undefined,
+      // }
+      // persist函数
+      // AO: {}
+      // 1.2.2形式参数的值改为实际参数的值
+      // asyncFunc函数
+      // AO: {
+      //   obj: { 'test': 111111 },
+      // }
+      // persist函数
+      // AO: {}
+      // 1.2.3函数声明提升（两个都无，AO保持1.2.2阶段的状态）
+      // asyncFunc函数
+      // AO: {
+      //   obj: { 'test': 111111 },
+      // }
+      // persist函数
+      // AO: {}
+
+
+      // 二、开始编译阶段（开始执行）
+      // 2.1首先开辟一个新的内存空间，obj变量指向这个内存空间
+      // 这个时候的GO的obj被赋值了
+      // GO: {
+      //   obj: { 'test': 111111 },
+      //   asyncFunc: function asyncFunc() {},
+      //   persist: function persist() {},
+      // }
+      let obj = {
+        'test': 111111,
+      }
+
+      // 2.2定义并执行这个asyncFunc函数：
+      // 首先执行的是同步的部分：
+      // 2.2.1打印obj。此时需要去asyncFunc的AO上下文里面找是否有obj。有且obj指向的是{ 'test': 111111 }，打印她
+      // 2.2.2然后执行persist函数，此时persist的AO上下文没有obj这个参数，向上级的AO或GO寻找，
+        // 上级没有AO，因为定义是在最外部定义，不在任何一个函数内定义
+        // 只能去上级的GO找到的obj是{ 'test': 111111 }，然后把它改成指向一个新的内存地址{ 'test': 111222, }，
+      function asyncFunc(obj) {
+        console.log(obj);
+        persist()
+        setTimeout(() => {
+          console.log(obj)
+        }, 2000)
+      }
+      asyncFunc(obj)
+
+      function persist() {
+        obj = { 'test': 111222, }
+      }
+
+      // 2.3开始清除obj对象的属性值：
+      // 这个时候在GO里面找到的obj是新的内存地址{ 'test': 111222, }，把所有属性值改为null
+      // 这个时候的GO变为
+      // GO: {
+      //   obj: { 'test': null },
+      //   asyncFunc: function asyncFunc() {},
+      //   persist: function persist() {},
+      // }
+      for (let key in obj) {
+        obj[key] = null;
+      }
+
+      // 2.4asyncFunc函数的异步部分开始执行：
+      // 这个时候去asyncFunc的AO上下文里面找是否有obj。有且obj指向的是{ 'test': 111111 }，打印她
+      // 因此加上persist函数之后，就可以在异步函数里面使用正常的obj对象
+      // 核心就是：【借助persist函数在中途改掉顶层GO的obj的内存地址，使得后面的属性值清除影响不到旧的内存地址】
+
+    </script>
+  </body>
+</html>

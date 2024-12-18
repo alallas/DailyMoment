@@ -32,8 +32,6 @@ function createDOM(element) {
 // 每个产生的小作坊，只负责生产某一类的东西！！
 function createNativeDOM(element) {
   const { $$typeof, type, key, ref, props } = element;
-
-  console.log('type', type)
   
   // 为当前作为顶层的节点创建一个真实的dom对象（使用原生的方法）
   let dom = document.createElement(type);

@@ -3662,37 +3662,57 @@
 
 
 
-    class Parent {
-        constructor() {
-            this.a = '22';
-            this.parent = 'parent';
-            this._x = undefined
-        }
-        parentThis() {
-            console.log('parent this', this)
-            return this
-        }
-    }
+    // class Parent {
+    //     constructor() {
+    //         this.a = '22';
+    //         this.parent = 'parent';
+    //         this._x = undefined
+    //     }
+    //     parentThis() {
+    //         console.log('parent this', this)
+    //         return this
+    //     }
+    // }
 
-    class Child extends Parent {
-        constructor() {
-            super()
-            this.a = '33';
-            this.child = 'child'
-        }
-        childThis() {
-            console.log('child this', this)
-            return this
-        }
-        change() {
-            this._x = [1,2]
-        }
-    }
+    // class Child extends Parent {
+    //     constructor() {
+    //         super()
+    //         this.a = '33';
+    //         this.child = 'child'
+    //     }
+    //     childThis() {
+    //         console.log('child this', this)
+    //         return this
+    //     }
+    //     change() {
+    //         this._x = [1,2]
+    //     }
+    // }
 
-    const c = new Child()
-    const this1 = c.parentThis()
-    const this2 = c.childThis()
-    console.log(this1 === this2)
+    // const c = new Child()
+    // const this1 = c.parentThis()
+    // const this2 = c.childThis()
+    // console.log(this1 === this2)
+
+
+
+
+    // function a() {
+    //     function b() {
+    //         var bb = 234;
+    //         aa = 0;
+    //         console.log(aa)
+    //     }
+    //     var aa = 123;
+    //     b();
+    //     return b;
+    // }
+    // var global = 100;
+    // var demo = a();
+    // demo();
+
+
+
 
     
 

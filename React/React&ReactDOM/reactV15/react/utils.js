@@ -5,7 +5,7 @@ function onlyOne(obj) {
 }
 
 
-// 这个处理对象
+// 这个遍历对象！！！
 function setProps(dom, props) {
   for (let key in props) {
     if(key !== 'children') {
@@ -16,7 +16,7 @@ function setProps(dom, props) {
 }
 
 
-// 这里处理属性
+// 这里处理属性！！！
 function setProp(dom, key, value) {
   if (/^on/.test(key)) {
     // 这是原生事件的绑定法
