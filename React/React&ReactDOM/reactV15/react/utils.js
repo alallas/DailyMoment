@@ -37,9 +37,39 @@ function setProp(dom, key, value) {
 }
 
 
+// 展开一个多维数组，不用原来的array的flat的方法，避免深度克隆
+function flatten(array) {
+  let flatten = [];
+  (function flat(array) {
+    array.forEach(item => {
+      if (Array.isArray(item)) {
+        flat(item);
+      } else {
+        flatten.push(item)
+      }
+    })
+  }(array));
+  return flatten;
+}
+// 我自己写的，好像更加复杂了！！从下往上收集的话
+// function flatten(array) {
+//   if (!Array.isArray(array)) return array;
+//   let layerArray = [];
+//   array.forEach((item, index) => {
+//       if (Array.isArray(item)) {
+//           const innerArray = flatten(item);
+//           layerArray.push(...innerArray);
+//       } else {
+//           layerArray.push(item);
+//       }
+//   })
+//   return layerArray;
+// }
+
 export {
   onlyOne,
   setProps,
+  flatten,
 }
 
 

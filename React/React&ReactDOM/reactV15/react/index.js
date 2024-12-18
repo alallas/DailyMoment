@@ -1,9 +1,9 @@
-import { TEXT, ELEMENT } from "./constants.js";
+import { TEXT, ELEMENT, FUNCTION_COMPONENT, CLASS_COMPONENT } from "./constants.js";
 import { ReactElement } from './vdom.js';
-import { Component } from './Component.js'
+import Component from './Component.js'
 
 
-function createElement(type, config, ...children) {
+function createElement(type, config = {}, ...children) {
   // 编译的时候产生的一些属性，不需要了，直接删除掉
   delete config.__source;
   delete config.__self;
@@ -17,6 +17,12 @@ function createElement(type, config, ...children) {
   let $$typeof = null;
   if(typeof type === 'string') {
     $$typeof = ELEMENT;
+  } else if (typeof type === 'function' && type.prototype.isReactComponent) {
+    // 是一个类组件
+    $$typeof = CLASS_COMPONENT;
+  } else if (typeof type === 'function') {
+    // 是一个函数组件
+    $$typeof = FUNCTION_COMPONENT;
   }
 
   // 这里和v0.3的区别就是，v0.3没有对child进行包装处理而是直接用原始值的字符串，在创建工具集的时候也是直接用的原始值作为输入保存到currentElement里面

@@ -489,6 +489,7 @@ class CompositeUnit extends Unit {
       $(`[data-reactid="${this.reactid}"]`).replaceWith(nextMarkUp);
     }
   }
+
   getMarkUp(reactid) {
     this._reactid = reactid;
     // 此时这个type是一个类组件
@@ -496,7 +497,7 @@ class CompositeUnit extends Unit {
 
     // 构造他的实例
     // 同时缓存一下这个实例【也就是整个组件的实例】
-    let componentInstance = (this._componentInstance = new Component(props));
+    let componentInstance = this._componentInstance = new Component(props);
 
     // 同时让组件的实例的currentUnit属性等于当前的unit【也就是CompositeUnit】
     // ! 其实就相当于是互相引用对方，组件实例可以找到对应的unit工具包，unit工具包也可以找到当前的组件实例
@@ -504,16 +505,14 @@ class CompositeUnit extends Unit {
     componentInstance._currentUnit = this;
 
     // 执行一下生命周期函数，在渲染之前
-    componentInstance.componentWillMount &&
-      componentInstance.componentWillMount();
+    componentInstance.componentWillMount && componentInstance.componentWillMount();
 
     // 然后执行render方法
     let renderedElement = componentInstance.render();
 
     // 得到的是一个（原生的dom对象）（情况之一），继续发配构造能够亮相的html字符串
     // 同时缓存下返回的对应的类别的小类unit【也就是NativeUnit的实例】
-    let renderedUnitInstance = (this._renderedUnitInstance =
-      createUnit(renderedElement));
+    let renderedUnitInstance = this._renderedUnitInstance = createUnit(renderedElement);
     // 装饰店铺，输出可观的html标签信息
     let renderedMarkUp = renderedUnitInstance.getMarkUp(this._reactid);
 

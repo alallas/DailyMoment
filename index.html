@@ -3712,6 +3712,29 @@
     // demo();
 
 
+    let array = [1, 2, [3, 4, [5, 6], 7, 8], 9, 10, [11, 12]]
+
+    function flatten(array) {
+        if (!Array.isArray(array)) return array;
+        let layerArray = [];
+        array.forEach((item, index) => {
+            if (Array.isArray(item)) {
+                const innerArray = flatten(item);
+                layerArray.push(...innerArray)
+            } else {
+                layerArray.push(item);
+            }
+        })
+        return layerArray;
+    }
+
+
+    console.log(flatten(array))
+
+
+
+
+
 
 
     
