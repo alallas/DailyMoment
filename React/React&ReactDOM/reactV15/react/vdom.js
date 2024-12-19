@@ -1,4 +1,4 @@
-import { TEXT, ELEMENT, FUNCTION_COMPONENT, CLASS_COMPONENT } from "./constants.js";
+import { TEXT, ELEMENT, FUNCTION_COMPONENT, CLASS_COMPONENT, MOVE, INSERT, REMOVE } from "./constants.js";
 import { onlyOne, setProps, flatten, patchProps } from "./utils.js";
 
 let updateDepth = 0;
@@ -201,10 +201,13 @@ function updateElement(oldElement, newElement) {
 function updateChildrenElements(dom, oldChildrenElements, newChildrenElements) {
   // 记录树的深度，目的是判断什么时候结束，然后统一改变真实的DOM
   updateDepth++;
+
+  // 一、写计划，标记怎么做
   diff(dom, oldChildrenElements, newChildrenElements);
   updateDepth--;
 
-  // 这个时候整个树比较完毕，开始真正改变真实的原生DOM
+  // 二、执行计划
+  // 这个时候整个树遍历完毕，开始真正改变真实的原生DOM
   if (updateDepth === 0) {
     patch(diffQueue);
     diffQueue.length = 0;
@@ -212,9 +215,58 @@ function updateChildrenElements(dom, oldChildrenElements, newChildrenElements) {
 }
 
 function diff(parentNode, oldChildrenElements, newChildrenElements) {
+  // 1.拿到老节点的映射，保存以便于查找
   let oldChildrenElementsMap = getOldChildrenElementsMap(oldChildrenElements);
+
+  // 2.遍历新数组，标记节点的移动（复用）、新增和删除
+  // 2.1找可复用的节点，没有就新建，直接修改当前新孩子数组
+  // （newChildrenElements是透传进去的，受到了函数里面的原地修改）
   let newChildrenElementsMap = getNewChildrenElementsMap(oldChildrenElementsMap, newChildrenElements);
 
+  // 2.2标记需要移动、新增的节点
+  let lastIndex = 0;
+  for (let i = 0; i < newChildrenElements.length; i++) {
+    let newChildElement = newChildrenElements[i];
+    if (newChildElement) {
+      let newKey = newChildElement.key || i.toString();
+      let oldChildElement = oldChildrenElementsMap[newKey];
+      if (oldChildElement === newChildElement) {
+        // 这个时候说明是复用的老节点，接下来要看是否需要移动
+        if (oldChildElement._mountIndex < lastIndex) {
+          diffQueue.push({
+            parentNode,
+            type: MOVE,
+            fromIndex: oldChildElement._mountIndex,
+            toIndex: i,
+          });
+        }
+        lastIndex = Math.max(oldChildElement._mountIndex, lastIndex);
+      } else {
+        diffQueue.push({
+          parentNode,
+          type: INSERT,
+          toIndex: i,
+          dom: createDOM(newChildElement),
+        });
+      }
+      
+      // 注意！这是为newChildELement赋予一个属性，因为这是第一次（其实是第二次）遍历新的孩子节点数组
+      // 如果是更新的话，没有走过createDOMChildren，是不会有这个属性的！！！
+      newChildElement._mountIndex = i;
+    }
+  }
+
+  // 2.3标记需要删除的节点
+  for (let oldKey in oldChildrenElementsMap) {
+    if (!newChildrenElementsMap.hasOwnProperty(oldKey)) {
+      let oldChildElement = oldChildrenElementsMap[oldKey];
+      diffQueue.push({
+        parentNode,
+        type: REMOVE,
+        fromIndex: oldChildElement._mountIndex,
+      })
+    }
+  }
 }
 
 
@@ -230,18 +282,20 @@ function getOldChildrenElementsMap(oldChildrenElements) {
 
 
 function getNewChildrenElementsMap(oldChildrenElementsMap, newChildrenElements) {
-  // 顺便也存一下新孩子元素的虚拟DOM
+  // 顺便也存一下新孩子元素的虚拟DOM，用来为找需要删除的节点用的！
   let newChildrenElementsMap = {};
 
-  // 1.遍历新数组，标记节点的移动（复用）、删除和新增
+  // 1.1找可复用的节点
   for (let i = 0; i < newChildrenElements.length; i++) {
     let newChildElement = newChildrenElements[i];
     if (newChildElement) {
       let newKey = newChildElement.key || i.toString();
       let oldChildElement = oldChildrenElementsMap[newKey];
-      // 1.1找可复用的节点，需要key一样，且type类型也一样才能复用
+
+      // 需要key一样，且type类型也一样才能复用
       if (needDeepCompare(oldChildElement, newChildElement)) {
-        // 在这里进行递归
+        // 在这里进行递归，为什么不去compareTwoElements，因为这个的目的地判断类型一不一样，而needDeepCompare已经判断过了
+
         // 复用这个老节点，用新节点的新内容和新属性更新这个节点
         // 这个时候的老节点是透传进去，可以在里面被直接修改，
         updateElement(oldChildElement, newChildElement);
@@ -249,8 +303,11 @@ function getNewChildrenElementsMap(oldChildrenElementsMap, newChildrenElements) 
         // 老节点改完之后直接覆盖新数组的对应的节点
         newChildrenElements[i] = oldChildElement;
       }
-      // 顺便也存一下新孩子元素的虚拟DOM
-      newChildrenElementsMap[newKey] = newChildElement;
+
+      // 注意，这里不像0.3版本，这里没有处理新增节点的逻辑，而是放到了diff里面处理
+
+      // 顺便也存一下新孩子元素的虚拟DOM（要么是复用的改过的老节点，要么是原本自己的节点(也就是需要新增的节点)）
+      newChildrenElementsMap[newKey] = newChildrenElements[i];
     }
   }
   return newChildrenElementsMap
@@ -264,9 +321,44 @@ function needDeepCompare(oldChildElement, newChildElement) {
   return false;
 }
 
+// 原生的DOM操作
+function patch(diffQueue) {
+  // 缓存移动的节点（后面要复用的），且收集要删除的节点
+  let deleteMap = {};
+  let deleteChildren = [];
+  for (let i = 0; i < diffQueue.length; i++) {
+    let { type, fromIndex, parentNode } = diffQueue[i];
+    if (type === MOVE || type === REMOVE) {
+      // 这是原生的DOM的方法，通过他的父亲原生DOM找到当前的这个要删除的孩子原生DOM
+      let oldChildDOM = parentNode.children[fromIndex];
+      // 缓存与收集
+      deleteMap[fromIndex] = oldChildDOM;
+      deleteChildren.push(oldChildDOM);
+    }
+  }
+  // 删除所有的收集起来的要删除的节点
+  deleteChildren.forEach((childDOM) => {
+    childDOM.parentNode.removeChild(childDOM);
+  });
+  for (let i = 0; i < diffQueue.length; i++) {
+    let { type, fromIndex, toIndex, parentNode, dom } = diffQueue[i];
+    switch (type) {
+      case INSERT:
+        insertChildAt(parentNode, dom, toIndex);
+        break;
+      case MOVE:
+        insertChildAt(parentNode, deleteMap[fromIndex], toIndex);
+        break;
+      default:
+        break;
+    }
+  }
+}
 
-function patch() {
-
+function insertChildAt(parentNode, newchildDOM, index) {
+  // 先拿出这个节点的老节点
+  let oldChild = parentNode.children[index];
+  oldChild ? parentNode.insertBefore(newchildDOM, oldChild) : parentNode.appendChild(newchildDOM);
 }
 
 

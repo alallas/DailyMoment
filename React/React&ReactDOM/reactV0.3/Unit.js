@@ -209,14 +209,9 @@ class NativeUnit extends Unit {
 
   diff(diffQueue, newChildrenElements) {
     // ! 第一步生成一个map，拿到老的unit对象
-    let oldChildrenUnitMap = this.getOldChildrenMap(
-      this._renderedChildrenUnits
-    );
+    let oldChildrenUnitMap = this.getOldChildrenMap(this._renderedChildrenUnits);
     // ! 第二步生成一个新的unit数组（！处理孩子数组的元素本身（类型、属性、内容）问题，主要是做属性和内容的更新）
-    let { newChildrenUnits, newChildrenUnitMap } = this.getNewChildren(
-      oldChildrenUnitMap,
-      newChildrenElements
-    );
+    let { newChildrenUnits, newChildrenUnitMap } = this.getNewChildren(oldChildrenUnitMap, newChildrenElements);
 
     // 上一个已经确定位置的索引。
     let lastIndex = 0;
@@ -330,9 +325,7 @@ class NativeUnit extends Unit {
     let newChildrenUnits = [];
     let newChildrenUnitMap = {};
     newChildrenElements.forEach((newChildElement, index) => {
-      let newKey =
-        (newChildElement.props && newChildElement.props.key) ||
-        index.toString();
+      let newKey = (newChildElement.props && newChildElement.props.key) || index.toString();
       // 用新的key去找老的数组里面的元素，看能不能找到可以复用的元素
       let oldUnit = oldChildrenUnitMap[newKey];
       let oldElement = oldUnit && oldUnit._currentElement;
@@ -551,10 +544,7 @@ function shouldDeepCompare(oldElement, newElement) {
 
     let oldType = typeof oldElement;
     let newType = typeof oldElement;
-    if (
-      (oldType === "string" || oldType === "number") &&
-      (newType === "string" || newType === "number")
-    ) {
+    if ((oldType === "string" || oldType === "number") && (newType === "string" || newType === "number")) {
       return true;
     }
 

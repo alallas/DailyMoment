@@ -6,8 +6,14 @@ export const TEXT = Symbol.for('react.text')
 // 原生的dom类型，比如div，span的由createElement创建出来的
 export const ELEMENT = Symbol.for('react.element')
 
-
-
 export const FUNCTION_COMPONENT = Symbol.for('react.functionComponent')
 export const CLASS_COMPONENT = Symbol.for('react.classComponent')
+
+
+
+export const MOVE = 'MOVE';
+export const REMOVE = 'REMOVE';
+export const INSERT = 'INSERT';
+
+
 
