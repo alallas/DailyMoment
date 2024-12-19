@@ -1,4 +1,4 @@
-import React from "./react";
+import React from "../react";
 
 function FunctionComponent(props) {
   return React.createElement('div', { id: 'functionComponent' }, 'hello functionComponent')

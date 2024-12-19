@@ -1,4 +1,4 @@
-
+import { updateQueue } from "./Component";
 
 // react不是把事件绑定到dom节点上面，而是绑定到document上面
 // 1.合成事件可以屏蔽浏览器的差异
@@ -52,6 +52,12 @@ function dispatchEvent(event) {
   // const syntheticEvent = getPooledSyntheticEvent(event);
 
 
+  // !NOTE -  更新模式的设置：
+  // 在事件函数执行之前
+  // 设置为处于批量更新的模式，也就是下面执行的listener里面的setState的时候，会把state放到队列里面
+  updateQueue.isPending = true;
+
+
   // 【针对性的部分】
   // 只要目前的节点存在，就会进入循环，执行【某个节点的针对性的】回调函数
   // 等到target一直被向上的节点覆盖，到最后执行到最后的document，target变为undefined，就退出循环。
@@ -78,6 +84,13 @@ function dispatchEvent(event) {
   // 2. 对象池的写法
   // 然后用完之后释放掉
   // releasePooledSyntheticEvent(event);
+
+
+  // !NOTE -  更新模式的设置：
+  // 事件函数执行完毕之后
+  // 设置为强制更新的模式，然后手动设置强制更新,把缓存在数组里面的updater全部执行了
+  updateQueue.isPending = false;
+  updateQueue.batchUpdate();
 
 }
 

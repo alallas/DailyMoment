@@ -1,4 +1,4 @@
-import React from "./react";
+import React from "../react";
 import FunctionComponent from "./FunctionComponent";
 
 class ClassComponent extends React.Component {
@@ -7,8 +7,11 @@ class ClassComponent extends React.Component {
     super(props);
   }
   render() {
-    return React.createElement('div', { id: 'classComponent' }, 'hello classComponent')
-
+    return React.createElement(
+      "div",
+      { id: "classComponent" },
+      "hello classComponent"
+    );
 
     // 下面这个生成的虚拟DOM的孩子hello classComponent，实际上在页面显示不出来
     // 因为当进入到createFunctionComponent函数时，根本没有处理此时的children数组

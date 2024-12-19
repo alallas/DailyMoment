@@ -1,5 +1,8 @@
 import { TEXT, ELEMENT, FUNCTION_COMPONENT, CLASS_COMPONENT } from "./constants.js";
-import { onlyOne, setProps, flatten } from "./utils.js";
+import { onlyOne, setProps, flatten, patchProps } from "./utils.js";
+
+let updateDepth = 0;
+let diffQueue = [];
 
 function ReactElement($$typeof, type, key, ref, props) {
   let element = {
@@ -33,6 +36,9 @@ function createDOM(element) {
     // 这是一个函数组件
     dom = createFunctionComponent(element);
   }
+
+  // 挂属性，真实的dom挂到自己的虚拟dom上面
+  element.dom = dom;
   return dom;
 }
 
@@ -112,10 +118,205 @@ function createDOMChildren(parentNode, children) {
 }
 
 
+function compareTwoElements(oldRenderElement, newRenderElement) {
+  // 首先保证都是单节点！
+  oldRenderElement = onlyOne(oldRenderElement);
+  newRenderElement = onlyOne(newRenderElement);
+
+  // 先创建两个变量，老的真实dom和虚拟dom，只是为了方便取变量，不用写这么多！
+  // 用来进行原地替换当前的新的信息,因为对象都是指向的当前的内存地址，所以替换变量就是替换原本的值
+  let currentDOM = oldRenderElement.dom;
+  let currentElement = oldRenderElement;
+
+  if (newRenderElement === null) {
+    // 如果新节点是null，直接删掉当前的节点，且断开与父节点的联系
+    currentDOM.parentNode.removeChild(currentDOM);
+    currentDOM = null;
+
+  } else if (oldRenderElement.type !== newRenderElement.type) {
+    // 如果两者的类型都变了，那说明需要重新新建一个新的dom，然后原地替换老的
+    let newDOM = createDOM(newRenderElement);
+
+    // 虚拟的dom和真实的dom都原地替换一下
+    currentDOM.parentNode.replaceChild(newDOM, currentDOM);
+    currentElement = newRenderElement;
+
+  } else {
+    // 如果两者的类型都一样，只是属性或者内容不一样，就要深度比较了，尽可能复用老节点
+    updateElement(oldRenderElement, newRenderElement);
+
+    // 这种情况下，updateElement只是执行了，并没有返回值给到currentElement。
+    // 这个时候的currentElement还是oldRenderElement！！
+    // updateElement函数里面会对currentElement进行
+
+  }
+  return currentElement;
+}
+
+
+
+
+function updateElement(oldElement, newElement) {
+  // 这个时候只是在forceUpdate重新执行了一遍render方法，newElement上面没有挂上原生dom的属性
+  // 目的是复用老的原生dom，让老的dom给到新的dom，不用再重新创建一个原生的dom挂到newELement上面
+  // 并且创造一个变量出来，好进行原地替换！！
+
+  // !那为什么写在这个函数里面呢，因为这个函数用来深度对比Element,同时直接修改dom
+  // !需要在此之前让dom复用，以致于后面修改dom的时候直接改的是同一个dom的内存地址
+  let currentDOM = newElement.dom = oldElement.dom;
+
+  // 首先是文本类型的虚拟DOM，【直接操作原生DOM】，更新一下他们的文本内容
+  if (oldElement.$$typeof === TEXT && newElement.$$typeof === TEXT) {
+    if (oldElement.content !== newElement.content) {
+      currentDOM.textContent = newElement.content;
+    }
+
+    // 这是不是应该把老节点的文本的属性覆盖一下？？？为了老元素需要复用的情况？？
+
+  } else if (oldElement.$$typeof === ELEMENT) {
+    // 先更新自己的属性和先更新子元素数组都一样，谁先谁后无所谓！
+    // 更新一下props属性，【直接对原生的DOM进行操作！】
+    updateDOMProperties(currentDOM, oldElement.props, newElement.props)
+
+    // 更新子节点数组，直接对原生的DOM进行操作！
+    updateChildrenElements(currentDOM, oldElement.props.children, newElement.props.children)
+
+    // 为了同步属性，会把新虚拟DOM的属性赋给旧虚拟DOM的属性（相当于改变透传进来的oldElement，也就是改变上一个函数的返回值currentElement）
+    // 因为在compareTwoElements的最后一种情况里，没有用updateElement的返回值替换其返回值
+    // 那其他属性呢，type因为已经判断过了，只有在不一样才走到这里，新老是一样的！！
+    // 透传过来的oldELement需要用到的情况是：【复用老节点的时候】，因此主要是【属性】和【文本】上的修改，这里把属性覆盖一下！
+    oldElement.props = newElement.props;
+
+  } else if (oldElement.$$typeof === FUNCTION_COMPONENT) {
+    updateFunctionComponent(oldElement, newElement)
+
+  } else if (oldElement.$$typeof === CLASS_COMPONENT) {
+    updateClassComponent(oldElement, newElement)
+
+  }
+  
+}
+
+
+function updateChildrenElements(dom, oldChildrenElements, newChildrenElements) {
+  // 记录树的深度，目的是判断什么时候结束，然后统一改变真实的DOM
+  updateDepth++;
+  diff(dom, oldChildrenElements, newChildrenElements);
+  updateDepth--;
+
+  // 这个时候整个树比较完毕，开始真正改变真实的原生DOM
+  if (updateDepth === 0) {
+    patch(diffQueue);
+    diffQueue.length = 0;
+  }
+}
+
+function diff(parentNode, oldChildrenElements, newChildrenElements) {
+  let oldChildrenElementsMap = getOldChildrenElementsMap(oldChildrenElements);
+  let newChildrenElementsMap = getNewChildrenElementsMap(oldChildrenElementsMap, newChildrenElements);
+
+}
+
+
+
+function getOldChildrenElementsMap(oldChildrenElements) {
+  let oldChildrenElementMap = {};
+  for (let i = 0; i < oldChildrenElements.length; i++) {
+    let oldKey = oldChildrenElements[i].key || i.toString();
+    oldChildrenElementMap[oldKey] = oldChildrenElements[i];
+  }
+  return oldChildrenElementMap
+}
+
+
+function getNewChildrenElementsMap(oldChildrenElementsMap, newChildrenElements) {
+  // 顺便也存一下新孩子元素的虚拟DOM
+  let newChildrenElementsMap = {};
+
+  // 1.遍历新数组，标记节点的移动（复用）、删除和新增
+  for (let i = 0; i < newChildrenElements.length; i++) {
+    let newChildElement = newChildrenElements[i];
+    if (newChildElement) {
+      let newKey = newChildElement.key || i.toString();
+      let oldChildElement = oldChildrenElementsMap[newKey];
+      // 1.1找可复用的节点，需要key一样，且type类型也一样才能复用
+      if (needDeepCompare(oldChildElement, newChildElement)) {
+        // 在这里进行递归
+        // 复用这个老节点，用新节点的新内容和新属性更新这个节点
+        // 这个时候的老节点是透传进去，可以在里面被直接修改，
+        updateElement(oldChildElement, newChildElement);
+
+        // 老节点改完之后直接覆盖新数组的对应的节点
+        newChildrenElements[i] = oldChildElement;
+      }
+      // 顺便也存一下新孩子元素的虚拟DOM
+      newChildrenElementsMap[newKey] = newChildElement;
+    }
+  }
+  return newChildrenElementsMap
+}
+
+function needDeepCompare(oldChildElement, newChildElement) {
+  // 如果两个都存在，且ELement的类型都一样，就需要进一步深度对比（就是复用了！）
+  if (!!oldChildElement && !!newChildElement) {
+    return oldChildElement.type === newChildElement.type
+  }
+  return false;
+}
+
+
+function patch() {
+
+}
+
+
+
+function updateClassComponent(oldElement, newElement) {
+  // 实例不用再新建一个，不然state就被重置了，需要拿到老的实例！！！！！！
+  let componentInstance = oldElement.componentInstance;
+
+  // 拿到实例的更新器对象
+  let updater = componentInstance.$updater;
+  // 拿到新的属性对象
+  let nextProps = newElement.props;
+  // 直接试图更新，但是这里不需要把state保存起来
+  // 实际上这个试图更新的函数最后肯定强制更新，因为nextPrpos即使没有也是{}，当前的isPending是默认的false，也肯定会进去updateComponent，
+  // 然后去到forceUpdate，然后执行render方法得到新的renderELement，再进入compareTwoElements递归
+  updater.emitUpdate(nextProps);
+}
+
+
+
+// 这里的逻辑和createFunctionComponent其实差不多
+// 需要执行这个函数本身，然后拿到新的一个return出来的原生虚拟DOM，
+// 然后进入compareTwoElements递归
+function updateFunctionComponent(oldElement, newElement) {
+
+  // 为什么在这里要拿到这里面的renderElement属性，因为这个入参是一个函数组件类型的虚拟DOM，要挖出里面存的return出来的native虚拟dom来更深一步地比较
+  // 相当于在向下层进行递归
+  let oldRenderElement = oldElement.renderElement;
+  let newRenderElement = newElement.type(newElement.props);
+  let currentElement = compareTwoElements(oldRenderElement, newRenderElement);
+
+  // 记得需要重新替换一下这个render属性（就像在createFunctionComponent里面实现的那样）
+  newElement.renderElement = currentElement;
+
+  // 其实不用return也可以！没用到返回值
+  return currentElement;
+}
+
+
+
+function updateDOMProperties(dom, oldProps, newProps) {
+  patchProps(dom, oldProps, newProps);
+}
+
+
 
 export {
   ReactElement,
   createDOM,
+  compareTwoElements,
 }
 
 

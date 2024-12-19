@@ -1,4 +1,4 @@
-// import React from "./react/index.js";
+// import React from "../react";
 import React from "react";
 
 class Demo extends React.Component {
