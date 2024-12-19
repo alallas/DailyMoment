@@ -1,13 +1,8 @@
 import $ from "jquery";
 import { createUnit } from "./unit.js";
 import { createElement } from "./element.js";
-import { Component } from "./Component.js";
+import Component from "./Component.js";
 
-let React = {
-  render,
-  createElement,
-  Component,
-};
 
 function render(element, container) {
   // 1. 方便以后定位修改更新，要在外面包裹一个span，给一个自定义属性
@@ -37,5 +32,12 @@ function render(element, container) {
   // 这里触发一下didMount的事件(相当于发布事件)
   $(document).trigger("mounted");
 }
+
+
+let React = {
+  render,
+  createElement,
+  Component,
+};
 
 export default React;

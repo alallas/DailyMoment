@@ -1,4 +1,3 @@
-
 class Component {
   constructor(props) {
     this.props = props;
@@ -12,6 +11,4 @@ class Component {
 }
 
 
-export {
-  Component,
-}
+export default Component;

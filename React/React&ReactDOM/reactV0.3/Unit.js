@@ -22,9 +22,9 @@
 // var element = document.querySelector(`[data-reactid="${this._reactid}"]`);
 // element.setAttribute(propName, newProps[propName])
 
-import { Element, createElement } from "./element";
+import { Element, createElement } from "./element.js";
 import $ from "jquery";
-import types from "./types";
+import types from "./types.js";
 
 // 这是在diff函数中用到的
 // 差异队列

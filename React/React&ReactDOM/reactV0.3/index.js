@@ -1,6 +1,6 @@
 import React from "./react.js";
-import Counter from "./Counter.js";
-import Todo from "./Todo.js";
+import Counter from "./components/Counter.js";
+import Todo from "./components/Todo.js";
 
 function sayHello() {
   console.log("hello");
