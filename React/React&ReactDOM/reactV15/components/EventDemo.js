@@ -1,7 +1,7 @@
 // import React from "../react";
 import React from "react";
 
-class Demo extends React.Component {
+class EventDemo extends React.Component {
   constructor(props) {
     super(props);
     this.state = { number: 0 };
@@ -82,4 +82,4 @@ class Demo extends React.Component {
   }
 }
 
-export default Demo;
+export default EventDemo;

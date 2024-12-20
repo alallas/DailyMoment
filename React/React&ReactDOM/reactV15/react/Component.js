@@ -73,9 +73,11 @@ class Updater {
     // 注意新的state是通过getState方法来合并的！
     // !这里相当于拦截了一下，用【用户自定义是否要更新】来拦截
     if (nextProps || pendingState.length > 0) {
-      shouldUpdate(componentInstance, nextProps, this.getState());
+      const nextState = this.getState()
+      shouldUpdate(componentInstance, nextProps, nextState);
     }
   }
+
 
   getState() {
     let { componentInstance, pendingState } = this;
@@ -86,7 +88,7 @@ class Updater {
       pendingState.forEach((nextState, index) => {
         if (isFunction(nextState)) {
           // 如果是一个函数的话就执行，注意在以前定义这个函数的上下文去执行（componentInstance）
-          // 传入的参数是老的state，得到的最新的state直接覆盖当前实例的最新的state
+          // 传入的参数是老的state，得到的最新的state，与老的合并，直接覆盖当前实例的最新的state
 
           // !等等这里在这个时候才执行这个函数，说明这个时候的state是最新的，用函数式的写法可以获得最新的state
           // **如果是对象-函数-对象-函数写法：打印0 0 3 4
@@ -113,7 +115,8 @@ class Updater {
           // 异步部分：
           // 执行异步内第一个函数，在当前state的基础上加1（这个时候的当前state是2）变为3，且当前state变为3，
           // 执行异步内第一个函数，在当前state的基础上加1（这个时候的当前state是3）变为4，且当前state变为4，
-          state = nextState.call(componentInstance, state)
+          let newState = nextState.call(componentInstance, state);
+          state = { ...state, ...newState }
         } else {
           state = { ...state, ...nextState }
         }
@@ -129,6 +132,7 @@ class Updater {
 // 判断一下是不是要更新？？？
 function shouldUpdate(componentInstance, nextProps, nextState) {
   // 不管要不要更新，首先覆盖一下实例的props和state属性
+  // 因为这里实际上是需要更新的，只不过被用户自定义的这个拦截了，这个时候状态要更新到最新的！！
   componentInstance.state = nextState;
   componentInstance.props = nextProps;
 
@@ -166,10 +170,15 @@ class Component {
     // 之前往实例上面挂过renderElement的属性，是指的上一次（或者当前）render出来的结果（也就是当前显示在页面上面的结果）
     let { props, state, renderElement: oldRenderElement } = this;
 
+
     // 在更新逻辑里面，先执行一下【更新相关】的生命周期函数:准备开始更新了，也即是准备重新执行render方法了
     if (this.componentWillUpdate) {
       this.componentWillUpdate();
     }
+    // 执行一下【更新相关】的生命周期函数:准备开始更新了，保存一下某些属性或state，
+    // 如果有return的值就传递给componentDidUpdate函数的第三个参数
+    let extraArgs = this.getSnapshotBeforeUpdate && this.getSnapshotBeforeUpdate();
+
 
     // 重新执行render方法，然后拿到最新的render出来的native形式的虚拟DOM
     // 新的和旧的对比，得到一个最新的虚拟DOM，然后覆盖当前的renderElement，为下一次更新做准备
@@ -177,9 +186,10 @@ class Component {
     let currentElement = compareTwoElements(oldRenderElement, newRenderElement);
     this.renderElement = currentElement;
 
+
     // 在更新逻辑里面，执行一下【更新相关】的生命周期函数:更新完了，也即是render方法执行完了
     if (this.componentDidUpdate) {
-      this.componentDidUpdate();
+      this.componentDidUpdate(props, state, extraArgs);
     }
   }
 }

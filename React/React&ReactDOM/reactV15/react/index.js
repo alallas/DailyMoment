@@ -1,6 +1,7 @@
 import { TEXT, ELEMENT, FUNCTION_COMPONENT, CLASS_COMPONENT } from "./constants.js";
 import { ReactElement } from './vdom.js';
 import Component from './Component.js'
+import { onlyOne } from "./utils.js";
 
 
 function createElement(type, config = {}, ...children) {
@@ -28,7 +29,7 @@ function createElement(type, config = {}, ...children) {
   // 这里和v0.3的区别就是，v0.3没有对child进行包装处理而是直接用原始值的字符串，在创建工具集的时候也是直接用的原始值作为输入保存到currentElement里面
   // 这里直接用了$$typeof来表明这是一个文本元素还是一个Element元素，做了包装处理
   props.children = children.map((item) => {
-    if (typeof item === 'object') {
+    if (typeof item === 'object' || typeof item === 'function') {
       // 这时是一个element实例
       return item
     } else {
@@ -43,11 +44,47 @@ function createElement(type, config = {}, ...children) {
 }
 
 
+
+function createRef() {
+  return { current: null };
+}
+
+
+function createContext(defaultValue) {
+  Provider.value = defaultValue;
+
+  // ! 用两个函数组件
+  // 返回的是自己本身的孩子，是一个数组，也就是他只是起到一个【包裹作用】
+  // ! 这个数组在后面的createDOM处理中会被onlyOne处理为只剩下第一个元素？？那其他元素怎么办？？？
+  // 所以provider后面必须传递一个外表的<div>，然后才能写里面的。也就是说Provider的children只能有一个
+  function Provider(props) {
+    Provider.value = props.value;
+    return props.children;
+  }
+
+  // 下面的props的children是一个函数
+  // 为了防止是一个数组，只取其中第一个onlyOne
+  // 因为夺取者
+  function Consumer(props) {
+    return onlyOne(props.children)(Provider.value);
+  }
+
+  return { Provider, Consumer }
+}
+
+
+
 const React = {
   createElement,
   Component,
+  createRef,
+  createContext,
 };
 
 export default React;
+
+export {
+  Component,
+}
 
 

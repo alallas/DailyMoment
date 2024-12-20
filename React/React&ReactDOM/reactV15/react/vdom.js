@@ -15,7 +15,7 @@ function ReactElement($$typeof, type, key, ref, props) {
 // 分发函数，相当于createUnit，属于一个指挥者的角色
 function createDOM(element) {
   // 如果传过来的是一个数组，只是取第一个就好？？？？children是一个数组
-  // element = onlyOne(element)
+  element = onlyOne(element)
 
   const { $$typeof, type, key, ref, props } = element;
   let dom = null;
@@ -43,10 +43,32 @@ function createDOM(element) {
 }
 
 function createClassComponent(element) {
-  let { type, props } = element;
+  let { type, props, ref } = element;
   let componentInstance = new type(props);
+
+  // 执行一下【挂载】相关的生命周期函数
+  componentInstance.componentWillMount && componentInstance.componentWillMount();
+  // 执行一下【props】相关的生命周期函数
+  if (type.getDerivedStateFromProps) {
+    // 传入的参数是新的属性和老的state，这个时候的state还没被改变！！直接用componentInstance.state
+    let newState = type.getDerivedStateFromProps(props, componentInstance.state)
+    // 直接原地修改最深层的那个state，保证最原始的state是最新的拿到的返回值的状态
+    // 注意这里也要合并老状态
+    if (newState) {
+      componentInstance.state = {...componentInstance.state, ...newState};
+    }
+  }
+
+  // 如果有ref属性，就把类组件的实例放到他身上！
+  // 注意！如果是之前那种createELement的写法，ref应该是单独出来的，不是在props里面的
+  if (ref) {
+    ref.current = componentInstance;
+  }
+
+
   let renderElement = componentInstance.render();
   let newDOM = createDOM(renderElement);
+
 
   // 开始相互引用（挂属性）
   // 组件形式的虚拟DOM挂上实例属性，以后这个实例是一直不变的（new方法执行的结果）
@@ -55,26 +77,36 @@ function createClassComponent(element) {
     // 因为属性更新的时候需要重新执行render，需要与上一次（在这里是首次）的render结果进行对比
   element.componentInstance = componentInstance;
   componentInstance.renderElement = renderElement;
-
   // 这里的目的是在return出来的虚拟dom（createElement函数产生的）上面挂一个dom属性，指向他的真实dom，可以在后面的时候使用
   renderElement.dom = newDOM;
 
   // 综上，element.componentInstance.renderElement.dom = div的真实dom元素
   // 也就是组件经过包装形成的组件形式的虚拟dom可以拿到类组件实例、render结果、真实dom
 
+
+  // 执行一下【挂载】相关的生命周期函数
+  // 实际上应该放在appendChild后面，因为是等到原生的DOM真实的挂上去之后才触发的这个生命周期函数！
+  componentInstance.componentDidMount && componentInstance.componentDidMount();
+
   return newDOM;
 }
 
 
 function createFunctionComponent(element) {
-  let { type, props } = element; // 这个时候的type是一个function
+  let { type, props, ref } = element; // 这个时候的type是一个function
   let renderElement = type(props); // 这个时候得到的是函数return出来的值，一般是原生的dom节点
   let newDOM = createDOM(renderElement);
 
-  // 开始相互引用（挂属性）
-  // 把组件首次render的结果产生的虚拟DOM挂到组件DOM上面
-  element.renderElement = renderElement;
 
+  // !函数组件没有实例不用加？？？？
+  // if (ref) {
+  //   ref.current = newDOM;
+  // }
+
+
+  // 开始相互引用（挂属性）
+  // 把组件首次render的结果产生的虚拟DOM挂到组件DOM上面（也就是return的结果）
+  element.renderElement = renderElement;
   // 这里的目的是在return出来的虚拟dom（createElement函数产生的）上面挂一个dom属性，指向他的真实dom，可以在后面的时候使用
   renderElement.dom = newDOM;
 
@@ -93,12 +125,16 @@ function createNativeDOM(element) {
   
   // 为当前作为顶层的节点创建一个真实的dom对象（使用原生的方法）
   let dom = document.createElement(type);
-
-  // 然后需要递归处理孩子数组
+  // 然后需要递归处理孩子数组【直接对原生DOM操作】
   createDOMChildren(dom, element.props.children);
-
-  // 添加属性
+  // 添加属性【直接对原生DOM操作】
   setProps(dom, props);
+
+  // 如果有ref属性，就把真实的dom放到他身上！
+  // 注意！如果是之前那种createELement的写法，ref应该是单独出来的，不是在props里面的
+  if (ref) {
+    ref.current = dom;
+  }
 
   return dom;
 }
@@ -193,6 +229,10 @@ function updateElement(oldElement, newElement) {
   } else if (oldElement.$$typeof === CLASS_COMPONENT) {
     updateClassComponent(oldElement, newElement)
 
+    // 更新的时候，一直都是新的render出来的值和老的保存在属性里面的值进行对比
+    // 但是在最后的时候，老的instance实例没有去给新的虚拟DOM赋予这个唯一的单独的instance实例
+    // 导致后面类组件更新的时候，原本是新的，现在变成老的虚拟DOM没有【实例】的属性。
+    newElement.componentInstance = oldElement.componentInstance
   }
   
 }
@@ -201,6 +241,12 @@ function updateElement(oldElement, newElement) {
 function updateChildrenElements(dom, oldChildrenElements, newChildrenElements) {
   // 记录树的深度，目的是判断什么时候结束，然后统一改变真实的DOM
   updateDepth++;
+
+  // 以防万一，把oldChildrenElements和newChildrenElements做打平处理
+  // 这是递归的启动点，写在这里比较合适
+  // 打平的意义在于：写jsx的时候，map生成一个新的数组，也就是children本来就是一个数组，然后再用一个（参数的）数组包裹就是二维数组了！
+  oldChildrenElements = flatten(oldChildrenElements);
+  newChildrenElements = flatten(newChildrenElements)
 
   // 一、写计划，标记怎么做
   diff(dom, oldChildrenElements, newChildrenElements);
@@ -253,6 +299,20 @@ function diff(parentNode, oldChildrenElements, newChildrenElements) {
       // 注意！这是为newChildELement赋予一个属性，因为这是第一次（其实是第二次）遍历新的孩子节点数组
       // 如果是更新的话，没有走过createDOMChildren，是不会有这个属性的！！！
       newChildElement._mountIndex = i;
+
+    } else {
+      // 如果这个孩子元素变成null了，需要执行一下这个元素的卸载生命周期函数
+      let newKey = i.toString();
+      let oldChildElement = oldChildrenElementsMap[newKey];
+      if (oldChildElement && oldChildElement.componentInstance && oldChildElement.componentInstance.componentWillUnmount) {
+        oldChildElement.componentInstance.componentWillUnmount();
+      }
+
+      // 但是变为null之后，后续下一次更新时，当前的数组变为老数组，那就有一个null值在oldChildrenMap里面
+      // 到时候很多地方都会出现null没有xx属性（因为从oldELement身上取了很多属性）
+      // 不应该在这里删除，会有问题！！应该在oldChildrenMap构造那里先判断一下是否有值
+      // newChildrenElements.splice(i--, 1)
+
     }
   }
 
@@ -274,8 +334,12 @@ function diff(parentNode, oldChildrenElements, newChildrenElements) {
 function getOldChildrenElementsMap(oldChildrenElements) {
   let oldChildrenElementMap = {};
   for (let i = 0; i < oldChildrenElements.length; i++) {
-    let oldKey = oldChildrenElements[i].key || i.toString();
-    oldChildrenElementMap[oldKey] = oldChildrenElements[i];
+
+    // 这里为什么要加一个这个判断，防止在更新的时候出现一个元素变为null了，然后下一次更新的时候也把这个null存起来了！！
+    if (oldChildrenElements[i]) {
+      let oldKey = oldChildrenElements[i].key || i.toString();
+      oldChildrenElementMap[oldKey] = oldChildrenElements[i];
+    }
   }
   return oldChildrenElementMap
 }
@@ -364,14 +428,42 @@ function insertChildAt(parentNode, newchildDOM, index) {
 
 
 function updateClassComponent(oldElement, newElement) {
-  // 实例不用再新建一个，不然state就被重置了，需要拿到老的实例！！！！！！
+  // 一、实例不用再新建一个，不然state就被重置了，需要拿到老的实例！！！！！！
   let componentInstance = oldElement.componentInstance;
 
+  // 二、一些属性的复用与定义
+  // 更新的时候，一直都是新的render出来的值和老的保存在属性里面的值进行对比
+  // 但是在最后的时候，老的instance实例没有去给新的虚拟DOM赋予这个唯一的单独的instance实例
+  // 导致后面类组件更新的时候，原本是新的，现在变成老的虚拟DOM没有【实例】的属性。
+  newElement.componentInstance = componentInstance
+
+  // 三、拿到更新的工具
   // 拿到实例的更新器对象
   let updater = componentInstance.$updater;
   // 拿到新的属性对象
   let nextProps = newElement.props;
-  // 直接试图更新，但是这里不需要把state保存起来
+
+
+  // 四、先触发一下【props】相关的生命周期函数（更新之前）
+  // 4.1 在试图更新之前（进入更新逻辑之前），先触发一下【获得新的属性】的生命周期函数，
+  // 等等，这个是不是也应该在create的时候render之前也要触发一下？？？？？？？
+  componentInstance.componentWillReceiveProps && componentInstance.componentWillReceiveProps(nextProps)
+
+  // 4.2 有一个方法getDerivedStateFromProps，是对componentWillReceiveProps的提升和改进！
+  // 因为getDerivedStateFromProps是一个静态方法，不能通过实例来拿，只能通过class本身来拿
+  if (newElement.type.getDerivedStateFromProps) {
+    // 传入的参数是新的属性和老的state，这个时候的state还没被改变！！直接用componentInstance.state
+    let newState = newElement.type.getDerivedStateFromProps(nextProps, componentInstance.state)
+
+    // 直接原地修改最深层的那个state，保证最原始的state是最新的拿到的返回值的状态
+    // 注意这里也要合并老状态
+    if (newState) {
+      componentInstance.state = {...componentInstance.state, ...newState};
+    }
+  }
+
+
+  // 五、直接试图更新，但是这里不需要把state保存起来
   // 实际上这个试图更新的函数最后肯定强制更新，因为nextPrpos即使没有也是{}，当前的isPending是默认的false，也肯定会进去updateComponent，
   // 然后去到forceUpdate，然后执行render方法得到新的renderELement，再进入compareTwoElements递归
   updater.emitUpdate(nextProps);

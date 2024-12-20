@@ -23,7 +23,7 @@ class ClassCounter2 extends React.Component {
 class Counter extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { number: 0 }
+    this.state = { number: 0, name: 'zyl' }
   }
 
   // 下面同步函数部分两次打印都是同一个数字，为什么？
@@ -65,15 +65,26 @@ class Counter extends React.Component {
     }, 2000)
   }
 
+
   changeNumber() {
-    this.setState({ number: this.state.number + 1 });
+    this.setState((state) => ({ number: state.number + 1 }));
+
+    // ! 这里有一个问题，如何干掉状态里面的老属性？？？？
+    // 比如：通过setState的方式把name这个属性给干掉
+    // 可以这么写：把新的state对象放到一个数组里面！！！
+    // 好吧┗( T﹏T )┛被证明是不行的！！！，还是干不掉，还是会合并所有属性
+    // this.setState(state => [{ number: state.number + 1 }])
+    // setTimeout(() => {
+    //   console.log(this.state)
+    // }, 2000)
   }
+
 
   render() {
     // return React.createElement('div', { id: 'counter' + this.state.number, onClick: () => this.handleClick() }, '+')
 
 
-    const p = React.createElement('p', {}, this.state.number)
+    const p = React.createElement('p', {}, this.state.name, this.state.number)
     const button = React.createElement('button', { onClick: () => this.changeNumber() }, '+')
     return React.createElement('div', { id: 'counter' + this.state.number }, p, button)
 

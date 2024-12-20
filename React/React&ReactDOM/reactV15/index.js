@@ -1,14 +1,19 @@
-import React from "./react/index.js";
-import ReactDOM from "./react-dom/index.js";
-// import React from "react";
-// import ReactDOM from 'react-dom'
-// import Demo from "./components/Demo.js";
+import React from "./react";
+import ReactDOM from "./react-dom";
+
+import EventDemo from "./components/EventDemo.js";
+import LifecycleDemo from "./components/LifecycleDemo.js";
+import NewLifecycleDemo from "./components/NewLifecycleDemo";
+import ScrollingList from "./components/ScrollingList";
 
 import FunctionComponent from "./components/FunctionComponent.js";
 import ClassComponent from "./components/ClassComponent.js";
 
 import Counter from "./components/Counter.js";
 import List from "./components/List.js";
+
+import FunctionPage from "./components/Context.js";
+
 
 // function handleClick(syntheticEvent) {
 //   console.log(syntheticEvent)
@@ -29,7 +34,7 @@ import List from "./components/List.js";
 //   document.getElementById('root')
 // )
 
-ReactDOM.render(React.createElement(List), document.getElementById("root"));
+ReactDOM.render(React.createElement(FunctionPage), document.getElementById("root"));
 
 // let element1 = React.createElement('div', { id: 'classComponent' }, 'hello');
 // let element2 = React.createElement(FunctionComponent);
