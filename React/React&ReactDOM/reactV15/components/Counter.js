@@ -1,4 +1,5 @@
 import React from "../react";
+import { unstable_batchedUpdates } from "../react-dom/index.js";
 
 function FunctionCounter(props) {
   const p = React.createElement('p', {}, props.number)
@@ -41,27 +42,27 @@ class Counter extends React.Component {
   // !REVIEW - 所以！react里面如果事件函数是同步的话，那么一般把setState放到最后面写，因为这个时候写，下面很快就更新了！核心就是：【把state的值算好了再setState】
 
   handleClick() {
-    // this.setState({ number: this.state.number + 1 })
-    // console.log(this.state.number)
-    // this.setState({ number: this.state.number + 1 })
-    // console.log(this.state.number)
-    this.setState(state => ({ number: state.number + 1 }))
+    this.setState({ number: this.state.number + 1 })
     console.log(this.state.number)
-    this.setState(state => ({ number: state.number + 1 }))
+    this.setState({ number: this.state.number + 1 })
     console.log(this.state.number)
+    // this.setState(state => ({ number: state.number + 1 }))
+    // console.log(this.state.number)
+    // this.setState(state => ({ number: state.number + 1 }))
+    // console.log(this.state.number)
 
 
     // 这个时候如果开始有异步的函数，那么event那边的代码会先走，然后改变isPending为false，
     // 这个时候再次回到异步函数体里面的setState的时候就会一直处于强制更新模式了
     setTimeout(() => {
-      // this.setState({ number: this.state.number + 1 })
-      // console.log(this.state.number)
-      // this.setState({ number: this.state.number + 1 })
-      // console.log(this.state.number)
-      this.setState(state => ({ number: state.number + 1 }))
+      this.setState({ number: this.state.number + 1 })
       console.log(this.state.number)
-      this.setState(state => ({ number: state.number + 1 }))
+      this.setState({ number: this.state.number + 1 })
       console.log(this.state.number)
+      // this.setState(state => ({ number: state.number + 1 }))
+      // console.log(this.state.number)
+      // this.setState(state => ({ number: state.number + 1 }))
+      // console.log(this.state.number)
     }, 2000)
   }
 
@@ -72,11 +73,19 @@ class Counter extends React.Component {
     // ! 这里有一个问题，如何干掉状态里面的老属性？？？？
     // 比如：通过setState的方式把name这个属性给干掉
     // 可以这么写：把新的state对象放到一个数组里面！！！
-    // 好吧┗( T﹏T )┛被证明是不行的！！！，还是干不掉，还是会合并所有属性
+    // 好吧┗( T﹏T )┛被证明是不行的！！！还是干不掉，还是会合并所有属性
     // this.setState(state => [{ number: state.number + 1 }])
     // setTimeout(() => {
     //   console.log(this.state)
     // }, 2000)
+  }
+
+
+  componentDidMount() {
+    this.setState({ number: this.state.number + 1 })
+    console.log(this.state.number)
+    this.setState({ number: this.state.number + 1 })
+    console.log(this.state.number)
   }
 
 

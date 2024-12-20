@@ -2,7 +2,7 @@ import { isFunction } from './utils.js';
 import { compareTwoElements } from './vdom.js'
 
 
-export const updateQueue = {
+const updateQueue = {
   // 这里面放着将要执行的更新器对象，更新器对象记录当前状态
   updaters: [],
 
@@ -202,6 +202,9 @@ Component.prototype.isReactComponent = {};
 
 
 
-export default Component;
+export {
+  Component,
+  updateQueue,
+};
 
 

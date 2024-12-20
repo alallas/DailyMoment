@@ -11,8 +11,9 @@ import ClassComponent from "./components/ClassComponent.js";
 
 import Counter from "./components/Counter.js";
 import List from "./components/List.js";
+import Todo from "./components/Todo";
 
-import FunctionPage from "./components/Context.js";
+import { FunctionPage, ClassPage } from "./components/Context.js";
 
 
 // function handleClick(syntheticEvent) {
@@ -34,7 +35,7 @@ import FunctionPage from "./components/Context.js";
 //   document.getElementById('root')
 // )
 
-ReactDOM.render(React.createElement(FunctionPage), document.getElementById("root"));
+ReactDOM.render(React.createElement(Todo), document.getElementById("root"));
 
 // let element1 = React.createElement('div', { id: 'classComponent' }, 'hello');
 // let element2 = React.createElement(FunctionComponent);

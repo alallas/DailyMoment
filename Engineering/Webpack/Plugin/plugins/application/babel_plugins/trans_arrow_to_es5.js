@@ -19,8 +19,8 @@ let arrowFunctionPlugin = {
       let body = node.body; // 函数体
 
 
-      // ****这种是箭头函数后面没有大括号的表达式
-      // ****(a, b) => a + b
+      // ! ****这种是箭头函数后面没有大括号的表达式
+      // ! ****(a, b) => a + b
 
       // 构造一个returnStatement
       let returnStatement = t.returnStatement(body)
@@ -34,8 +34,8 @@ let arrowFunctionPlugin = {
 
 
 
-      // ****这种是箭头函数后面有大括号的表达式，且含有this
-      // ****{ console.log(this); return a + b; }
+      // ! ****这种是箭头函数后面有大括号的表达式，且含有this
+      // ! ****{ console.log(this); return a + b; }
 
       let functionExpression2 = t.functionExpression(id, params, body, false, false);
 
