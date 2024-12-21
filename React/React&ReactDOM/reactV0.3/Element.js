@@ -5,9 +5,6 @@ class Element {
     this.type = type;
     this.props = props;
   }
-
-
-
 }
 
 

@@ -220,9 +220,7 @@ class NativeUnit extends Unit {
     // 第三步开始回到处理孩子数组的顺序问题，收集孩子的移动或删除或新建的操作
     for (let i = 0; i < newChildrenUnits.length; i++) {
       let newUnit = newChildrenUnits[i];
-      let newKey =
-        (newUnit._currentElement.props && newUnit._currentElement.props.key) ||
-        i.toString();
+      let newKey = (newUnit._currentElement.props && newUnit._currentElement.props.key) || i.toString();
       let oldChildUnit = oldChildrenUnitMap[newKey];
 
       // 第一种情况是，新老一致，两个对象完全一样（内存地址一样，因为是直接复用的，在处理孩子的时候已经把老节点更新过了）
@@ -255,7 +253,7 @@ class NativeUnit extends Unit {
             fromIndex: oldChildUnit._mountIndex,
           });
 
-          // ***LINK - 这里是两者节点的类型不一样，在前面的getNewChildren方法已经针对这个类型不同的元素对缓存做处理，这里按道理应该不需要了把！！！
+          // LINK - 这里是两者节点的类型不一样，在前面的getNewChildren方法已经针对这个类型不同的元素对缓存做处理，这里按道理应该不需要了把！！！
           // ! 但如果把前面【好像有错误】的getNewChildren方法去掉的话，这里除了删掉错误的节点之外，是不是也要新增一个新创建的节点
           this._renderedChildrenUnits = this._renderedChildrenUnits.filter(
             (item) => item !== oldChildUnit
@@ -303,11 +301,7 @@ class NativeUnit extends Unit {
     let map = {};
     for (let i = 0; i < childrenUnits.length; i++) {
       let childUnit = childrenUnits[i];
-      let key =
-        (childUnit &&
-          childUnit._currentElement.props &&
-          childUnit._currentElement.props.key) ||
-        i.toString();
+      let key = (childUnit && childUnit._currentElement.props && childUnit._currentElement.props.key) || i.toString();
       map[key] = childUnit;
     }
     return map;
@@ -386,19 +380,11 @@ class NativeUnit extends Unit {
       let difference = diffQueue[i];
       switch (difference.type) {
         case types.INSERT:
-          this.insertChildAt(
-            difference.parentNode,
-            difference.toIndex,
-            $(difference.markUp)
-          );
+          this.insertChildAt(difference.parentNode, difference.toIndex, $(difference.markUp));
           break;
         // 这个时候使用fromIndex拿到对应的要移动的原节点
         case types.MOVE:
-          this.insertChildAt(
-            difference.parentNode,
-            difference.toIndex,
-            deleteMap[`${difference.parentId}_${difference.fromIndex}`]
-          );
+          this.insertChildAt(difference.parentNode, difference.toIndex, deleteMap[`${difference.parentId}_${difference.fromIndex}`]);
           break;
         default:
           break;
@@ -413,7 +399,7 @@ class NativeUnit extends Unit {
 
     // 如果当前位置没有节点
     // 最后一个位置肯定是当前的新数组的节点需要加入的位置，所以用appendTo母亲节点的形式
-    // ! 其实这里有比较巧的构思吧我觉得！因为需要删除的都是排在前面或左边的节点，跟随着前一个节点的节点已经被相对移动到他后面了
+    // ! 其实这里有比较巧的构思吧我觉得！因为需要删除的都是排在前面或左边的节点，跟随在【要插入的】节点的后面的节点已经被相对移动到他后面了
     oldChild
       ? $(newNode).insertBefore(oldChild)
       : $(newNode).appendTo(parentNode);
@@ -429,18 +415,12 @@ class CompositeUnit extends Unit {
     // 获取新的状态
     // 并且不管要不要更新组件，状态都要修改，这个时候的组件的state已经被改变了！！！！
     // 也就是说如果在这句之后重新执行一下render，肯定在内容上有所变化！！！
-    let nextState = (this._componentInstance.state = Object.assign(
-      this._componentInstance.state,
-      partialState || {}
-    ));
+    let nextState = this._componentInstance.state = Object.assign(this._componentInstance.state, partialState || {});
 
     // 获取到最新的元素的属性和children内容（有改变的话）
     let nextProps = this._currentElement.props;
 
-    if (
-      this._componentInstance.shouldComponentUpdate &&
-      !this._componentInstance.shouldComponentUpdate(nextProps, nextState)
-    ) {
+    if (this._componentInstance.shouldComponentUpdate && !this._componentInstance.shouldComponentUpdate(nextProps, nextState)) {
       return;
     }
 
@@ -466,8 +446,8 @@ class CompositeUnit extends Unit {
       // ! 如果类型一样，需要进行深度比较的话，把更新工作交给上一次渲染出来的那个element的unit来处理
       // 这里之前的单元类型肯定和现在的单元类型是一样的，相当于是去对应的类型的unit下进行进一步比较【为什么要把这个任务放到update身上呢】
       // 1.如果大家都是TextUnit的类型，也就是render返回的都是原始值，那么很好，直接===对比就可以了
-      // 2.如果大家都是一个dom节点类型，也就是render返回是一个组件或者dom，且最外层的节点的type一样的话，那就要回到本update函数了
-      // 回到本update函数是什么逻辑？？？？？？有bug？？？
+      // 2.如果大家都是一个dom节点类型，也就是render返回是一个dom，且最外层的节点的type一样的话，那就要去到对应的nativeUnit那边进行了
+      // 相当于这里是在把这个更新任务给到下一层级
       preRenderedUnitInstance.update(nextRenderElement);
 
       // 更新完之后执行一下生命周期函数！！
@@ -510,7 +490,7 @@ class CompositeUnit extends Unit {
     let renderedMarkUp = renderedUnitInstance.getMarkUp(this._reactid);
 
     // 在这个时候绑定mounted事件，这个里面的didMount什么时候触发呢，应该是要在把这个markup字符串放到了html上面才会触发，这里先中转一下，因为这里直接拿到了组件的实例，获取里面的方法比较方便！
-    // 相当于发布事件！！！
+    // 相当于订阅事件！！！
     $(document).on("mounted", () => {
       componentInstance.componentDidMount &&
         componentInstance.componentDidMount();
