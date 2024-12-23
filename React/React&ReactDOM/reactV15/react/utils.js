@@ -31,6 +31,8 @@ function setProp(dom, key, value) {
     }
   } else if (key === 'className') {
     dom.className = value;
+  } else if (key === 'value') {
+    dom.value = value;
   } else {
     dom.setAttribute(key, value);
   }

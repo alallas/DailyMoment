@@ -409,8 +409,11 @@ class NativeUnit extends Unit {
 class CompositeUnit extends Unit {
   // 这个负责组件的更新操作
   update(nextElement, partialState) {
+    // 这里好像不需要覆盖当前的this._currentElement也可以，因为this.currentElement在两个“根”一样的地方会更新
+    // 第一个更广泛的是每次新建一个新的unit，也就是经过判断不能够复用的时候，就会把Element存到this.currentElement里面
+    // 第二个是文本节点的更新肯定会替换当前的this.currentElement
     // 先获取到当前的需要更新的最新的元素
-    this._currentElement = nextElement || this._currentElement;
+    // this._currentElement = nextElement || this._currentElement;
 
     // 获取新的状态
     // 并且不管要不要更新组件，状态都要修改，这个时候的组件的state已经被改变了！！！！
@@ -418,7 +421,9 @@ class CompositeUnit extends Unit {
     let nextState = this._componentInstance.state = Object.assign(this._componentInstance.state, partialState || {});
 
     // 获取到最新的元素的属性和children内容（有改变的话）
-    let nextProps = this._currentElement.props;
+    // let nextProps = this._currentElement.props;
+    // 不需要覆盖当前的this._currentElement的写法
+    let nextProps = (nextElement || this._currentElement).props;
 
     if (this._componentInstance.shouldComponentUpdate && !this._componentInstance.shouldComponentUpdate(nextProps, nextState)) {
       return;

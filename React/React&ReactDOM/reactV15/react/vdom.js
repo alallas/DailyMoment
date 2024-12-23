@@ -18,7 +18,7 @@ function createDOM(element) {
   // 如果传过来的是一个数组，只是取第一个就好？？？？children是一个数组
   element = onlyOne(element)
 
-  const { $$typeof, type, key, ref, props } = element;
+  const { $$typeof } = element;
   let dom = null;
 
 
@@ -111,7 +111,7 @@ function createClassComponent(element) {
 
 
 function createFunctionComponent(element) {
-  let { type, props, ref } = element; // 这个时候的type是一个function
+  let { type, props } = element; // 这个时候的type是一个function
   let renderElement = type(props); // 这个时候得到的是函数return出来的值，一般是原生的dom节点
   let newDOM = createDOM(renderElement);
 
@@ -139,12 +139,12 @@ function createFunctionComponent(element) {
 
 // 每个产生的小作坊，只负责生产某一类的东西！！
 function createNativeDOM(element) {
-  const { $$typeof, type, key, ref, props } = element;
+  const { type, ref, props } = element;
   
   // 为当前作为顶层的节点创建一个真实的dom对象（使用原生的方法）
   let dom = document.createElement(type);
   // 然后需要递归处理孩子数组【直接对原生DOM操作】
-  createDOMChildren(dom, element.props.children);
+  createDOMChildren(dom, props.children);
   // 添加属性【直接对原生DOM操作】
   setProps(dom, props);
 
