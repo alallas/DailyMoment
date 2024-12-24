@@ -368,7 +368,7 @@ function getNewChildrenElementsMap(oldChildrenElementsMap, newChildrenElements) 
 
       // 需要key一样，且type类型也一样才能复用
       if (needDeepCompare(oldChildElement, newChildElement)) {
-        // 在这里进行递归，为什么不去compareTwoElements，因为这个的目的地判断类型一不一样，而needDeepCompare已经判断过了
+        // 在这里进行递归，为什么不去compareTwoElements，因为这里的目标是判断类型一不一样，而needDeepCompare已经判断过了
 
         // 复用这个老节点，用新节点的新内容和新属性更新这个节点
         // 这个时候的老节点是透传进去，可以在里面被直接修改，
