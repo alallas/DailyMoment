@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  </head>
+  <body>
+    <div style="background-color: antiquewhite; width: 0; height: 20px;"></div>
+    <button>start</button>
+    <script>
+      let div = document.querySelector('div');
+      let button = document.querySelector('button');
+      let startTime;
+      function progress() {
+        div.style.width = div.offsetWidth + 1 + 'px';
+        div.innerHTML = div.offsetWidth + '%';
+        if (div.offsetWidth < 100) {
+          console.log(Date.now() - startTime + 'ms')
+          startTime = Date.now();
+          // 调动下一次，相当于递归了
+          requestAnimationFrame(progress);
+        }
+      }
+      button.onclick = function() {
+        div.style.width = 0;
+        startTime = Date.now();
+        // 浏览器在每一帧渲染之前执行progress
+        // 调动首次
+        requestAnimationFrame(progress);
+      }
+    </script>
+  </body>
+</html>

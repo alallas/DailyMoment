@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  </head>
+  <body>
+    <script>
+      let channel = new MessageChannel();
+      let port1 = channel.port1;
+      let port2 = channel.port2;
+
+      port1.onmessage = function(event) {
+        console.log('port1收到来自port2的数据', event.data)
+      }
+      port2.onmessage = function(event) {
+        console.log('port2收到来自port1的数据', event.data)
+      }
+
+      port1.postMessage('1发给2的数据')
+      port2.postMessage('2发给1的数据')
+
+
+    </script>
+  </body>
+</html>

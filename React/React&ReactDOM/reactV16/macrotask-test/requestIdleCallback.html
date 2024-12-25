@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  </head>
+  <body>
+    <script>
+      function sleep(duration) {
+        let start = Date.now();
+        while(start + duration > Date.now()) {}
+      }
+      const works = [
+        () => {
+          console.log('A1开始')
+          sleep(10);
+          console.log('A1结束')
+        },
+        () => {
+          console.log('A2开始')
+          sleep(10);
+          console.log('A2结束')
+        },
+        () => {
+          console.log('A3开始')
+          sleep(10);
+          console.log('A3结束')
+        },
+        () => {
+          console.log('A4开始')
+          sleep(10);
+          console.log('A4结束')
+        },
+        () => {
+          console.log('A5开始')
+          sleep(10);
+          console.log('A5结束')
+        },
+      ]
+
+
+      // requestIdleCallback的执行有两种可能性
+      // 浏览器很多时间都没有什么重要的工作要做，那么Callback执行的间隔时间延长，最多到50ms（相当于一帧的时间延长，而每一秒刷新的帧数下降，每一秒刷新20帧，原来是60帧。）
+      // 对于人来说，100ms内响应用户的交互的话，用户感觉是流畅的，100 = 2 * 50
+      // 也就是说，给你50ms，50ms做了一些事情，甚至有时候60ms之后才把控制权给到我浏览器，用户交互也不会卡顿，因为100ms只要刷新一次就让用户感觉到比较顺畅了
+
+
+      // 所以如果加上下面这个函数，这个raf是每一帧都会执行的，用来模拟浏览器很忙的情况
+      // 那么requestIdleCallback的执行就正常了
+      // 而如果浏览器很悠闲，那就Callback执行的间隔时间延长
+
+      // function progress() {
+      //   console.log('progress')
+      //   requestAnimationFrame(progress)
+      // }
+      // requestAnimationFrame(progress);
+
+
+
+      // requestIdleCallback方法的缺点：只有chrome支持！
+      // 自己实现的方法如下：
+
+      let channel = new MessageChannel();
+
+      // 一帧持续的时间：
+      let activeFrameTime = 1000 / 60;
+      // 这一帧的截止时间：
+      let frameDeadline;
+      // 方法的入参的回调函数
+      let pendingCallback;
+      // 剩余时间
+      let timeRemaining = () => frameDeadline - performance.now();
+
+
+      // 这是一个宏任务，等到浏览器空闲的时候才会过来执行
+      // 1. 也就是借助messageChannel的宏任务来表明浏览器已经完成当前的渲染任务，
+      // 2. 而包裹在requestAnimationFrame是指在一帧内，完成任务之后还执行了回调函数，保证这两个东西在一帧以内做好。然后下一帧循环
+      // PS：同样是宏任务，为啥不用setTimeout那些？因为宏任务也有优先级，先执行优先级高的！messageChannel的优先级高！宏任务执行快！
+      channel.port2.onmessage = function() {
+        // 此时页面切换完成，也就是渲染、布局、绘制完成之后的时间点记录下来！！
+        // performance.now()不是一个普通的绝对时间，但在渲染体系里是一个绝对时间。
+        let currentTime = performance.now();
+        // 和此时的帧的截止时间对比，如果这个currentTime时间往后了，就是大于帧截止时间，已经过期
+        let didTimeout = frameDeadline <= currentTime
+        console.log('frameDeadline', frameDeadline)
+        console.log('performance.now()', performance.now())
+        console.log('timeRemaining()', timeRemaining())
+        // *!SECTION! 这里有问题，都没用到options里面的timeout！两个条件之间互斥！
+        // 这里的didTimeout应该判断的是当前的时间performance.now()是不是超过了options里面的timeout
+        if(didTimeout || timeRemaining() > 0) {
+          if (pendingCallback) {
+            pendingCallback({ didTimeout, timeRemaining });
+          }
+        }
+      }
+
+      window.requestIdleCallback = (callback, options) => {
+        requestAnimationFrame((rafTime) => {
+          console.log('rafTime', rafTime)
+          // 得到1133.789、1607.032或别的11xx相近的数值
+          // rafTime = performance.timing.navigationStart + performance.now()约等于Date.now()
+          // 前者是切换（刷新）页面完成的时间，后者是页面切换（刷新）完成到现在的时间差，中间的时间在执行回调函数，两者相加约等于每一帧开始的时间
+          // requestAnimationFrame方法是在每一帧开始的时候调用，rafTime就是每一帧开始的时间。(也就是上一帧渲染的结束时间)
+          // 每一帧开始的时间 + 每一帧持续的时间 = 每一帧结束的时间
+
+          frameDeadline = activeFrameTime + rafTime;
+          pendingCallback = callback;
+
+          // 发消息之后相当于添加了一个宏任务，等到浏览器空闲的时候会一个个执行宏任务！
+          channel.port1.postMessage('hello')
+
+          // 然后开始渲染、布局、绘制。完成之后执行channel.port2.onmessage
+
+        })
+      }
+
+
+
+
+
+      // 这里的后面的参数，告诉浏览器在空闲时间执行任务，如果过期了，过了1s，不管有多忙都要帮我执行
+      // 有点像倒数，数三个数，在这之前你爱做不做，数完时间到了就必须给我做
+      requestIdleCallback(workloop, { timeout: 1000 })
+
+
+      // 循环执行工具
+      function workloop(deadline) {
+        console.log('本帧剩余的时间：', parseInt(deadline.timeRemaining()))
+        // 要么还剩时间，要么deadline到了，且还有工作
+        // 就去执行工作
+        while((deadline.timeRemaining() > 0 || deadline.didTimeout) && works.length > 0) {
+          performUnitOfWork();
+        }
+        if (works.length > 0) {
+          console.log('执行完回调后只剩下的时间', deadline.timeRemaining())
+          requestIdleCallback(workloop)
+        }
+      }
+
+      function performUnitOfWork() {
+        // 先执行前面的！
+        works.shift()();
+      }
+
+
+
+    </script>
+  </body>
+</html>
