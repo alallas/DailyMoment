@@ -8,6 +8,10 @@
         let start = Date.now();
         while(start + duration > Date.now()) {}
       }
+
+      // PS:Fiber里面怎么切分每个工作任务呢？
+      // 一个虚拟DOM节点是一个工作单元
+
       const works = [
         () => {
           console.log('A1开始')
@@ -46,13 +50,11 @@
       // 所以如果加上下面这个函数，这个raf是每一帧都会执行的，用来模拟浏览器很忙的情况
       // 那么requestIdleCallback的执行就正常了
       // 而如果浏览器很悠闲，那就Callback执行的间隔时间延长
-
       // function progress() {
       //   console.log('progress')
       //   requestAnimationFrame(progress)
       // }
       // requestAnimationFrame(progress);
-
 
 
       // requestIdleCallback方法的缺点：只有chrome支持！
@@ -113,25 +115,23 @@
       }
 
 
-
-
-
       // 这里的后面的参数，告诉浏览器在空闲时间执行任务，如果过期了，过了1s，不管有多忙都要帮我执行
       // 有点像倒数，数三个数，在这之前你爱做不做，数完时间到了就必须给我做
+      // 注意：！永远不要在requestIdleCallback操作dom，因为没有，这个函数的回调函数是在绘制完之后才执行的，操作dom不会显示在屏幕上！
       requestIdleCallback(workloop, { timeout: 1000 })
 
 
       // 循环执行工具
       function workloop(deadline) {
         console.log('本帧剩余的时间：', parseInt(deadline.timeRemaining()))
-        // 要么还剩时间，要么deadline到了，且还有工作
+        // 要么还剩时间，要么deadline到了（此任务超时了），且还有工作
         // 就去执行工作
         while((deadline.timeRemaining() > 0 || deadline.didTimeout) && works.length > 0) {
           performUnitOfWork();
         }
         if (works.length > 0) {
           console.log('执行完回调后只剩下的时间', deadline.timeRemaining())
-          requestIdleCallback(workloop)
+          requestIdleCallback(workloop, { timeout: 1000 })
         }
       }
 
