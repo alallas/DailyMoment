@@ -1,4 +1,4 @@
-import { TEXT } from "./constants";
+import { ELEMENT_TEXT } from "./constants";
 
 function createElement(type, config, ...children) {
   delete config._self;
@@ -9,7 +9,7 @@ function createElement(type, config, ...children) {
       return child
     } else {
       return {
-        type: TEXT,
+        type: ELEMENT_TEXT,
         props: { text: child, children: [] }
       }
     }
