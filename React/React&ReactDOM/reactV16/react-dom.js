@@ -1,6 +1,5 @@
-import { TAG_ROOT } from './constants';
-import { scheduleRoot } from './schedule';
-
+import { TAG_ROOT } from "./constants";
+import { scheduleRoot } from "./scheduler";
 
 function render(element, container) {
   let rootFiber = {
@@ -10,20 +9,15 @@ function render(element, container) {
     stateNode: container,
     // element是一个虚拟DOM
     props: {
-      children: [
-        element,
-      ]
-    }
-  }
+      children: [element],
+    },
+  };
 
   scheduleRoot(rootFiber);
-
 }
-
 
 const ReactDOM = {
-  render
-}
+  render,
+};
 
 export default ReactDOM;
-
