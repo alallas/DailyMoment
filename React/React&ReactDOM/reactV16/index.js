@@ -1,6 +1,7 @@
-import React from "react";
-import ReactDOM from 'react-dom';
-import ClassCounter from "./ClassCounter";
+import React from "./react";
+import ReactDOM from "./react-dom";
+import ClassCounter from "./components/ClassCounter";
+import FunctionCounter from "./components/FunctionCounter";
 
 let element = (
   <div id="A1">
@@ -10,7 +11,7 @@ let element = (
     </div>
     <div id="B2"></div>
   </div>
-)
+);
 
 // let style = { border: '3px solid red', margin: '5px' }
 // let c1 = React.createElement('div', { id: 'C1', style }, 'C1')
@@ -41,11 +42,7 @@ let element = (
 //   ReactDOM.render(a1, document.getElementById('root'))
 // })
 
-
-
-
-ReactDOM.render(React.createElement(ClassCounter, { name: 'counter' }), document.getElementById('root'))
-
-
-
-
+ReactDOM.render(
+  React.createElement(FunctionCounter, { name: "counter" }),
+  document.getElementById("root")
+);

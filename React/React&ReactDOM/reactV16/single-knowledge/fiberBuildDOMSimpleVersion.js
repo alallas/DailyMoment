@@ -1,4 +1,4 @@
-import element from "./element";
+import element from "./virtualDOM";
 const PLACEMENT = 'PLACEMENT'
 
 let container = document.getElementById('root');

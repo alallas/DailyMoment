@@ -1,6 +1,6 @@
 import { ELEMENT_TEXT } from "./constants";
-import { scheduleRoot } from "./scheduler";
-import { UpdateQueue, Update } from "./update";
+import { scheduleRoot, useReducer, useState } from "./scheduler";
+import { Update } from "./update";
 
 function createElement(type, config = {}, ...children) {
   delete config._self;
@@ -29,13 +29,12 @@ function createElement(type, config = {}, ...children) {
 class Component {
   constructor(props) {
     this.props = props;
-    this.updateQueue = new UpdateQueue();
   }
   setState(payload) {
     let update = new Update(payload);
-    this.updateQueue.enqueueUpdate(update);
-    // 源码的updateQueue其实是放在此类组件对应的fiber节点的internalFiber的属性上
-    // this.internalFiber.updateQueue.enqueueUpdate(update);
+
+    // 源码的updateQueue是放在此类组件对应的fiber节点的internalFiber的属性上
+    this.internalFiber.updateQueue.enqueueUpdate(update);
 
     // V16从根节点开始调用！！！！！！！
     scheduleRoot();
@@ -44,9 +43,13 @@ class Component {
 // 类组件的识别标识
 Component.prototype.isReactComponent = {};
 
+
+
 const React = {
   createElement,
   Component,
+  useReducer,
+  useState,
 };
 
 export default React;

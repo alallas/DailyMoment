@@ -24,8 +24,9 @@ class UpdateQueue {
     // 更新state
     let currentUpdate = this.firstUpdate;
     while(currentUpdate) {
-      let nextState = typeof currentUpdate.payload === 'function' ? currentUpdate.payload(state) : currentUpdate.payload
+      let nextState = typeof currentUpdate.payload === 'function' ? currentUpdate.payload(state) : currentUpdate.payload;
       state = {...state, ...nextState};
+      currentUpdate = currentUpdate.nextUpdate;
     }
 
     // 更新完state之后把头尾的指针清空
