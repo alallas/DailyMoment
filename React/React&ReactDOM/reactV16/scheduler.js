@@ -566,6 +566,94 @@ function useState(initialValue) {
 
 
 
+// 当前的钩子，替代原来的index的作用
+let workInProgressHook;
+function useReducer(reducer, initialState) {
+  if (typeof initialState === 'function') {
+    initialState = initialState();
+  }
+  let newHook = workInProgressFiber.alternate && workInProgressFiber.alternate.hooks && workInProgressFiber.alternate.hooks[hookIndex];
+  if (newHook) {
+    // 找得到，说明是更新
+    // 拿一个变量来记录最新的state
+    let baseState = workInProgressHook.state
+    if (workInProgressHook.queue.pending) {
+      // 说明是批量更新模式
+      let firstUpdate = workInProgressHook.queue.pending.next;
+
+      do {
+        // *TODO - 更新state，且一直覆盖baseState
+        firstUpdate = firstUpdate.nextUpdate
+      }
+      while(firstUpdate !== workInProgressHook.queue.pending.next)
+
+    }
+    // 每次操作完，保证workInProgressHook是当前还没处理过的最新的hook
+    // 移动指针到下一个
+    workInProgressHook = workInProgressHook.nextHook
+
+  } else {
+    // 找不到，说明是渲染
+    // newHook找不到就给他直接赋值
+    newHook = {
+      state: initialState,
+      // 用来保存下一个hook，链表保存各个hook
+      nextHook: null,
+      // setState的链条，用来保存每一次的setState产生的更新器！
+      queue: null,
+    }
+    // 初始化链表
+    if (!workInProgressFiber.hooks) {
+      // 首次执行为当前fiber开出一个通往hooks链条的开口，赋予一个hooks属性
+      workInProgressFiber.hooks = newHook;
+    } else {
+      // 非首次执行，这个时候的newHook是第二个或往后个，是上一个workInProgressHook的nextHook
+      workInProgressHook.nextHook = newHook;
+    }
+    // 更新当前的指针，移动到下一个
+    workInProgressHook = newHook;
+  }
+
+}
+
+
+// 以前的dispatch函数
+// const dispatch = (action) => {
+//   let payload = reducer ? reducer(newHook.state, action) : action;
+//   newHook.updateQueue.enqueueUpdate(
+//     new Update(payload)
+//   )
+//   scheduleRoot();
+// }
+// 两个参数，一个是update的队列，一个是传入的state或者是reducer的入参
+function dispatchState(queue, action) {
+  let update = {
+    action,
+    nextUpdate: null,
+  }
+  if (!queue.pending) {
+    // 首次setState，初始化链表
+    update.nextUpdate = update;
+  } else {
+    // 第二次往后的setState
+    // 1. 首先：本次的nextUpdate指向上一次的nextUpdate：
+    // 为什么？因为上一次的nextUpdate指向的永远是链表的头
+    update.nextUpdate = queue.pending.nextUpdate;
+    // 2. 然后再更新上一次的nextUpdate指向当前本次的update
+    // 为什么？连接正常顺序的更新器对象
+    queue.pending.nextUpdate = update;
+  }
+  // 更新当前指针，移动到下一个
+  queue.pending = update
+
+  // *TODO - 看源码怎么做
+  // 要么链表积累到某个程度，要么事件函数触发完毕，就强制调度了
+  // setState这里要么在scheduleRoot()执行之前判断能否更新，不能的话return出去，要么就不在这里写scheduleRoot()，等到时间函数结束的时候触发调度
+
+}
+
+
+
 
 export {
   scheduleRoot,

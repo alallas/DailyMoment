@@ -7,6 +7,7 @@
 let memoizedState  = [];
 let currentCursor = 0;
 
+*********已经学过了**********
 // useState会被调用很多次
 function useState(initVal) {
     // 拿出当前的记录，当前的cur指针指向的肯定是新的一个状态
@@ -49,6 +50,8 @@ function useEffect(fn, watch) {
 
 因为我们是根据调用hook的顺序依次将值存入数组中，如果在判断逻辑循环嵌套中，且在执行setState时，发现不用更新，这时WIPhook位于链末尾的地方，然后再次更新时，WIPhook位于开头，就有可能导致更新时不能获取到对应的值，从而导致取值混乱。
 
+
+*********已经学过了**********
 ### useReducer
 ```
 function useReducer(reducer, initialState) {

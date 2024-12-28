@@ -9,53 +9,6 @@ const fiber = {
 }
 
 
-function useState(initialState) {
-  let hook // 当前 hook 节点
-
-  if (typeof initialState === 'function') {
-    initialState = initialState();
-  }
-
-  if (isMount) {
-    // 挂载阶段
-    // 初始化当前的hook节点
-    hook = {
-      memoizedState: initialState,
-      next: null,
-      // 用队列来保存需要更新的状态
-      // 队列是因为有可能有多个更新函数
-      // setCount(num => num + 1)
-      // setCount(num => num + 1)
-      queue: {
-        pending: null,
-      }
-    }
-
-    // 创建 hook 链表
-    // 如果是初始化，先存链头
-    // 不是的话WIPhook为过去的，hook为当前的，两者相连接
-    if (!fiber.memoizedState) {
-      fiber.memoizedState = hook
-    } else {
-      workInprogressHook.next = hook
-    }
-
-    // 移动当前的WIPhook指针
-    workInprogressHook = hook
-  } else {
-
-    // 更新阶段
-    // 把当前位于fiber.memoizedState的WIPhook指针给到当前的hook，也就是初始化当前的hook为链头hook
-    // 指针先后移一位，保证下一次的调用useState的WIPhook指针位置是对的（WIPhook指针在没有更新的时候不会执行链头）
-    hook = workInprogressHook
-    workInprogressHook = workInprogressHook.next
-  }
-
-  // 后面的代码用if限制了只有【setState之后】才能执行
-  // 后面还有遍历state链表更新state的代码，但需要先构建state链表
-
-}
-
 
 function dispatchAction(queue, action) {
   // 初始化当前的“更新”节点
