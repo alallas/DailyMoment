@@ -297,7 +297,7 @@ function mountHookTypesDev() {
   }
 }
 
-
+// useState的函数
 function mountState(
   initialState,
 ) {
@@ -322,6 +322,8 @@ function mountState(
 }
 
 
+let workInProgressHook;
+
 function mountWorkInProgressHook() {
   const hook = {
     memoizedState: null,
@@ -344,6 +346,7 @@ function mountWorkInProgressHook() {
 }
 
 
+// setState的函数
 function dispatchAction(
   fiber,
   queue,
