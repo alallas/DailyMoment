@@ -1,5 +1,5 @@
-import React from "./react";
-import ReactDOM from "./react-dom";
+import React from "react";
+import ReactDOM from "react-dom";
 import ClassCounter from "./components/ClassCounter";
 import FunctionCounter from "./components/FunctionCounter";
 

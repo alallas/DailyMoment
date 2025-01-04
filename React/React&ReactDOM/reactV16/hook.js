@@ -1,166 +1,169 @@
 
-let isMount = true // 是否渲染
-let workInprogressHook = null // 当前处理 hook
+// let isMount = true // 是否渲染
+// let workInprogressHook = null // 当前处理 hook
 
-// Fiber对象
-const fiber = {
-  stateNode: App,
-  memoizedState: null, // 用链表去存储 hook 
-}
-
-
-
-function dispatchAction(queue, action) {
-  // 初始化当前的“更新”节点
-  const update = {
-    action,
-    next: null,
-  }
-
-  // 构建state链表——环状链表
-  if (queue.pending === null) {
-  
-    // 初始化，让当前state节点指向自己，自我连接
-    update.next = update
-  } else {
-  
-    // 构建【环形链表】的【环】部分
-    // 当前state节点指向上一个节点的next，因为一开始上一个节点的next指向他自己，即指向链头
-    // 而后面每一个新节点都会指向上一个节点的next， 也就是指向链头
-    update.next = queue.pending.next
-    
-    // 构建【环形链表】的【链】部分
-    // 上一个节点指向当前节点
-    queue.pending.next = update
-  }
-  
-  // 更新当前节点为hook对象的queue属性
-  queue.pending = update
-
-  // 实际上这里还做了一个拦截判断，如果发现当前fiber不需要更新，那就return掉
-  // fiber.expirationTime === NoWork
-  // fiber === currentlyRenderingFiber
-
-  // 触发更新
-  schedule()
-}
-
-
-// const alternate = fiber.alternate;
-// if (
-//   fiber === currentlyRenderingFiber ||
-//   (alternate !== null && alternate === currentlyRenderingFiber)
-// ) {
-//   // This is a render phase update. Stash it in a lazily-created map of
-//   // queue -> linked list of updates. After this render pass, we'll restart
-//   // and apply the stashed updates on top of the work-in-progress hook.
-//   didScheduleRenderPhaseUpdate = true;
-//   update.expirationTime = renderExpirationTime;
-//   currentlyRenderingFiber.expirationTime = renderExpirationTime;
-// } else {
-//   if (
-//     fiber.expirationTime === NoWork &&
-//     (alternate === null || alternate.expirationTime === NoWork)
-//   ) {
-//     // 只保留核心代码
-//     // ...优化调度渲染
-//     const currentState: S = (queue.lastRenderedState: any);
-//     const eagerState = lastRenderedReducer(currentState, action);
-//     update.eagerReducer = lastRenderedReducer;
-//     update.eagerState = eagerState;
-//     if (is(eagerState, currentState)) {
-//       // Fast path. We can bail out without scheduling React to re-render.
-//       // It's still possible that we'll need to rebase this update later,
-//       // if the component re-renders for a different reason and by that
-//       // time the reducer has changed.
-//       return;
-//     }
-//   }
+// // Fiber对象
+// const fiber = {
+//   stateNode: App,
+//   memoizedState: null, // 用链表去存储 hook 
 // }
 
 
 
-function useState(initialState) {
-  let hook // 当前 hook 节点
+// function dispatchAction(queue, action) {
+//   // 初始化当前的“更新”节点
+//   const update = {
+//     action,
+//     next: null,
+//   }
 
-  if (typeof initialState === 'function') {
-    initialState = initialState();
-  }
-
-  if (isMount) {
-    // 初始化当前的hook节点
-    hook = {
-      memoizedState: initialState,
-      next: null,
-      // 用队列来保存需要更新的状态
-      // 队列是因为有可能有多个更新函数
-      // setCount(num => num + 1)
-      // setCount(num => num + 1)
-      queue: {
-        pending: null,
-      }
-    }
-
-    // 创建 hook 链表
-    // 如果是初始化，先存链头
-    // 不是的话WIPhook为过去的，hook为当前的，两者相连接
-    if (!fiber.memoizedState) {
-      fiber.memoizedState = hook
-    } else {
-      workInprogressHook.next = hook
-    }
-
-    // 更新当前的WIPhook指针
-    workInprogressHook = hook
-
-  } else {
-
-    // 更新阶段
-    // 把当前位于fiber.memoizedState的WIPhook指针给到当前的hook，也就是初始化当前的hook为链头hook
-    // 指针先后移一位，保证下一次的调用useState的WIPhook指针位置是对的（WIPhook指针在没有更新的时候不会执行链头）
-    hook = workInprogressHook
-    workInprogressHook = workInprogressHook.next
-  }
-
-  // 后面的代码用if限制了只有【setState之后】才能执行
-  // 后面还有遍历state链表更新state的代码，但需要先构建state链表
+//   // 构建state链表——环状链表
+//   if (queue.pending === null) {
   
-  // 遍历更新函数的环状链表
+//     // 初始化，让当前state节点指向自己，自我连接
+//     update.next = update
+//   } else {
   
-  // 建立一个变量，用来记录最新的state
-  let baseState = hook.memoizedState
+//     // 构建【环形链表】的【环】部分
+//     // 当前state节点指向上一个节点的next，因为一开始上一个节点的next指向他自己，即指向链头
+//     // 而后面每一个新节点都会指向上一个节点的next， 也就是指向链头
+//     update.next = queue.pending.next
+    
+//     // 构建【环形链表】的【链】部分
+//     // 上一个节点指向当前节点
+//     queue.pending.next = update
+//   }
+  
+//   // 更新当前节点为hook对象的queue属性
+//   queue.pending = update
 
-  if (hook.queue.pending) {
-    // 先让指针指向链头，因为hook.queue.pending此时位于链尾，而这是一个环形链表，因此尾部next指向头
-    let firstUpdate = hook.queue.pending.next
+//   // 实际上这里还做了一个拦截判断，如果发现当前fiber不需要更新，那就return掉
+//   // fiber.expirationTime === NoWork
+//   // fiber === currentlyRenderingFiber
 
-    do {
-      // 执行更新函数，一轮轮更新baseState
-      const action = firstUpdate.action
-      baseState = action(baseState)
-      firstUpdate = firstUpdate.next
-    } while (firstUpdate !== hook.queue.pending.next) // 遍历完环状链表
-
-    // 清空链表
-    hook.queue.pending = null
-  }
-
-  // 此时state更新完了，baseState是最新的，队列最后的state，保存起来
-  hook.memoizedState = baseState
-
-  // 输出最新的state，以及透传了hook.queue的dispatchAction函数
-  return [baseState, dispatchAction.bind(null, hook.queue)]
-}
+//   // 触发更新
+//   schedule()
+// }
 
 
-// 调度
-function schedule() {
-  // 把当前的WIPhook指向链头（fiber.memoizedState之前保存过为链头了）
-  workInprogressHook = fiber.memoizedState
-  const app = fiber.stateNode()
-  isMount = false
-  return app
-}
+// // const alternate = fiber.alternate;
+// // if (
+// //   fiber === currentlyRenderingFiber ||
+// //   (alternate !== null && alternate === currentlyRenderingFiber)
+// // ) {
+// //   // This is a render phase update. Stash it in a lazily-created map of
+// //   // queue -> linked list of updates. After this render pass, we'll restart
+// //   // and apply the stashed updates on top of the work-in-progress hook.
+// //   didScheduleRenderPhaseUpdate = true;
+// //   update.expirationTime = renderExpirationTime;
+// //   currentlyRenderingFiber.expirationTime = renderExpirationTime;
+// // } else {
+// //   if (
+// //     fiber.expirationTime === NoWork &&
+// //     (alternate === null || alternate.expirationTime === NoWork)
+// //   ) {
+// //     // 只保留核心代码
+// //     // ...优化调度渲染
+// //     const currentState: S = (queue.lastRenderedState: any);
+// //     const eagerState = lastRenderedReducer(currentState, action);
+// //     update.eagerReducer = lastRenderedReducer;
+// //     update.eagerState = eagerState;
+// //     if (is(eagerState, currentState)) {
+// //       // Fast path. We can bail out without scheduling React to re-render.
+// //       // It's still possible that we'll need to rebase this update later,
+// //       // if the component re-renders for a different reason and by that
+// //       // time the reducer has changed.
+// //       return;
+// //     }
+// //   }
+// // }
+
+
+
+// function useState(initialState) {
+//   let hook // 当前 hook 节点
+
+//   if (typeof initialState === 'function') {
+//     initialState = initialState();
+//   }
+
+//   if (isMount) {
+//     // 初始化当前的hook节点
+//     hook = {
+//       memoizedState: initialState,
+//       next: null,
+//       // 用队列来保存需要更新的状态
+//       // 队列是因为有可能有多个更新函数
+//       // setCount(num => num + 1)
+//       // setCount(num => num + 1)
+//       queue: {
+//         pending: null,
+//       }
+//     }
+
+//     // 创建 hook 链表
+//     // 如果是初始化，先存链头
+//     // 不是的话WIPhook为过去的，hook为当前的，两者相连接
+//     if (!fiber.memoizedState) {
+//       fiber.memoizedState = hook
+//     } else {
+//       workInprogressHook.next = hook
+//     }
+
+//     // 更新当前的WIPhook指针
+//     workInprogressHook = hook
+
+//   } else {
+
+//     // 更新阶段
+//     // 把当前位于fiber.memoizedState的WIPhook指针给到当前的hook，也就是初始化当前的hook为链头hook
+//     // 指针先后移一位，保证下一次的调用useState的WIPhook指针位置是对的（WIPhook指针在没有更新的时候不会执行链头）
+//     hook = workInprogressHook
+//     workInprogressHook = workInprogressHook.next
+//   }
+
+//   // 后面的代码用if限制了只有【setState之后】才能执行
+//   // 后面还有遍历state链表更新state的代码，但需要先构建state链表
+  
+//   // 遍历更新函数的环状链表
+  
+//   // 建立一个变量，用来记录最新的state
+//   let baseState = hook.memoizedState
+
+//   if (hook.queue.pending) {
+//     // 先让指针指向链头，因为hook.queue.pending此时位于链尾，而这是一个环形链表，因此尾部next指向头
+//     let firstUpdate = hook.queue.pending.next
+
+//     do {
+//       // 执行更新函数，一轮轮更新baseState
+//       const action = firstUpdate.action
+//       baseState = action(baseState)
+//       firstUpdate = firstUpdate.next
+//     } while (firstUpdate !== hook.queue.pending.next) // 遍历完环状链表
+
+//     // 清空链表
+//     hook.queue.pending = null
+//   }
+
+//   // 此时state更新完了，baseState是最新的，队列最后的state，保存起来
+//   hook.memoizedState = baseState
+
+//   // 输出最新的state，以及透传了hook.queue的dispatchAction函数
+//   return [baseState, dispatchAction.bind(null, hook.queue)]
+// }
+
+
+// // 调度
+// function schedule() {
+//   // 把当前的WIPhook指向链头（fiber.memoizedState之前保存过为链头了）
+//   workInprogressHook = fiber.memoizedState
+//   const app = fiber.stateNode()
+//   isMount = false
+//   return app
+// }
+
+
+
 
 
 
@@ -168,6 +171,15 @@ function schedule() {
 // **********************************************************************************
 // **********************************************************************************
 
+
+
+
+
+
+
+
+let workInprogressHook = null;
+let nextWorkInProgressHook = null;
 
 let HooksDispatcherOnMountInDEV = null;
 let HooksDispatcherOnMountWithHookTypesInDEV = null;
@@ -297,7 +309,7 @@ function mountHookTypesDev() {
   }
 }
 
-// useState的函数
+
 function mountState(
   initialState,
 ) {
@@ -315,14 +327,12 @@ function mountState(
   const dispatch = (queue.dispatch = (dispatchAction.bind(
     null,
     // Flow doesn't know this is non-null, but we do.
-    ((currentlyRenderingFiber)),
+    currentlyRenderingFiber,
     queue,
   )));
   return [hook.memoizedState, dispatch];
 }
 
-
-let workInProgressHook;
 
 function mountWorkInProgressHook() {
   const hook = {
@@ -346,32 +356,225 @@ function mountWorkInProgressHook() {
 }
 
 
-// setState的函数
+function updateHookTypesDev() {
+  if (__DEV__) {
+    const hookName = ((currentHookNameInDev));
+
+    if (hookTypesDev !== null) {
+      hookTypesUpdateIndexDev++;
+      if (hookTypesDev[hookTypesUpdateIndexDev] !== hookName) {
+        warnOnHookMismatchInDev(hookName);
+      }
+    }
+  }
+}
+
+
+
+function updateState(
+  initialState,
+) {
+  return updateReducer(basicStateReducer, (initialState));
+}
+
+
+function updateReducer(
+  reducer,
+  initialArg,
+  init,
+) {
+  const hook = updateWorkInProgressHook();
+  const queue = hook.queue;
+
+  queue.lastRenderedReducer = reducer;
+
+  if (numberOfReRenders > 0) {
+    // This is a re-render. Apply the new render phase updates to the previous
+    // work-in-progress hook.
+    const dispatch = (queue.dispatch);
+    if (renderPhaseUpdates !== null) {
+      // Render phase updates are stored in a map of queue -> linked list
+      const firstRenderPhaseUpdate = renderPhaseUpdates.get(queue);
+      if (firstRenderPhaseUpdate !== undefined) {
+        renderPhaseUpdates.delete(queue);
+        let newState = hook.memoizedState;
+        let update = firstRenderPhaseUpdate;
+        do {
+          // Process this render phase update. We don't have to check the
+          // priority because it will always be the same as the current
+          // render's.
+          const action = update.action;
+          newState = reducer(newState, action);
+          update = update.next;
+        } while (update !== null);
+
+        // Mark that the fiber performed work, but only if the new state is
+        // different from the current state.
+        if (!is(newState, hook.memoizedState)) {
+          markWorkInProgressReceivedUpdate();
+        }
+
+        hook.memoizedState = newState;
+        // Don't persist the state accumlated from the render phase updates to
+        // the base state unless the queue is empty.
+        // TODO: Not sure if this is the desired semantics, but it's what we
+        // do for gDSFP. I can't remember why.
+        if (hook.baseUpdate === queue.last) {
+          hook.baseState = newState;
+        }
+
+        queue.lastRenderedState = newState;
+
+        return [newState, dispatch];
+      }
+    }
+    return [hook.memoizedState, dispatch];
+  }
+
+  // The last update in the entire queue
+  const last = queue.last;
+  // The last update that is part of the base state.
+  const baseUpdate = hook.baseUpdate;
+  const baseState = hook.baseState;
+
+  // 下面是在找第一个未处理的update对象
+  // Find the first unprocessed update.
+  let first;
+  if (baseUpdate !== null) {
+    if (last !== null) {
+      // For the first update, the queue is a circular linked list where
+      // `queue.last.next = queue.first`. Once the first update commits, and
+      // the `baseUpdate` is no longer empty, we can unravel the list.
+      last.next = null;
+    }
+    first = baseUpdate.next;
+  } else {
+    first = last !== null ? last.next : null;
+  }
+  if (first !== null) {
+    let newState = baseState;
+    let newBaseState = null;
+    let newBaseUpdate = null;
+    let prevUpdate = baseUpdate;
+    let update = first;
+    let didSkip = false;
+    do {
+      const updateExpirationTime = update.expirationTime;
+      if (updateExpirationTime < renderExpirationTime) {
+        // Priority is insufficient. Skip this update. If this is the first
+        // skipped update, the previous update/state is the new base
+        // update/state.
+        if (!didSkip) {
+          didSkip = true;
+          newBaseUpdate = prevUpdate;
+          newBaseState = newState;
+        }
+        // Update the remaining priority in the queue.
+        if (updateExpirationTime > remainingExpirationTime) {
+          remainingExpirationTime = updateExpirationTime;
+        }
+      } else {
+        // Process this update.
+        if (update.eagerReducer === reducer) {
+          // If this update was processed eagerly, and its reducer matches the
+          // current reducer, we can use the eagerly computed state.
+          newState = ((update.eagerState));
+        } else {
+          const action = update.action;
+          newState = reducer(newState, action);
+        }
+      }
+      prevUpdate = update;
+      update = update.next;
+    } while (update !== null && update !== first);
+
+    if (!didSkip) {
+      newBaseUpdate = prevUpdate;
+      newBaseState = newState;
+    }
+
+    // Mark that the fiber performed work, but only if the new state is
+    // different from the current state.
+    if (!is(newState, hook.memoizedState)) {
+      markWorkInProgressReceivedUpdate();
+    }
+
+    hook.memoizedState = newState;
+    hook.baseUpdate = newBaseUpdate;
+    hook.baseState = newBaseState;
+
+    queue.lastRenderedState = newState;
+  }
+
+  const dispatch = (queue.dispatch);
+  return [hook.memoizedState, dispatch];
+}
+
+
+function updateWorkInProgressHook() {
+  // 此函数既用于更新，也用于由渲染阶段更新触发的重新渲染。
+  // 它假设存在一个我们可以克隆的当前钩子，或者一个来自先前渲染过程的正在进行的钩子，我们可以将其用作基础。
+  // 当我们到达基本列表的末尾时，我们必须切换到用于挂载的调度器。
+  // This function is used both for updates and for re-renders triggered by a
+  // render phase update. It assumes there is either a current hook we can
+  // clone, or a work-in-progress hook from a previous render pass that we can
+  // use as a base. When we reach the end of the base list, we must switch to
+  // the dispatcher used for mounts.
+
+
+  // 更新一下指针：nextWorkInProgressHook与nextCurrentHook
+  if (nextWorkInProgressHook !== null) {
+    // 如果已经有了nextWorkInProgressHook，直接复用，并更新一下nextWorkInProgressHook指针的位置
+    // There's already a work-in-progress. Reuse it.
+    workInProgressHook = nextWorkInProgressHook;
+    nextWorkInProgressHook = workInProgressHook.next;
+
+    // 如果已经有了nextCurrentHook，直接复用，
+    currentHook = nextCurrentHook;
+    nextCurrentHook = currentHook !== null ? currentHook.next : null;
+  } else {
+    // 如果已经有了nextCurrentHook，直接复用，
+    // Clone from the current hook.
+    currentHook = nextCurrentHook;
+
+    const newHook = {
+      memoizedState: currentHook.memoizedState,
+
+      baseState: currentHook.baseState,
+      queue: currentHook.queue,
+      baseUpdate: currentHook.baseUpdate,
+
+      next: null,
+    };
+    // 没有nextWorkInProgressHook复用的话，新建一个，然后保存起来，放到链条的最末尾
+    if (workInProgressHook === null) {
+      // This is the first hook in the list.
+      workInProgressHook = firstWorkInProgressHook = newHook;
+    } else {
+      // Append to the end of the list.
+      workInProgressHook = workInProgressHook.next = newHook;
+    }
+    nextCurrentHook = currentHook.next;
+  }
+  return workInProgressHook;
+}
+
+
+
 function dispatchAction(
   fiber,
   queue,
   action,
 ) {
-  invariant(
-    numberOfReRenders < RE_RENDER_LIMIT,
-    'Too many re-renders. React limits the number of renders to prevent ' +
-      'an infinite loop.',
-  );
-
-  if (__DEV__) {
-    warning(
-      arguments.length <= 3,
-      "State updates from the useState() and useReducer() Hooks don't support the " +
-        'second callback argument. To execute a side effect after ' +
-        'rendering, declare it in the component body with useEffect().',
-    );
-  }
 
   const alternate = fiber.alternate;
   if (
     fiber === currentlyRenderingFiber ||
     (alternate !== null && alternate === currentlyRenderingFiber)
   ) {
+    // !这里为什么说是渲染阶段的更新，因为渲染阶段的hook的setState方法传入的fiber实际参数就是currentlyRenderingFiber，故意让她走if的第一个判断逻辑
+    // 这是渲染阶段的更新。把它放在一个"懒创建"的队列映射中->update对象的链表。
+    // 在这个渲染过程之后，我们将重新启动并在正在进行的钩子上应用隐藏的更新。
     // This is a render phase update. Stash it in a lazily-created map of
     // queue -> linked list of updates. After this render pass, we'll restart
     // and apply the stashed updates on top of the work-in-progress hook.
@@ -465,11 +668,6 @@ function dispatchAction(
         }
       }
     }
-    if (__DEV__) {
-      if (shouldWarnForUnbatchedSetState === true) {
-        warnIfNotCurrentlyBatchingInDev(fiber);
-      }
-    }
     scheduleWork(fiber, expirationTime);
   }
 }
@@ -486,22 +684,22 @@ function flushPassiveEffects() {
 }
 
 function requestCurrentTime() {
+  // 调度程序调用requestCurrentTime来计算过期时间。过期时间是通过将当前时间（开始时间）相加来计算的。但是，如果在同一事件中安排了两次更新，我们应该将它们的开始时间视为同时进行的，即使实际时钟时间在第一次和第二次调用之间提前了。
+  // 换句话说，由于过期时间决定了更新的批处理方式，我们希望在同一事件中发生的具有相同优先级的所有更新都能获得相同的过期时间。否则，我们就会流泪。
+  // 我们跟踪两个单独的时间：当前的“渲染器”时间和当前的“调度器”时间。渲染时间可以随时更新；它的存在只是为了减少调用performance.now。
+  // 但是，只有在没有挂起的工作，或者我们确信我们没有处于事件中间时，才能更新调度程序时间。
   // requestCurrentTime is called by the scheduler to compute an expiration
   // time.
-  //
   // Expiration times are computed by adding to the current time (the start
   // time). However, if two updates are scheduled within the same event, we
   // should treat their start times as simultaneous, even if the actual clock
   // time has advanced between the first and second call.
-
   // In other words, because expiration times determine how updates are batched,
   // we want all updates of like priority that occur within the same event to
   // receive the same expiration time. Otherwise we get tearing.
-  //
   // We keep track of two separate times: the current "renderer" time and the
   // current "scheduler" time. The renderer time can be updated whenever; it
   // only exists to minimize the calls performance.now.
-  //
   // But the scheduler time can only be updated if there's no pending work, or
   // if we know for certain that we're not in the middle of an event.
 
@@ -587,6 +785,28 @@ function computeExpirationForFiber(currentTime, fiber) {
 
 
 
+
+
+
+
+
+
+
+
+// **********************************************************************************
+// **********************************************************************************
+// **********************************************************************************
+
+
+
+
+
+
+
+
+
+
+
 // useState中scheduleWork的处理逻辑与class组件中setState的处理逻辑并没有什么大的区别
 // scheduleWork -> scheduleUpdateOnFiber -> ensureRootIsScheduled -> scheduleSyncCallback -> flushSyncCallbackQueueImpl -> performSyncWorkOnRoot
 
@@ -594,22 +814,6 @@ function computeExpirationForFiber(currentTime, fiber) {
 
 function scheduleWork(fiber, expirationTime) {
   const root = scheduleWorkToRoot(fiber, expirationTime);
-  if (root === null) {
-    if (__DEV__) {
-      switch (fiber.tag) {
-        case ClassComponent:
-          warnAboutUpdateOnUnmounted(fiber, true);
-          break;
-        case FunctionComponent:
-        case ForwardRef:
-        case MemoComponent:
-        case SimpleMemoComponent:
-          warnAboutUpdateOnUnmounted(fiber, false);
-          break;
-      }
-    }
-    return;
-  }
 
   if (
     !isWorking &&
@@ -632,29 +836,13 @@ function scheduleWork(fiber, expirationTime) {
     const rootExpirationTime = root.expirationTime;
     requestWork(root, rootExpirationTime);
   }
-  if (nestedUpdateCount > NESTED_UPDATE_LIMIT) {
-    // Reset this back to zero so subsequent updates don't throw.
-    nestedUpdateCount = 0;
-    invariant(
-      false,
-      'Maximum update depth exceeded. This can happen when a ' +
-        'component repeatedly calls setState inside ' +
-        'componentWillUpdate or componentDidUpdate. React limits ' +
-        'the number of nested updates to prevent infinite loops.',
-    );
-  }
+
 }
 
 
 function scheduleWorkToRoot(fiber, expirationTime) {
   recordScheduleUpdate();
 
-  if (__DEV__) {
-    if (fiber.tag === ClassComponent) {
-      const instance = fiber.stateNode;
-      warnAboutInvalidUpdates(instance);
-    }
-  }
 
   // Update the source fiber's expiration time
   if (fiber.expirationTime < expirationTime) {
@@ -664,6 +852,7 @@ function scheduleWorkToRoot(fiber, expirationTime) {
   if (alternate !== null && alternate.expirationTime < expirationTime) {
     alternate.expirationTime = expirationTime;
   }
+  
   // Walk the parent path to the root and update the child expiration time.
   let node = fiber.return;
   let root = null;
@@ -900,11 +1089,6 @@ function performWorkOnRoot(
   expirationTime,
   isYieldy,
 ) {
-  invariant(
-    !isRendering,
-    'performWorkOnRoot was called recursively. This error is likely caused ' +
-      'by a bug in React. Please file an issue.',
-  );
 
   isRendering = true;
 
@@ -1277,6 +1461,111 @@ function renderRoot(root, isYieldy) {
   onComplete(root, rootWorkInProgress, expirationTime);
 }
 
+
+export function createWorkInProgress(
+  current,
+  pendingProps,
+  expirationTime,
+) {
+  let workInProgress = current.alternate;
+  if (workInProgress === null) {
+    // We use a double buffering pooling technique because we know that we'll
+    // only ever need at most two versions of a tree. We pool the "other" unused
+    // node that we're free to reuse. This is lazily created to avoid allocating
+    // extra objects for things that are never updated. It also allow us to
+    // reclaim the extra memory if needed.
+    workInProgress = createFiber(
+      current.tag,
+      pendingProps,
+      current.key,
+      current.mode,
+    );
+    workInProgress.elementType = current.elementType;
+    workInProgress.type = current.type;
+    workInProgress.stateNode = current.stateNode;
+
+    if (__DEV__) {
+      // DEV-only fields
+      workInProgress._debugID = current._debugID;
+      workInProgress._debugSource = current._debugSource;
+      workInProgress._debugOwner = current._debugOwner;
+      workInProgress._debugHookTypes = current._debugHookTypes;
+    }
+
+    workInProgress.alternate = current;
+
+    // !下面这一行很重要
+    
+    current.alternate = workInProgress;
+  } else {
+    workInProgress.pendingProps = pendingProps;
+
+    // We already have an alternate.
+    // Reset the effect tag.
+    workInProgress.effectTag = NoEffect;
+
+    // The effect list is no longer valid.
+    workInProgress.nextEffect = null;
+    workInProgress.firstEffect = null;
+    workInProgress.lastEffect = null;
+
+    if (enableProfilerTimer) {
+      // We intentionally reset, rather than copy, actualDuration & actualStartTime.
+      // This prevents time from endlessly accumulating in new commits.
+      // This has the downside of resetting values for different priority renders,
+      // But works for yielding (the common case) and should support resuming.
+      workInProgress.actualDuration = 0;
+      workInProgress.actualStartTime = -1;
+    }
+  }
+
+  workInProgress.childExpirationTime = current.childExpirationTime;
+  workInProgress.expirationTime = current.expirationTime;
+
+  workInProgress.child = current.child;
+  workInProgress.memoizedProps = current.memoizedProps;
+  workInProgress.memoizedState = current.memoizedState;
+  workInProgress.updateQueue = current.updateQueue;
+  workInProgress.contextDependencies = current.contextDependencies;
+
+  // These will be overridden during the parent's reconciliation
+  workInProgress.sibling = current.sibling;
+  workInProgress.index = current.index;
+  workInProgress.ref = current.ref;
+
+  if (enableProfilerTimer) {
+    workInProgress.selfBaseDuration = current.selfBaseDuration;
+    workInProgress.treeBaseDuration = current.treeBaseDuration;
+  }
+
+  return workInProgress;
+}
+
+
+function workLoop(isYieldy) {
+  if (!isYieldy) {
+    // Flush work without yielding
+    while (nextUnitOfWork !== null) {
+      nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
+    }
+  } else {
+    // Flush asynchronous work until there's a higher priority event
+    while (nextUnitOfWork !== null && !shouldYieldToRenderer()) {
+      nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
+    }
+  }
+}
+
+function onComplete(
+  root,
+  finishedWork,
+  expirationTime,
+) {
+  root.pendingCommitExpirationTime = expirationTime;
+  root.finishedWork = finishedWork;
+}
+
+
 function completeRoot(
   root,
   finishedWork,
@@ -1317,3 +1606,214 @@ function completeRoot(
     commitRoot(root, finishedWork);
   });
 }
+
+
+
+
+
+
+
+
+// **********************************************************************************
+// **********************************************************************************
+// **********************************************************************************
+
+
+
+
+
+
+
+
+// 下面函数的返回值是一个FiberRoot类型
+// 也就是root对象是一个fiberRoot类型
+export function createFiberRoot(
+  containerInfo,
+  isConcurrent,
+  hydrate,
+) {
+  // Cyclic construction. This cheats the type system right now because
+  // stateNode is any.
+  const uninitializedFiber = createHostRootFiber(isConcurrent);
+
+  let root;
+  if (enableSchedulerTracing) {
+    root = ({
+      current: uninitializedFiber,
+      containerInfo: containerInfo,
+      pendingChildren: null,
+
+      earliestPendingTime: NoWork,
+      latestPendingTime: NoWork,
+      earliestSuspendedTime: NoWork,
+      latestSuspendedTime: NoWork,
+      latestPingedTime: NoWork,
+
+      pingCache: null,
+
+      didError: false,
+
+      pendingCommitExpirationTime: NoWork,
+      finishedWork: null,
+      timeoutHandle: noTimeout,
+      context: null,
+      pendingContext: null,
+      hydrate,
+      nextExpirationTimeToWorkOn: NoWork,
+      expirationTime: NoWork,
+      firstBatch: null,
+      nextScheduledRoot: null,
+
+      interactionThreadID: unstable_getThreadID(),
+      memoizedInteractions: new Set(),
+      pendingInteractionMap: new Map(),
+    });
+  } else {
+    root = ({
+      current: uninitializedFiber,
+      containerInfo: containerInfo,
+      pendingChildren: null,
+
+      pingCache: null,
+
+      earliestPendingTime: NoWork,
+      latestPendingTime: NoWork,
+      earliestSuspendedTime: NoWork,
+      latestSuspendedTime: NoWork,
+      latestPingedTime: NoWork,
+
+      didError: false,
+
+      pendingCommitExpirationTime: NoWork,
+      finishedWork: null,
+      timeoutHandle: noTimeout,
+      context: null,
+      pendingContext: null,
+      hydrate,
+      nextExpirationTimeToWorkOn: NoWork,
+      expirationTime: NoWork,
+      firstBatch: null,
+      nextScheduledRoot: null,
+    });
+  }
+
+  // !下面这一行是关键
+  // 因为到时候无论在哪里schedule的时候都会首先依靠stateNode攀岩到root的地方，然后从头开始更新
+  // （在scheduleWorkToRoot函数内部）
+  uninitializedFiber.stateNode = root;
+
+  // The reason for the way the Flow types are structured in this file,
+  // Is to avoid needing :any casts everywhere interaction tracing fields are used.
+  // Unfortunately that requires an :any cast for non-interaction tracing capable builds.
+  // $FlowFixMe Remove this :any cast and replace it with something better.
+  return ((root));
+}
+
+
+
+// 下面函数的返回值是一个Fiber类型
+export function createHostRootFiber(isConcurrent) {
+  let mode = isConcurrent ? ConcurrentMode | StrictMode : NoContext;
+
+  if (enableProfilerTimer && isDevToolsPresent) {
+    // Always collect profile timings when DevTools are present.
+    // This enables DevTools to start capturing timing at any point–
+    // Without some nodes in the tree having empty base times.
+    mode |= ProfileMode;
+  }
+
+  return createFiber(HostRoot, null, null, mode);
+}
+
+const createFiber = function(
+  tag,
+  pendingProps,
+  key,
+  mode,
+) {
+  // $FlowFixMe: the shapes are exact here but Flow doesn't like constructors
+  return new FiberNode(tag, pendingProps, key, mode);
+};
+
+
+function FiberNode(
+  tag,
+  pendingProps,
+  key,
+  mode,
+) {
+  // Instance
+  this.tag = tag;
+  this.key = key;
+  this.elementType = null;
+  this.type = null;
+  this.stateNode = null;
+
+  // Fiber
+  this.return = null;
+  this.child = null;
+  this.sibling = null;
+  this.index = 0;
+
+  this.ref = null;
+
+  this.pendingProps = pendingProps;
+  this.memoizedProps = null;
+  this.updateQueue = null;
+  this.memoizedState = null;
+  this.contextDependencies = null;
+
+  this.mode = mode;
+
+  // Effects
+  this.effectTag = NoEffect;
+  this.nextEffect = null;
+
+  this.firstEffect = null;
+  this.lastEffect = null;
+
+  this.expirationTime = NoWork;
+  this.childExpirationTime = NoWork;
+
+  this.alternate = null;
+
+  if (enableProfilerTimer) {
+    // Note: The following is done to avoid a v8 performance cliff.
+    //
+    // Initializing the fields below to smis and later updating them with
+    // double values will cause Fibers to end up having separate shapes.
+    // This behavior/bug has something to do with Object.preventExtension().
+    // Fortunately this only impacts DEV builds.
+    // Unfortunately it makes React unusably slow for some applications.
+    // To work around this, initialize the fields below with doubles.
+    //
+    // Learn more about this here:
+    // https://github.com/facebook/react/issues/14365
+    // https://bugs.chromium.org/p/v8/issues/detail?id=8538
+    this.actualDuration = Number.NaN;
+    this.actualStartTime = Number.NaN;
+    this.selfBaseDuration = Number.NaN;
+    this.treeBaseDuration = Number.NaN;
+
+    // It's okay to replace the initial doubles with smis after initialization.
+    // This won't trigger the performance cliff mentioned above,
+    // and it simplifies other profiler code (including DevTools).
+    this.actualDuration = 0;
+    this.actualStartTime = -1;
+    this.selfBaseDuration = 0;
+    this.treeBaseDuration = 0;
+  }
+
+  if (__DEV__) {
+    this._debugID = debugCounter++;
+    this._debugSource = null;
+    this._debugOwner = null;
+    this._debugIsCurrentlyTiming = false;
+    this._debugHookTypes = null;
+    if (!hasBadMapPolyfill && typeof Object.preventExtensions === 'function') {
+      Object.preventExtensions(this);
+    }
+  }
+}
+
+

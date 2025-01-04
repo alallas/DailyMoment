@@ -566,55 +566,55 @@ function useState(initialValue) {
 
 
 
-// 当前的钩子，替代原来的index的作用
-let workInProgressHook;
-function useReducer(reducer, initialState) {
-  if (typeof initialState === 'function') {
-    initialState = initialState();
-  }
-  let newHook = workInProgressFiber.alternate && workInProgressFiber.alternate.hooks && workInProgressFiber.alternate.hooks[hookIndex];
-  if (newHook) {
-    // 找得到，说明是更新
-    // 拿一个变量来记录最新的state
-    let baseState = workInProgressHook.state
-    if (workInProgressHook.queue.pending) {
-      // 说明是批量更新模式
-      let firstUpdate = workInProgressHook.queue.pending.next;
+// // 当前的钩子，替代原来的index的作用
+// let workInProgressHook;
+// function useReducer(reducer, initialState) {
+//   if (typeof initialState === 'function') {
+//     initialState = initialState();
+//   }
+//   let newHook = workInProgressFiber.alternate && workInProgressFiber.alternate.hooks && workInProgressFiber.alternate.hooks[hookIndex];
+//   if (newHook) {
+//     // 找得到，说明是更新
+//     // 拿一个变量来记录最新的state
+//     let baseState = workInProgressHook.state
+//     if (workInProgressHook.queue.pending) {
+//       // 说明是批量更新模式
+//       let firstUpdate = workInProgressHook.queue.pending.next;
 
-      do {
-        // *TODO - 更新state，且一直覆盖baseState
-        firstUpdate = firstUpdate.nextUpdate
-      }
-      while(firstUpdate !== workInProgressHook.queue.pending.next)
+//       do {
+//         // *TODO - 更新state，且一直覆盖baseState
+//         firstUpdate = firstUpdate.next
+//       }
+//       while(firstUpdate !== workInProgressHook.queue.pending.next)
 
-    }
-    // 每次操作完，保证workInProgressHook是当前还没处理过的最新的hook
-    // 移动指针到下一个
-    workInProgressHook = workInProgressHook.nextHook
+//     }
+//     // 每次操作完，保证workInProgressHook是当前还没处理过的最新的hook
+//     // 移动指针到下一个
+//     workInProgressHook = workInProgressHook.nextHook
 
-  } else {
-    // 找不到，说明是渲染
-    // newHook找不到就给他直接赋值
-    newHook = {
-      state: initialState,
-      // 用来保存下一个hook，链表保存各个hook
-      nextHook: null,
-      // setState的链条，用来保存每一次的setState产生的更新器！
-      queue: null,
-    }
-    // 初始化链表
-    if (!workInProgressFiber.hooks) {
-      // 首次执行为当前fiber开出一个通往hooks链条的开口，赋予一个hooks属性
-      workInProgressFiber.hooks = newHook;
-    } else {
-      // 非首次执行，这个时候的newHook是第二个或往后个，是上一个workInProgressHook的nextHook
-      workInProgressHook.nextHook = newHook;
-    }
-    // 更新当前的指针，移动到下一个
-    workInProgressHook = newHook;
-  }
+//   } else {
+//     // 找不到，说明是渲染
+//     // newHook找不到就给他直接赋值
+//     newHook = {
+//       state: initialState,
+//       // 用来保存下一个hook，链表保存各个hook
+//       nextHook: null,
+//       // setState的链条，用来保存每一次的setState产生的更新器！
+//       queue: null,
+//     }
+//     // 初始化链表
+//     if (!workInProgressFiber.hooks) {
+//       // 首次执行为当前fiber开出一个通往hooks链条的开口，赋予一个hooks属性
+//       workInProgressFiber.hooks = newHook;
+//     } else {
+//       // 非首次执行，这个时候的newHook是第二个或往后个，是上一个workInProgressHook的nextHook
+//       workInProgressHook.nextHook = newHook;
+//     }
+//     // 更新当前的指针，移动到下一个
+//     workInProgressHook = newHook;
+//   }
 
-}
+// }
 
 
 // 以前的dispatch函数
@@ -629,19 +629,19 @@ function useReducer(reducer, initialState) {
 function dispatchState(queue, action) {
   let update = {
     action,
-    nextUpdate: null,
+    next: null,
   }
   if (!queue.pending) {
     // 首次setState，初始化链表
-    update.nextUpdate = update;
+    update.next = update;
   } else {
     // 第二次往后的setState
-    // 1. 首先：本次的nextUpdate指向上一次的nextUpdate：
-    // 为什么？因为上一次的nextUpdate指向的永远是链表的头
-    update.nextUpdate = queue.pending.nextUpdate;
-    // 2. 然后再更新上一次的nextUpdate指向当前本次的update
+    // 1. 首先：本次的next指向上一次的next：
+    // 为什么？因为上一次的next指向的永远是链表的头
+    update.next = queue.pending.next;
+    // 2. 然后再更新上一次的next指向当前本次的update
     // 为什么？连接正常顺序的更新器对象
-    queue.pending.nextUpdate = update;
+    queue.pending.next = update;
   }
   // 更新当前指针，移动到下一个
   queue.pending = update
