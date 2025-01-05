@@ -460,6 +460,7 @@ function updateReducer(
     let didSkip = false;
     do {
       const updateExpirationTime = update.expirationTime;
+      // 这里的renderExpirationTime应该是指的是根root的优先级吧
       if (updateExpirationTime < renderExpirationTime) {
         // Priority is insufficient. Skip this update. If this is the first
         // skipped update, the previous update/state is the new base
@@ -560,13 +561,13 @@ function updateWorkInProgressHook() {
 }
 
 
-
+// 这是在调用setState，然后重新执行函数组件，useState也会重新执行
+// 这个时候如果是通过事件函数来调用，那么iscommiting肯定为false了，而isWorking也为false了
 function dispatchAction(
   fiber,
   queue,
   action,
 ) {
-
   const alternate = fiber.alternate;
   if (
     fiber === currentlyRenderingFiber ||
@@ -682,107 +683,6 @@ function flushPassiveEffects() {
     passiveEffectCallback();
   }
 }
-
-function requestCurrentTime() {
-  // 调度程序调用requestCurrentTime来计算过期时间。过期时间是通过将当前时间（开始时间）相加来计算的。但是，如果在同一事件中安排了两次更新，我们应该将它们的开始时间视为同时进行的，即使实际时钟时间在第一次和第二次调用之间提前了。
-  // 换句话说，由于过期时间决定了更新的批处理方式，我们希望在同一事件中发生的具有相同优先级的所有更新都能获得相同的过期时间。否则，我们就会流泪。
-  // 我们跟踪两个单独的时间：当前的“渲染器”时间和当前的“调度器”时间。渲染时间可以随时更新；它的存在只是为了减少调用performance.now。
-  // 但是，只有在没有挂起的工作，或者我们确信我们没有处于事件中间时，才能更新调度程序时间。
-  // requestCurrentTime is called by the scheduler to compute an expiration
-  // time.
-  // Expiration times are computed by adding to the current time (the start
-  // time). However, if two updates are scheduled within the same event, we
-  // should treat their start times as simultaneous, even if the actual clock
-  // time has advanced between the first and second call.
-  // In other words, because expiration times determine how updates are batched,
-  // we want all updates of like priority that occur within the same event to
-  // receive the same expiration time. Otherwise we get tearing.
-  // We keep track of two separate times: the current "renderer" time and the
-  // current "scheduler" time. The renderer time can be updated whenever; it
-  // only exists to minimize the calls performance.now.
-  // But the scheduler time can only be updated if there's no pending work, or
-  // if we know for certain that we're not in the middle of an event.
-
-  if (isRendering) {
-    // We're already rendering. Return the most recently read time.
-    return currentSchedulerTime;
-  }
-  // Check if there's pending work.
-  findHighestPriorityRoot();
-  if (
-    nextFlushedExpirationTime === NoWork ||
-    nextFlushedExpirationTime === Never
-  ) {
-    // If there's no pending work, or if the pending work is offscreen, we can
-    // read the current time without risk of tearing.
-    recomputeCurrentRendererTime();
-    currentSchedulerTime = currentRendererTime;
-    return currentSchedulerTime;
-  }
-  // There's already pending work. We might be in the middle of a browser
-  // event. If we were to read the current time, it could cause multiple updates
-  // within the same event to receive different expiration times, leading to
-  // tearing. Return the last read time. During the next idle callback, the
-  // time will be updated.
-  return currentSchedulerTime;
-}
-
-function computeExpirationForFiber(currentTime, fiber) {
-  const priorityLevel = getCurrentPriorityLevel();
-
-  let expirationTime;
-  if ((fiber.mode & ConcurrentMode) === NoContext) {
-    // Outside of concurrent mode, updates are always synchronous.
-    expirationTime = Sync;
-  } else if (isWorking && !isCommitting) {
-    // During render phase, updates expire during as the current render.
-    expirationTime = nextRenderExpirationTime;
-  } else {
-    switch (priorityLevel) {
-      case ImmediatePriority:
-        expirationTime = Sync;
-        break;
-      case UserBlockingPriority:
-        expirationTime = computeInteractiveExpiration(currentTime);
-        break;
-      case NormalPriority:
-        // This is a normal, concurrent update
-        expirationTime = computeAsyncExpiration(currentTime);
-        break;
-      case LowPriority:
-      case IdlePriority:
-        expirationTime = Never;
-        break;
-      default:
-        invariant(
-          false,
-          'Unknown priority level. This error is likely caused by a bug in ' +
-            'React. Please file an issue.',
-        );
-    }
-
-    // If we're in the middle of rendering a tree, do not update at the same
-    // expiration time that is already rendering.
-    if (nextRoot !== null && expirationTime === nextRenderExpirationTime) {
-      expirationTime -= 1;
-    }
-  }
-
-  // Keep track of the lowest pending interactive expiration time. This
-  // allows us to synchronously flush all interactive updates
-  // when needed.
-  // TODO: Move this to renderer?
-  if (
-    priorityLevel === UserBlockingPriority &&
-    (lowestPriorityPendingInteractiveExpirationTime === NoWork ||
-      expirationTime < lowestPriorityPendingInteractiveExpirationTime)
-  ) {
-    lowestPriorityPendingInteractiveExpirationTime = expirationTime;
-  }
-
-  return expirationTime;
-}
-
 
 
 
@@ -991,6 +891,7 @@ function addRootToSchedule(root, expirationTime) {
 }
 
 function performSyncWork() {
+  // 表示当前任务不能被中断！！！
   performWork(Sync, false);
 }
 
@@ -1000,6 +901,7 @@ function performWork(minExpirationTime, isYieldy) {
   findHighestPriorityRoot();
 
   if (isYieldy) {
+    // 表示当前任务可以被中断
     recomputeCurrentRendererTime();
     currentSchedulerTime = currentRendererTime;
 
@@ -1025,6 +927,7 @@ function performWork(minExpirationTime, isYieldy) {
       currentSchedulerTime = currentRendererTime;
     }
   } else {
+    // 表示当前任务不能被中断，一路执行到底
     while (
       nextFlushedRoot !== null &&
       nextFlushedExpirationTime !== NoWork &&
@@ -1094,10 +997,7 @@ function performWorkOnRoot(
 
   // Check if this is async work or sync/expired work.
   if (!isYieldy) {
-    // Flush work without yielding.
-    // TODO: Non-yieldy work does not necessarily imply expired work. A renderer
-    // may want to perform some work without yielding, but also without
-    // requiring the root to complete (by triggering placeholders).
+    // 表示当前任务不能被中断，要一路执行到底
 
     let finishedWork = root.finishedWork;
     if (finishedWork !== null) {
@@ -1158,11 +1058,6 @@ function performWorkOnRoot(
 
 
 function renderRoot(root, isYieldy) {
-  invariant(
-    !isWorking,
-    'renderRoot was called recursively. This error is likely caused ' +
-      'by a bug in React. Please file an issue.',
-  );
 
   flushPassiveEffects();
 
@@ -1182,6 +1077,7 @@ function renderRoot(root, isYieldy) {
     // Reset the stack and start working from the root.
     resetStack();
     nextRoot = root;
+    // ! 这里的nextRenderExpirationTime的作用是保存当前这个root的过期时间（优先级），在beginWork里面用它和每一个节点的expirationTime对比，如果发现节点的expirationTime小于根节点的优先级，那么跳过本次节点的更新。
     nextRenderExpirationTime = expirationTime;
     nextUnitOfWork = createWorkInProgress(
       nextRoot.current,
@@ -1405,9 +1301,14 @@ function renderRoot(root, isYieldy) {
       !root.didError &&
       isYieldy
     ) {
+      // 可以中断
       root.didError = true;
+
+      // 这里在更新root.nextExpirationTimeToWorkOn的值
+      // 但是这个expirationTime没有被改变呀？？？
       const suspendedExpirationTime = (root.nextExpirationTimeToWorkOn = expirationTime);
       const rootExpirationTime = (root.expirationTime = Sync);
+
       onSuspend(
         root,
         rootWorkInProgress,
@@ -1544,12 +1445,13 @@ export function createWorkInProgress(
 
 function workLoop(isYieldy) {
   if (!isYieldy) {
-    // Flush work without yielding
+    // 表示当前任务不能被中断，不管剩余时间是什么，只要接下来还有任务，就继续执行
     while (nextUnitOfWork !== null) {
       nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
     }
   } else {
-    // Flush asynchronous work until there's a higher priority event
+    // 表示当前任务可以被中断
+    // shouldYieldToRenderer就是用来计算剩余时间是否足够的
     while (nextUnitOfWork !== null && !shouldYieldToRenderer()) {
       nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
     }
@@ -1817,3 +1719,225 @@ function FiberNode(
 }
 
 
+
+
+
+
+
+
+// **********************************************************************************
+// **********************************************************************************
+// **********************************************************************************
+
+
+
+
+
+
+const hasNativePerformanceNow =
+  typeof performance === 'object' && typeof performance.now === 'function';
+
+const now = hasNativePerformanceNow
+  ? () => performance.now()
+  : () => Date.now();
+
+// 这是数字number类型,当前的时间戳，是一串数字，距离标准时间的毫秒数
+let originalStartTimeMs = now();
+
+// 下面两个是ExpirationTime类型
+// scheduleWork开始的时候的时间戳，有多少个单元
+let currentRendererTime = msToExpirationTime(
+  originalStartTimeMs,
+);
+let currentSchedulerTime = currentRendererTime;
+
+
+const MAX_SIGNED_31_BIT_INT = 1073741823
+const UNIT_SIZE = 10;
+const MAGIC_NUMBER_OFFSET = MAX_SIGNED_31_BIT_INT - 1;
+
+const NoWork = 0;
+const Never = 1;
+const Sync = MAX_SIGNED_31_BIT_INT;
+
+// 计算有多少个单元的expiration time，一个单元的expiration time是10ms
+// 1 unit of expiration time represents 10ms.
+function msToExpirationTime(ms) {
+  // Always add an offset so that we don't clash with the magic number for NoWork.
+  return MAGIC_NUMBER_OFFSET - ((ms / UNIT_SIZE) | 0);
+}
+
+
+// 【调用当前这个函数】到【scheduleWork开始的时候】（或者【js下载完之后开始执行的时间】）中间经过的时间，（一次渲染或更新（视图渲染那种））
+// 那么这个函数什么时候调用？？？需要用到currentSchedulerTime的时候，或者需要计算expirationTime的时候
+// originalStartTimeMs是指react buddle加载完成之后初始的时间，也就是js加载完成的时间
+function recomputeCurrentRendererTime() {
+  const currentTimeMs = now() - originalStartTimeMs;
+  currentRendererTime = msToExpirationTime(currentTimeMs);
+}
+
+function updateContainer(
+  element,
+  container,
+  parentComponent,
+  callback,
+) {
+  // 这里的container应该就是root对象，current指向的是root原生DOM对应的fiber对象
+  const current = container.current;
+  const currentTime = requestCurrentTime();
+  const expirationTime = computeExpirationForFiber(currentTime, current);
+  return updateContainerAtExpirationTime(
+    element,
+    container,
+    parentComponent,
+    expirationTime,
+    callback,
+  );
+}
+
+
+
+
+function requestCurrentTime() {
+  // 这里表示 已经进入到 渲染阶段 了，在 ReactDOM.render 中这里不会匹配，会跳过
+  // 在一次render中，如果我有一个新的任务进来了，要计算 expirationTime 发现现在处于渲染阶段，这时直接返回上次 render 开始的时间，再去计算 expirationTime
+  // 好处是 前后两次计算出来的 expirationTime 是一样的，让这个任务提前进行调度
+  if (isRendering) {
+    // We're already rendering. Return the most recently read time.
+    return currentSchedulerTime;
+  }
+  // Check if there's pending work.
+  findHighestPriorityRoot();
+  if (
+    nextFlushedExpirationTime === NoWork ||
+    nextFlushedExpirationTime === Never
+  ) {
+    // 如果当前没有任务进行，或者组件从来没有更新过，重新算一下现在的时间距离初始schedule的时间中间经过了多长时间，赋予给currentRendererTime，return出去，作为currentTime
+    // 刚初始化的时候，这个条件是成立的
+
+    recomputeCurrentRendererTime();
+    currentSchedulerTime = currentRendererTime;
+    return currentSchedulerTime;
+  }
+  // 在一个batched更新中，只有第一次创建更新才会重新计算时间，后面的所有更新都会复用第一次创建更新的时候的时间，这个也是为了保证在一个批量更新中产生的同类型的更新只会有相同的过期时间
+  return currentSchedulerTime;
+}
+
+
+var ImmediatePriority = 1;
+var UserBlockingPriority = 2;
+var NormalPriority = 3;
+var LowPriority = 4;
+var IdlePriority = 5;
+let currentPriorityLevel = NormalPriority;
+
+
+function computeExpirationForFiber(currentTime, fiber) {
+  const priorityLevel = getCurrentPriorityLevel();
+
+  let expirationTime;
+  if ((fiber.mode & ConcurrentMode) === NoContext) {
+    // Outside of concurrent mode, updates are always synchronous.
+    expirationTime = Sync;
+  } else if (isWorking && !isCommitting) {
+    // During render phase, updates expire during as the current render.
+    expirationTime = nextRenderExpirationTime;
+  } else {
+    switch (priorityLevel) {
+      case ImmediatePriority:
+        expirationTime = Sync;
+        break;
+      case UserBlockingPriority:
+        expirationTime = computeInteractiveExpiration(currentTime);
+        break;
+      case NormalPriority:
+        // This is a normal, concurrent update
+        expirationTime = computeAsyncExpiration(currentTime);
+        break;
+      case LowPriority:
+      case IdlePriority:
+        expirationTime = Never;
+        break;
+      default:
+        invariant(
+          false,
+          'Unknown priority level. This error is likely caused by a bug in ' +
+            'React. Please file an issue.',
+        );
+    }
+
+    // If we're in the middle of rendering a tree, do not update at the same
+    // expiration time that is already rendering.
+    if (nextRoot !== null && expirationTime === nextRenderExpirationTime) {
+      expirationTime -= 1;
+    }
+  }
+
+
+  if (
+    priorityLevel === UserBlockingPriority &&
+    (lowestPriorityPendingInteractiveExpirationTime === NoWork ||
+      expirationTime < lowestPriorityPendingInteractiveExpirationTime)
+  ) {
+    lowestPriorityPendingInteractiveExpirationTime = expirationTime;
+  }
+
+  return expirationTime;
+}
+
+function getCurrentPriorityLevel() {
+  return currentPriorityLevel;
+}
+
+
+
+const LOW_PRIORITY_EXPIRATION = 5000;
+const LOW_PRIORITY_BATCH_SIZE = 250;
+
+function computeAsyncExpiration(
+  currentTime,
+) {
+  return computeExpirationBucket(
+    currentTime,
+    LOW_PRIORITY_EXPIRATION,
+    LOW_PRIORITY_BATCH_SIZE,
+  );
+}
+
+
+
+const HIGH_PRIORITY_EXPIRATION = __DEV__ ? 500 : 150;
+const HIGH_PRIORITY_BATCH_SIZE = 100;
+
+function computeInteractiveExpiration(currentTime) {
+  return computeExpirationBucket(
+    currentTime,
+    HIGH_PRIORITY_EXPIRATION,
+    HIGH_PRIORITY_BATCH_SIZE,
+  );
+}
+
+
+
+function computeExpirationBucket(
+  currentTime,
+  expirationInMs,
+  bucketSizeMs,
+) {
+  return (
+    MAGIC_NUMBER_OFFSET -
+    ceiling(
+      MAGIC_NUMBER_OFFSET - currentTime + expirationInMs / UNIT_SIZE,
+      bucketSizeMs / UNIT_SIZE,
+    )
+  );
+}
+
+function ceiling(num, precision) {
+  return (((num / precision) | 0) + 1) * precision;
+}
+
+
+
+// PS:在上面的代码中，| 0 是取整的意思
+// 按位运算是 整数操作，它仅对整数的二进制表示进行操作，会自动 去掉浮点数的小数部分，保留整数部分，从而实现取整。
