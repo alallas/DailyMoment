@@ -2701,13 +2701,18 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
 
 
 function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
+  // 保存上下文对象到一个统一的栈里面
   pushHostRootContext(workInProgress);
+
+  // 拿到一些属性
   var updateQueue = workInProgress.updateQueue;
-  !(updateQueue !== null) ? invariant(false, 'If the root does not have an updateQueue, we should have already bailed out. This error is likely caused by a bug in React. Please file an issue.') : void 0;
   var nextProps = workInProgress.pendingProps;
   var prevState = workInProgress.memoizedState;
   var prevChildren = prevState !== null ? prevState.element : null;
+
+
   processUpdateQueue(workInProgress, updateQueue, nextProps, null, renderExpirationTime);
+
   var nextState = workInProgress.memoizedState;
   // Caution: React DevTools currently depends on this property
   // being called "element".
@@ -2781,12 +2786,17 @@ function pushHostContainer(fiber, nextRootInstance) {
   // 保存fiber到contextFiberStackCursor的current里面，再保存到valueStack
   push(contextFiberStackCursor, fiber, fiber);
 
+  // 把一个空对象保存到contextStackCursor$1的current，然后保存到栈
   push(contextStackCursor$1, NO_CONTEXT, fiber);
+  
+  // 拿到根节点的原生DOM的类型，标准等信息，保存到contextStackCursor$1的current值
   var nextRootContext = getRootHostContext(nextRootInstance);
-  // Now that we know this function doesn't throw, replace it.
+  // 把当前位置的contextStackCursor$1的current值从栈拿走，也就是删掉了之前的一个空对象NO_CONTEXT
   pop(contextStackCursor$1, fiber);
+  // 把这个原生rootDOM的信息对象保存到contextStackCursor$1的current，再保存到栈
   push(contextStackCursor$1, nextRootContext, fiber);
 }
+
 
 function getRootHostContext(rootContainerInstance) {
   var type = void 0;
@@ -2832,6 +2842,7 @@ function getChildNamespace(parentNamespace, type) {
   // By default, pass namespace below.
   return parentNamespace;
 }
+
 function getIntrinsicNamespace(type) {
   switch (type) {
     case 'svg':
@@ -2892,4 +2903,27 @@ updatedAncestorInfo = function (oldInfo, tag) {
 };
 
 
+function pop(cursor, fiber) {
+  if (index < 0) {
+    {
+      warningWithoutStack$1(false, 'Unexpected pop.');
+    }
+    return;
+  }
 
+  {
+    if (fiber !== fiberStack[index]) {
+      warningWithoutStack$1(false, 'Unexpected Fiber popped.');
+    }
+  }
+
+  cursor.current = valueStack[index];
+
+  valueStack[index] = null;
+
+  {
+    fiberStack[index] = null;
+  }
+
+  index--;
+}
