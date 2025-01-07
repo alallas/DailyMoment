@@ -3712,25 +3712,297 @@
     // demo();
 
 
-    let array = [1, 2, [3, 4, [5, 6], 7, 8], 9, 10, [11, 12]]
+    // let array = [1, 2, [3, 4, [5, 6], 7, 8], 9, 10, [11, 12]]
 
-    function flatten(array) {
-        if (!Array.isArray(array)) return array;
-        let layerArray = [];
-        array.forEach((item, index) => {
-            if (Array.isArray(item)) {
-                const innerArray = flatten(item);
-                layerArray.push(...innerArray)
-            } else {
-                layerArray.push(item);
+    // function flatten(array) {
+    //     if (!Array.isArray(array)) return array;
+    //     let layerArray = [];
+    //     array.forEach((item, index) => {
+    //         if (Array.isArray(item)) {
+    //             const innerArray = flatten(item);
+    //             layerArray.push(...innerArray)
+    //         } else {
+    //             layerArray.push(item);
+    //         }
+    //     })
+    //     return layerArray;
+    // }
+
+
+    // console.log(flatten(array))
+
+
+
+
+
+    // function solution(n, A, B, array_a) {
+    //     let count = 0;
+    //     let sumAll = array_a.reduce((prevItem, curItem, index) => {
+    //         return prevItem + curItem
+    //     }, 0)
+    //     sumAll = sumAll % 10
+    //     if (sumAll === A || sumAll === B) {
+    //         count++
+    //     }
+
+    //     array_a = array_a.map((item, index) => item + '-' + index)
+    //     let res = [];
+    //     let path = [];
+    //     function back(startIndex) {
+    //         res.push([...path])
+    //         for (let i = startIndex; i < array_a.length; i++) {
+    //             path.push(array_a[i])
+    //             back(i + 1)
+    //             path.pop()
+    //         }
+    //     }
+    //     back(0)
+
+    //     function findAnotherPart(arr, arrA) {
+    //         return arr.filter((item) => arrA.indexOf(item) === -1)
+    //     }
+
+    //     for (let i = 0; i < res.length; i++) {
+    //         let arrA = res[i]
+    //         let arrB = findAnotherPart(array_a, arrA)
+    //         // console.log(arrB)
+    //         let sumA = arrA.reduce((prevItem, curItem, index) => {
+    //             let realNum = +(curItem.split('-')[0])
+    //             return prevItem + realNum
+    //         }, 0)
+    //         let sumB = arrB.reduce((prevItem, curItem, index) => {
+    //             let realNum = +(curItem.split('-')[0])
+    //             return prevItem + realNum
+    //         }, 0)
+    //         // console.log(sumA, sumB)
+    //         if (sumA !== 0 && sumB !== 0) {
+    //             sumA = sumA % 10
+    //             sumB = sumB % 10
+    //             if (sumA === A && sumB === B) {
+    //                 count++
+    //             }
+    //         }
+    //     }
+    //     // console.log(count)
+    //     return count
+    // }
+
+    function solution(n, A, B, array_a) {
+        let res = 0;
+        function dg(index, sum_a, sum_b) {
+            if (index === n) {
+                if (sum_a % 10 === A && sum_b % 10 === B) {
+                    res++;
+                }
+                return;
             }
-        })
-        return layerArray;
+            dg(index + 1, sum_a + array_a[index], sum_b);
+            dg(index + 1, sum_a, sum_b + array_a[index]);
+        }
+
+        dg(0, 0, 0);
+
+        const sum = array_a.reduce((acc, curr) => acc + curr, 0);
+        if (sum % 10 === A) res++;
+        if (sum % 10 === B) res++;
+
+        return res;
     }
 
 
-    console.log(flatten(array))
+    // function main() {
+    // //  You can add more test cases here
+    // // console.log(solution(3, 1, 2, [1, 1, 1]) === 3);
+    // // console.log(solution(3, 3, 5, [1, 1, 1]) === 1);
+    // // console.log(solution(2, 1, 1, [1, 1]) === 2);
+    // console.log(solution(5, 3, 7, [2, 3, 5, 7, 9]) === 0);
+    // }
 
+    // main();
+
+
+    
+    function solution(n, data) {
+        let index = 0;
+        let firstPoint = null
+        let curPoint = null
+        let lastPoint = null
+        data.split('').forEach((item) => {
+            let newObj = {
+                value: item,
+                next: null,
+                last: null,
+            }
+            if (index === 0) {
+                curPoint = firstPoint = newObj
+            } else {
+                curPoint.next = newObj;
+                newObj.last = curPoint;
+                curPoint = newObj;
+                if (index === data.length - 1) {
+                    firstPoint.last = newObj
+                    newObj.next = firstPoint
+                    lastPoint = newObj
+                }
+            }
+            index++
+        })
+        curPoint = firstPoint;
+        let day = 1;
+        let modelER = 0;
+
+        function changClothes() {
+            console.log('--------------------------')
+            let needChangeCount = 0;
+            let isNeedChangeAllClothes = false;
+
+            do {
+                if (curPoint.last.value === curPoint.next.value && curPoint.value === curPoint.last.value) {
+                    curPoint.isNeedChange = true
+                    isNeedChangeAllClothes = true
+                    needChangeCount++;
+                }
+                if (curPoint.value !== curPoint.next.value && curPoint.value !== curPoint.last.value) {
+                    modelER++
+                }
+                console.log(curPoint)
+                curPoint = curPoint.next
+            } while (curPoint && curPoint !== firstPoint)
+            if (needChangeCount === data.length) {
+                return [-1, -1];
+            }
+            do {
+                if (curPoint.isNeedChange === true) {
+                    curPoint.value = curPoint.value === '1' ? '0' : '1'
+                    delete curPoint.isNeedChange
+                }
+                curPoint = curPoint.next
+            } while (curPoint && curPoint !== firstPoint)
+            if (isNeedChangeAllClothes) {
+                day++;
+                modelER = 0;
+                changClothes()
+            }
+        }
+        const res = changClothes()
+        if (res) {
+            return res
+        } else {
+            return [day, modelER]
+        }
+        console.log(day)
+    }
+
+
+    // function main() {
+    //     // Add your test cases here
+    //     console.log(solution(4, "0000").toString() === [-1, -1].toString());
+    //     console.log(solution(4, "1110").toString() === [2, 4].toString());
+    //     console.log(solution(6, "11011").toString() === [2, 3].toString());
+    // }
+
+    // main();
+
+
+
+    function solution(n, l, r, a) {
+        let count = 0;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] % 2 === 0 && l <= a[i] && r >= a[i]) {
+                count++
+            }
+        }
+        return count;
+    }
+
+    // function main() {
+    //     console.log(solution(5, 3, 8, [1, 2, 6, 8, 7]) === 2);
+    //     console.log(solution(4, 10, 20, [12, 15, 18, 9]) === 2);
+    //     console.log(solution(3, 1, 10, [2, 4, 6]) === 3);
+    // }
+
+    // main();
+
+
+
+    function solution(plates, n) {
+        let arr = [];
+        let index = 0;
+        let okStartNum = null;
+        let okStartIndex = null;
+        let okEndIndex = 0;
+
+        while (index < plates.length) {
+            let saveIndex = index;
+            let curNum = plates[saveIndex];
+            let nextNum = plates[saveIndex + 1];
+            let startIndex = null;
+            let endIndex = null;
+
+            while(plates[saveIndex] && plates[saveIndex + 1] === plates[saveIndex] + 1) {
+                if (startIndex === null) {
+                    startIndex = saveIndex
+                }
+                console.log('xxxxx', plates[saveIndex])
+                saveIndex++
+            }
+            if (endIndex === null) {
+                console.log('saveIndex', saveIndex)
+                endIndex = saveIndex
+                let saveStartIndex = startIndex;
+                startIndex = null;
+                saveIndex = null;
+            }
+
+
+
+            index++
+        }
+
+
+
+        // for (let i = 0; i < plates.length; i++) {
+        //     let curNum = plates[i];
+        //     let nextNum = plates[i + 1];
+        //     if (nextNum && curNum === nextNum - 1) {
+        //         console.log('后一个大于前一个1   curNum', curNum)
+        //         if (okStartIndex === null || i <= okStartIndex) {
+        //             console.log('meet', curNum)
+        //             okStartIndex = i;
+        //             okStartNum = curNum;
+        //             continue
+        //         }
+        //         // if (okStartIndex === 0) {
+        //         //     arr.push(curNum)
+        //         // }
+        //     } else {
+        //         console.log('end okStartIndex', okStartIndex)
+        //         if (okStartNum) {
+        //             if (i - okStartIndex >= 2) {
+        //                 arr.push(`${okStartNum}-${curNum}`)
+        //             } else {
+        //                 arr.push(plates[okStartIndex])
+        //                 arr.push(curNum)
+        //             }
+        //             okStartNum = null;
+        //             okStartIndex = null;
+        //             continue
+        //         }
+        //         arr.push(curNum)
+        //     }
+        // }
+        console.log(arr)
+        return arr.join(',');
+    }
+
+    function main() {
+    //  You can add more test cases here
+    console.log(solution([-3, -2, -1, 2, 10, 15, 16, 18, 19, 20], 10) === "-3--1,2,10,15,16,18-20");
+    // console.log(solution([-6, -3, -2, -1, 0, 1, 3, 4, 5, 7, 8, 9, 10, 11, 14, 15, 17, 18, 19, 20], 20) === "-6,-3-1,3-5,7-11,14,15,17-20");
+    // console.log(solution([1, 2, 7, 8, 9, 10, 11, 19], 8) === "1,2,7-11,19");
+    }
+
+    main();
 
 
 
