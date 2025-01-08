@@ -3928,78 +3928,485 @@
     function solution(plates, n) {
         let arr = [];
         let index = 0;
-        let okStartNum = null;
-        let okStartIndex = null;
-        let okEndIndex = 0;
 
         while (index < plates.length) {
             let saveIndex = index;
-            let curNum = plates[saveIndex];
-            let nextNum = plates[saveIndex + 1];
             let startIndex = null;
-            let endIndex = null;
 
-            while(plates[saveIndex] && plates[saveIndex + 1] === plates[saveIndex] + 1) {
-                if (startIndex === null) {
-                    startIndex = saveIndex
+            if (plates[saveIndex + 1] === plates[saveIndex] + 1) {
+                while(plates[saveIndex + 1] === plates[saveIndex] + 1) {
+                    if (startIndex === null) {
+                        startIndex = saveIndex
+                    }
+                    console.log('saveIndex value', plates[saveIndex])
+                    saveIndex++
                 }
-                console.log('xxxxx', plates[saveIndex])
-                saveIndex++
-            }
-            if (endIndex === null) {
-                console.log('saveIndex', saveIndex)
-                endIndex = saveIndex
-                let saveStartIndex = startIndex;
+
+                if (saveIndex - startIndex >= 2) {
+                    arr.push(`${plates[startIndex]}-${plates[saveIndex]}`)
+                } else {
+                    arr.push(...plates.slice(startIndex, saveIndex + 1))
+                }
                 startIndex = null;
-                saveIndex = null;
+                index = saveIndex + 1
+
+            } else {
+                arr.push(plates[index])
+                index++
             }
-
-
-
-            index++
         }
-
-
-
-        // for (let i = 0; i < plates.length; i++) {
-        //     let curNum = plates[i];
-        //     let nextNum = plates[i + 1];
-        //     if (nextNum && curNum === nextNum - 1) {
-        //         console.log('后一个大于前一个1   curNum', curNum)
-        //         if (okStartIndex === null || i <= okStartIndex) {
-        //             console.log('meet', curNum)
-        //             okStartIndex = i;
-        //             okStartNum = curNum;
-        //             continue
-        //         }
-        //         // if (okStartIndex === 0) {
-        //         //     arr.push(curNum)
-        //         // }
-        //     } else {
-        //         console.log('end okStartIndex', okStartIndex)
-        //         if (okStartNum) {
-        //             if (i - okStartIndex >= 2) {
-        //                 arr.push(`${okStartNum}-${curNum}`)
-        //             } else {
-        //                 arr.push(plates[okStartIndex])
-        //                 arr.push(curNum)
-        //             }
-        //             okStartNum = null;
-        //             okStartIndex = null;
-        //             continue
-        //         }
-        //         arr.push(curNum)
-        //     }
-        // }
         console.log(arr)
         return arr.join(',');
     }
 
-    function main() {
-    //  You can add more test cases here
-    console.log(solution([-3, -2, -1, 2, 10, 15, 16, 18, 19, 20], 10) === "-3--1,2,10,15,16,18-20");
+    // function main() {
+    // //  You can add more test cases here
+    // // console.log(solution([-3, -2, -1, 2, 10, 15, 16, 18, 19, 20], 10) === "-3--1,2,10,15,16,18-20");
     // console.log(solution([-6, -3, -2, -1, 0, 1, 3, 4, 5, 7, 8, 9, 10, 11, 14, 15, 17, 18, 19, 20], 20) === "-6,-3-1,3-5,7-11,14,15,17-20");
-    // console.log(solution([1, 2, 7, 8, 9, 10, 11, 19], 8) === "1,2,7-11,19");
+    // // console.log(solution([1, 2, 7, 8, 9, 10, 11, 19], 8) === "1,2,7-11,19");
+    // }
+
+    // main();
+
+
+    function solution(n, m, k, a, b) {
+        let small = Infinity;
+        for (let i = 0; i < a.length; i++) {
+            for (let j = 0; j < b.length; j++) {
+                let curNum = Math.abs((a[i] - b[j]) ** 2 - k ** 2)
+                if (curNum < small) {
+                    small = curNum
+                }
+            }
+        }
+        return small;
+    }
+
+    // function main() {
+    //     // You can add more test cases here
+    //     console.log(solution(5, 5, 1, [5, 3, 4, 1, 2], [0, 6, 7, 9, 8]) === 0);
+    //     console.log(solution(5, 5, 0, [5, 3, 4, 1, 2], [0, 6, 7, 9, 8]) === 1);
+    //     console.log(solution(5, 6, 3, [5, 3, 4, 1, 2], [0, 6, 7, 9, 8, 11]) === 0);
+    // }
+
+    // main();
+
+
+
+
+
+
+    function solution(num, data) {
+        data = data.split('')
+        let solidArr = [...data]
+        // debugger
+        function back() {
+            let index = 0;
+            let needRePos = false
+            data = [...solidArr]
+            while (index < data.length) {
+                let curPos = data[index]
+                if (curPos === 'R') {
+                    if (data[index + 1] && data[index + 1] !== 'L' && data?.[index + 2] !== 'L') {
+                        solidArr[index + 1] = 'R'
+                    }
+                }
+                if (curPos === 'L') {
+                    if (data[index - 1] && data[index - 1] !== 'R' && data?.[index - 2] !== 'R') {
+                        solidArr[index - 1] = 'L'
+                    }
+                }
+                index++
+            }
+            for (let i = 0; i < solidArr.length; i++) {
+                let curPos = solidArr[i]
+                let lastPos = solidArr[i - 1]
+                let nextPos = solidArr[i + 1]
+                if (curPos === '.') {
+                    if ((lastPos && lastPos === 'R' && nextPos !== 'L') || (nextPos && nextPos === 'L' && lastPos !== 'R')) {
+                        needRePos = true
+                        break
+                    }
+                }
+            }
+            if (needRePos) {
+                back()
+            }
+        }
+        back()
+
+        let posArr = []
+        const res = solidArr.reduce((prev, cur, index) => {
+            let num = prev
+            if (cur === '.') {
+                num =  prev + 1
+                posArr.push(index+1)
+            }
+            return num
+        }, 0)
+
+        if (res !== 0) {
+            return `${res}:${posArr.join(',')}`;
+        } else {
+            return '0'
+        }
+    }
+
+
+
+    // function main() {
+    //     //  You can add more test cases here
+    //     console.log(solution(14, ".L.R...LR..L..") === "4:3,6,13,14");
+    //     // console.log(solution(5, "R....") === "0");
+    //     // console.log(solution(1, ".") === "1:1");
+    //     console.log(solution(14, "RR...R...L.L..") === "3:8,13,14");
+    // }
+
+    // main();
+
+
+
+
+
+    function solution(version1, version2) {
+        function comVersion(short, long) {
+            let diff = (long.length - short.length) / 2;
+            for (let i = 0; i < diff; i++) {
+                short = short + '.0'
+            }
+            return short
+        }
+        if (version1.length < version2.length) {
+            version1 = comVersion(version1, version2)
+        } else {
+            version2 = comVersion(version2, version1)
+        }
+        console.log(version1, version2)
+
+        version1 = version1.split('.')
+        version2 = version2.split('.')
+
+        for (let i = 0; i < version1.length; i++) {
+            if (version1[i] < version2[i]) {
+                return -1
+            } else if (version1[i] > version2[i]) {
+                return 1
+            }
+        }
+        return 0;
+    }
+
+    // function main() {
+    //     // Add your test cases here
+    //     console.log(solution("0.1","1.1") === -1);
+    //     console.log(solution("1.0.1","1") === 1);
+    //     console.log(solution("7.5.2.4","7.5.3") === -1);
+    //     console.log(solution("1.0","1.0.0") === 0);
+    // }
+
+    // main();
+
+
+    // 目标
+    // 16+10=26
+    // 7+4=11
+    // 2+1=3
+    
+
+
+    // 一个查看任务并发数量的方法，笨方法，应该还有一个更好的，之前在万诺coding发现的
+    // tag： 任务 并发 时间 同时 进行
+    function solution(n,array) {
+        let taskIn = []
+        let taskOut = []
+        let curRuningTask = []
+        for (let i = 0; i < array.length; i++) {
+            let curTask = array[i]
+            taskIn.push(curTask[0])
+            taskOut.push(curTask[0] + curTask[1])
+        }
+        let longestTime = ([...taskIn, ...taskOut].sort((a, b) => b - a))[0]
+        
+        let maxTaskCount = -Infinity;
+        for (let i = 1; i <= longestTime; i++) {
+            // 进队列
+            for (let j = 0; j < taskIn.length; j++) {
+                if (taskIn[j] === i) {
+                    curRuningTask.push('1')
+                }
+            }
+            for (let j = 0; j < taskOut.length; j++) {
+                if (taskOut[j] === i) {
+                    curRuningTask.pop()
+                }
+            }
+            if (curRuningTask.length > maxTaskCount) {
+                maxTaskCount = curRuningTask.length
+            }
+            console.log(curRuningTask)
+        }
+        return maxTaskCount;
+    }
+
+    // function main() {
+    //     // Add your test cases here
+    //     console.log(solution(2, [[1,2],[2,3]]) === 2);
+    //     console.log(solution(4,[[1,2], [2,3], [3,5], [4,3]])=== 3);
+    // }
+
+    // main();
+
+
+
+
+    function solution(n, arr) {
+        let bigArr = [0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+        let index = 0;
+        let max = 0;
+        let outStartIndex = 0;
+        let outEndIndex = 0;
+        while(index < arr.length) {
+            // console.log('-----------', index)
+            let innerIndex = index
+            let startIndex = null
+
+            while(innerIndex < arr.length) {
+                let res = arr.slice(index, innerIndex + 1).reduce((prev, cur, index) => {
+                    return prev * cur
+                }, 1)
+                // console.log(res)
+                if (res > max) {
+                    max = res;
+                    outStartIndex = index;
+                    outEndIndex = innerIndex;
+                } else if (res === max) {
+                    if (index < outStartIndex) {
+                        outStartIndex = index;
+                        outEndIndex = innerIndex;
+                    } else if (index === outStartIndex) {
+                        if (innerIndex < outEndIndex) {
+                            outStartIndex = index;
+                            outEndIndex = innerIndex;
+                        }
+                    }
+                }
+                innerIndex++;
+            }
+            index++;
+        }
+        return [outStartIndex + 1, outEndIndex + 1];
+    }
+
+    // function main() {
+    //     // Add your test cases here
+    //     console.log(solution(5, [1, 2, 4, 0, 8]).toString() === [1, 3].toString());
+    //     console.log(solution(7, [1, 2, 4, 8, 0, 256, 0]).toString() === [6, 6].toString());
+    //     console.log(solution(8, [1, 2, 4, 8, 0, 256, 512, 0]).toString() === [6, 7].toString());
+    //     console.log(solution(11, [1024,0,2,1,0,2,128,512,4,256,256]).toString() === [6, 11].toString());
+    // }
+
+    // main();
+
+
+
+
+
+
+
+    function solution(A, B) {
+        let res = B - A
+        return `${res}/${B}`;
+    }
+
+    // function main() {
+    //     console.log(solution(2, 7) === "5/7");
+    //     console.log(solution(1, 3) === "2/3");
+    //     console.log(solution(3, 5) === "2/5");
+    // }
+
+    // main();
+
+
+
+
+
+
+    function solution(num) {
+        let map = {}
+        for (let i = 0; i < 26; i++) {
+            map[i] = String.fromCharCode(97 + i)
+        }
+        // console.log(map)
+
+        let path = (num + '')
+        let final = []
+        // debugger
+        function back(index, path) {
+            if (index >= path.length) {
+                final.push(path)
+                return
+            }
+
+            // 找一个数字
+            let newArr = path.split('')
+            newArr[index] = map[path[index]]
+            back(index + 1, newArr.join(''))
+
+            if (+(path[index] + path[index + 1]) <= 0 || +(path[index]) === 0) {
+                return
+            }
+            
+            if (path[index] + path[index + 1] <= 25) {
+                // 找两个数字
+                let newArr = path.split('')
+                newArr[index] = map[path[index] + path[index + 1]]
+                newArr.splice(index + 1, 1)
+                back(index + 1, newArr.join(''))
+            }
+        }
+        back(0, path)
+        // console.log(path)
+        return final.length;
+    }
+
+    // function main() {
+    //     // You can add more test cases here
+    //     console.log(solution(12258) === 5);
+    //     console.log(solution(1023) === 4);
+    //     console.log(solution(1400112) === 6);
+    //     console.log(solution(2110101) === 10);
+    // }
+
+    // main();
+
+
+
+
+
+    function solution(number, heroes) {
+        heroes.sort((a, b) => a - b)
+        console.log(heroes)
+        let a = [...heroes];
+        let b = [...heroes];
+        let win = 0
+        for (let i = 0; i < a.length; i++) {
+            let findBigger = false
+            for (let j = 0; j < b.length; j++) {
+                if (b[j] > a[i]) {
+                    findBigger = true
+                    win++
+                    b.splice(j, 1)
+                    break
+                }
+            }
+            if (findBigger) {
+                a.splice(i, 1)
+                i--
+            }
+        }
+        console.log(win)
+        return win;
+    }
+
+    // function main() {
+    //     //  You can add more test cases here
+    //     // console.log(solution(7, [10,1,1,1,5,5,3]) === 4);
+    //     // console.log(solution(5, [1,1,1,1,1]) === 0);
+    //     // console.log(solution(10, [1,2,3,4,5,6,7,8,9,10]) === 9);
+    //     console.log(solution(6, [9,4,7,3,2,6]) === 6);
+    // }
+
+    // main();
+
+
+
+    
+    function solution(n, array) {
+        // debugger
+        let isAtEnd = false
+        function back(index = 0, curEne = array[0]) {
+            if (index >= array.length) {
+                return
+            }
+            if (index === array.length - 1) {
+                isAtEnd = true
+                return
+            }
+            for (let i = 1; i <= curEne; i++) {
+                let nextPos = index + i;
+                if (nextPos === array.length - 1) {
+                    isAtEnd = true
+                    return
+                }
+                let nextPosEne = array[nextPos];
+                if (nextPosEne === 0) {
+                    continue
+                }
+                let nextAllEne = curEne - i + nextPosEne;
+                back(nextPos, nextAllEne)
+            }
+        }
+        back()
+
+        if (isAtEnd) {
+            return 'TRUE'
+        } else {
+            return 'FALSE'
+        }
+    }
+
+    // function main() {
+    //     // Add your test cases here
+    //     // console.log(solution(5, [2, 3, 1, 1, 4]) === "TRUE");
+    //     // console.log(solution(5, [3, 2, 1, 0, 4]) === "FALSE");
+    //     console.log(solution(6, [1, 2, 3, 4, 0, 0]) === "TRUE");
+    // }
+
+    // main();
+
+
+
+
+    function solution(a, n, monsters) {
+        monsters = monsters.sort((a, b) => a - b)
+        // console.log(monsters)
+        let money = 0;
+        let maxMoney = 0;
+        // debugger
+        for (let i = 0; i < monsters.length; i++) {
+            // console.log('------', i)
+            if (a >= monsters[i]) {
+                money++;
+                if (money > maxMoney) {
+                    maxMoney = money;
+                }
+                continue;
+            } else {
+                let curMonster = monsters[i]
+                let diff = curMonster - a;
+                if (diff <= money) {
+                    a = diff + a;
+                    if (a >= monsters[i]) {
+                        money = money - diff + 1;
+                        if (money > maxMoney) {
+                            maxMoney = money;
+                        }
+                        continue
+                    }
+                } else {
+                    break
+                }
+            }
+        }
+        // console.log(maxMoney)
+        return maxMoney;
+    }
+
+    function main() {
+        console.log(solution(1, 3, [2, 2, 1]) === 2);
+        console.log(solution(3, 4, [5, 1, 3, 2]) === 3);
+        console.log(solution(4, 5, [3, 4, 5, 1, 2]) === 4);
+        console.log(solution(6, 17, [3,5,2,5,1,3,16,7,13,12,14,11,5,4,8,8,4]) === 10);
     }
 
     main();
@@ -4009,7 +4416,7 @@
 
 
 
-    
+
 
 
   </script>
