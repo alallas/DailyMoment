@@ -622,7 +622,7 @@ function legacyRenderSubtreeIntoContainer(parentComponent, children, container, 
       };
     }
 
-    // 首次渲染不应该是批次更新，而应该是瞬时更新
+    // 首次渲染（没有母节点，也就是从根开始更新）不应该是批次更新，而应该是瞬时更新
     unbatchedUpdates(function () {
       if (parentComponent != null) {
         root.legacy_renderSubtreeIntoContainer(parentComponent, children, callback);
@@ -1333,7 +1333,7 @@ function enqueueUpdate(fiber, update) {
   // 1. 新建或者复用queue对象，这个对象是用来装下每个update对象的
   // 首次渲染阶段，上一次没有fiber，alternate为空
   if (alternate === null) {
-    // 只用一个更新队列
+    // 只用一个更新队列（且有的话直接用之前的内存地址，不需要新建一个！！！）
     queue1 = fiber.updateQueue;
     queue2 = null;
     // 首次渲染，fiber都没有更新队列，为null
@@ -1694,7 +1694,7 @@ function requestWork(root, expirationTime) {
     return;
   }
 
-  // 首次渲染下，root的时间是sync，会走第一个performSyncWork逻辑，是同步更新
+  // 首次渲染下，root的时间是sync（最大的那个），会走第一个performSyncWork逻辑，是同步更新
   if (expirationTime === Sync) {
     performSyncWork();
   } else {
@@ -1974,7 +1974,7 @@ function renderRoot(root, isYieldy) {
     // 更新下一次的root和优先级为当前的root和优先级
     nextRoot = root;
     nextRenderExpirationTime = expirationTime;
-    // 创建或更新nextUnitOfWork，这是在准备第一个要工作的单元！！！！！
+    // 创建或更新nextUnitOfWork（也就是第二个Fiber，除了root的第一个以外！！），这是在准备第一个要工作的单元！！！！！
     nextUnitOfWork = createWorkInProgress(nextRoot.current, null, nextRenderExpirationTime);
     root.pendingCommitExpirationTime = NoWork;
 
@@ -2505,7 +2505,7 @@ function startProfilerTimer(fiber) {
 
 function beginWork(current$$1, workInProgress, renderExpirationTime) {
 
-  // 在首次渲染阶段（首次进入这个函数），updateExpirationTime也就是fiber本身的expirationTime和renderExpirationTime是一样的
+  // 在首次渲染阶段（首次进入这个函数），updateExpirationTime也就是fiber本身的expirationTime和renderExpirationTime（实际上就是expirationTime）是一样的
   var updateExpirationTime = workInProgress.expirationTime;
 
   // current$$1是workInProgress的替身
@@ -2520,6 +2520,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       didReceiveUpdate = true;
 
     } else if (updateExpirationTime < renderExpirationTime) {
+      // !这里为什么要自己和自己比呢，和之前有一个地方一样，fiber的eT和入参的eT对比，不是一样的么？？？？
       // 新旧的props一样，但是fiber本身的优先级，小于链表里面的亟需更新的优先级，不用更新
       didReceiveUpdate = false;
 
@@ -2596,11 +2597,11 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
     }
   } else {
-    // 首次渲染，新旧props都是null，且fiber本身的和亟需更新的优先级的时间一样
+    // 【首次渲染】，新旧props都是null，且fiber本身的和亟需更新的优先级的时间一样
     didReceiveUpdate = false;
   }
 
-  // 把fiber本身的优先级改回为NoWork，最低的，为什么？？？？？
+  // !把fiber本身的优先级改回为NoWork，最低的，为什么？？？？？
   workInProgress.expirationTime = NoWork;
 
   // 开始分发，哪种类型去哪里
