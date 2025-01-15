@@ -158,7 +158,7 @@ var ReactFiberInstrumentation = {
 };
 var ReactFiberInstrumentation_1 = ReactFiberInstrumentation;
 
-// 不知道干嘛的
+// 记录当前工作中的fiber的
 var current = null;
 var phase = null;
 var didWarnAboutNestedUpdates = void 0;
@@ -234,7 +234,8 @@ var commitCountInCurrentWorkLoop = 0;
 // 性能更新追踪
 var supportsUserTiming = typeof performance !== 'undefined' && typeof performance.mark === 'function' && typeof performance.clearMarks === 'function' && typeof performance.measure === 'function' && typeof performance.clearMeasures === 'function';
 var stashedWorkInProgressProperties = void 0;
-
+var mayReplayFailedUnitOfWork = void 0;
+var isReplayingFailedUnitOfWork = void 0;
 
 // 这是干嘛？？
 var replayFailedUnitOfWorkWithInvokeGuardedCallback = true;
@@ -291,8 +292,46 @@ var PerformedWork = /*         */1;
 
 
 
+// 10. scheduleChildren阶段
+
+// 孩子的组件类型的定义，fiber的tag定义！！
+var FunctionComponent = 0;
+var ClassComponent = 1;
+var IndeterminateComponent = 2; // Before we know whether it is function or class
+var HostRoot = 3; // Root of a host tree. Could be nested inside another node.
+var HostPortal = 4; // A subtree. Could be an entry point to a different renderer.
+var HostComponent = 5;
+var HostText = 6;
+var Fragment = 7;
+var Mode = 8;
+var ContextConsumer = 9;
+var ContextProvider = 10;
+var ForwardRef = 11;
+var Profiler = 12;
+var SuspenseComponent = 13;
+var MemoComponent = 14;
+var SimpleMemoComponent = 15;
+var LazyComponent = 16;
+var IncompleteClassComponent = 17;
+var DehydratedSuspenseComponent = 18;
+
+
+// 服务器渲染相关信息！
+// 当前是否水化！
+var supportsHydration = true;
+var hydrationParentFiber = null;
+var nextHydratableInstance = null;
+var isHydrating = false;
+
+
+
+
 
 // *TODO - 创建虚拟DOM（jsx等于虚拟DOM）
+
+
+
+
 
 
 function createElementWithValidation(type, props, children) {
@@ -2401,9 +2440,12 @@ function performUnitOfWork(workInProgress) {
 
   // 更新部分全局变量，目的是为devTool的debug服务
   startWorkTimer(workInProgress);
+  
+  // 这里给全局变量：current和ReactDebugCurrentFrame.getCurrentStack赋予值
   {
     setCurrentFiber(workInProgress);
   }
+
 
   // 赋予stashedWorkInProgressProperties值（新建fiber）
   if (true && replayFailedUnitOfWorkWithInvokeGuardedCallback) {
@@ -2412,16 +2454,25 @@ function performUnitOfWork(workInProgress) {
 
   var next = void 0;
   if (enableProfilerTimer) {
+
     // beginwork开始之前，记录一下时间
     if (workInProgress.mode & ProfileMode) {
       startProfilerTimer(workInProgress);
     }
   
+    // 开始beginWork得到的结果是当前节点的大儿子节点fiber
+    // current$$1是WIP的替身，workInProgress是当前fiber，renderExpirationTime是全局的nextRenderET（就是root的nextETToWork）
     next = beginWork(current$$1, workInProgress, nextRenderExpirationTime);
+
+    // 改一下props为memoized
     workInProgress.memoizedProps = workInProgress.pendingProps;
 
+    // 首次渲染阶段，这两个变量都是4，也就是100，与运算为100，为true
+    // 这是计算一个节点的fiber构建持续的时间，startProfilerTimer(workInProgress)是开始
     if (workInProgress.mode & ProfileMode) {
-      // Record the render duration assuming we didn't bailout (or error).
+      // 算一下渲染持续的时间
+      // fiber.actualDuration为整棵树总共执行完毕持续的时间
+      // fiber.selfBaseDuration为当个fiber节点构建完毕持续的时间
       stopProfilerTimerIfRunningAndRecordDelta(workInProgress, true);
     }
   } else {
@@ -2429,27 +2480,31 @@ function performUnitOfWork(workInProgress) {
     workInProgress.memoizedProps = workInProgress.pendingProps;
   }
 
+
+  // 重置一下全局变量：current和ReactDebugCurrentFrame.getCurrentStack的相关信息，在beginWork之前设置好了
+  // 用于开发工具的使用
   {
     resetCurrentFiber();
+    // 首次渲染这个变量为false，进不去这个函数
     if (isReplayingFailedUnitOfWork) {
-      // Currently replaying a failed unit of work. This should be unreachable,
-      // because the render phase is meant to be idempotent, and it should
-      // have thrown again. Since it didn't, rethrow the original error, so
-      // React's internal stack is not misaligned.
       rethrowOriginalError();
     }
   }
+  // 首次渲染阶段，ReactFiberInstrumentation_1.debugTool为null，不走这里
   if (true && ReactFiberInstrumentation_1.debugTool) {
     ReactFiberInstrumentation_1.debugTool.onBeginWork(workInProgress);
   }
 
+  // next是当前节点的大儿子
+  // 当没有大儿子了，就开始complete，往右往上走了！！！
   if (next === null) {
-    // If this doesn't spawn new work, complete the current work.
     next = completeUnitOfWork(workInProgress);
   }
 
+  // 恢复这个ReactCurrentOwner$2为null，用来干嘛？？？？？？
   ReactCurrentOwner$2.current = null;
 
+  // 返回大儿子fiber，回到【workLoop】函数，开始从树继续往下探底！！
   return next;
 }
 
@@ -2544,10 +2599,12 @@ function startProfilerTimer(fiber) {
 
 
 function beginWork(current$$1, workInProgress, renderExpirationTime) {
+  // 入参：current$$1是workInProgress的替身fiber
 
   // 在首次渲染阶段（首次进入这个函数），updateExpirationTime也就是fiber本身的expirationTime，和renderExpirationTime（实际上就是expirationTime）是一样的
   var updateExpirationTime = workInProgress.expirationTime;
 
+  // 1. 查看新旧props是否一样，标记是否需要update
   // current$$1是workInProgress的替身
   if (current$$1 !== null) {
     // 在首次渲染阶段（首次进入这个函数），props没有值
@@ -2644,9 +2701,10 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
   // !把fiber本身的优先级改回为NoWork，最低的，为什么？？？？？
   workInProgress.expirationTime = NoWork;
 
-  // 开始分发，哪种类型去哪里
+  // 2. 开始分发，哪种类型去哪里
   // 首次渲染是hostRoot类型，去updateHostRoot
   switch (workInProgress.tag) {
+    // 函数组件走这里
     case IndeterminateComponent:
       {
         var elementType = workInProgress.elementType;
@@ -2671,7 +2729,10 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
         var _resolvedProps = workInProgress.elementType === _Component2 ? _unresolvedProps : resolveDefaultProps(_Component2, _unresolvedProps);
         return updateClassComponent(current$$1, workInProgress, _Component2, _resolvedProps, renderExpirationTime);
       }
+
+    // 首次渲染走这里
     case HostRoot:
+      // 这里分发完之后就没事了！！回到【performUnitOfWork】函数
       return updateHostRoot(current$$1, workInProgress, renderExpirationTime);
     case HostComponent:
       return updateHostComponent(current$$1, workInProgress, renderExpirationTime);
@@ -2735,14 +2796,14 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
         break;
       }
   }
-  invariant(false, 'Unknown unit of work tag. This error is likely caused by a bug in React. Please file an issue.');
+  // 这里分发完之后就没事了！！
 }
 
 
 
 
 function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
-  // 首次渲染阶段，current$$1是xxx，workInProgress是xx，renderExpirationTime是xxx
+  // 首次渲染阶段，current$$1是WIP的替身，workInProgress是当前fiber，renderExpirationTime是全局的nextRenderET（就是root的nextETToWork）
 
   // 保存上下文对象到一个统一的栈里面
   pushHostRootContext(workInProgress);
@@ -2796,6 +2857,7 @@ function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
     reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime);
     resetHydrationState();
   }
+  // 最后返回大儿子的fiber，回到【beginWork】函数
   return workInProgress.child;
 }
 
@@ -3230,7 +3292,7 @@ function getStateFromUpdate(workInProgress, queue, update, prevState, nextProps,
 
 
 
-// *TODO - beginWork分发之后，对根节点进行处理（整合state）了，然后开始对孩子进行调度！！！！
+// *TODO - beginWork分发之后，对根节点已经进行处理（整合state）了，然后开始对孩子进行调度！！！！
 
 
 
@@ -3249,120 +3311,471 @@ function reconcileChildren(current$$1, workInProgress, nextChildren, renderExpir
   } else {
     // 首次渲染走下面的逻辑，current$$1.child将会是null，nextChildren就是root的大儿子（唯一的儿子）
     // 开始处理fiber的大儿子！！！！
+    // 得到处理好的大儿子之后给到child属性
     workInProgress.child = reconcileChildFibers(workInProgress, current$$1.child, nextChildren, renderExpirationTime);
   }
 }
 
 
-function reconcileChildFibers(returnFiber, currentFirstChild, newChild, expirationTime) {
-  // 用来处理这种情况 <>{[...]}</> 和 <>...</>
-  // 在这种情况下，保证newChild除去了空的标签符号，剩下里面的所有孩子
-  var isUnkeyedTopLevelFragment = typeof newChild === 'object' && newChild !== null && newChild.type === REACT_FRAGMENT_TYPE && newChild.key === null;
-  if (isUnkeyedTopLevelFragment) {
-    newChild = newChild.props.children;
-  }
 
-  var isObject = typeof newChild === 'object' && newChild !== null;
+function ChildReconciler(shouldTrackSideEffects) {
 
-  // 如果newChild是一个对象或者一个数组的形式
-  if (isObject) {
-    switch (newChild.$$typeof) {
-      case REACT_ELEMENT_TYPE:
-        // 首次渲染走这里！！！如果首次渲染的root的大儿子是一个单纯的函数组件或类组件的话
-        return placeSingleChild(reconcileSingleElement(returnFiber, currentFirstChild, newChild, expirationTime));
-      case REACT_PORTAL_TYPE:
-        return placeSingleChild(reconcileSinglePortal(returnFiber, currentFirstChild, newChild, expirationTime));
+  function reconcileChildFibers(returnFiber, currentFirstChild, newChild, expirationTime) {
+    // returnFiber是父亲fiber
+    // currentFirstChild是父亲fiber的替身的大儿子（应该也是一个fiber），也就是当前页面显示的对应的节点
+    // newChild是nextState.element，是最新的虚拟DOM
+  
+    // 用来处理这种情况 <>{[...]}</> 和 <>...</>
+    // 在这种情况下，保证newChild除去了空的标签符号，剩下里面的所有孩子
+    var isUnkeyedTopLevelFragment = typeof newChild === 'object' && newChild !== null && newChild.type === REACT_FRAGMENT_TYPE && newChild.key === null;
+    if (isUnkeyedTopLevelFragment) {
+      newChild = newChild.props.children;
     }
-  }
-
-  if (typeof newChild === 'string' || typeof newChild === 'number') {
-    return placeSingleChild(reconcileSingleTextNode(returnFiber, currentFirstChild, '' + newChild, expirationTime));
-  }
-
-  if (isArray(newChild)) {
-    return reconcileChildrenArray(returnFiber, currentFirstChild, newChild, expirationTime);
-  }
-
-  if (getIteratorFn(newChild)) {
-    return reconcileChildrenIterator(returnFiber, currentFirstChild, newChild, expirationTime);
-  }
-
-  if (isObject) {
-    throwOnInvalidObjectType(returnFiber, newChild);
-  }
-
-  {
-    if (typeof newChild === 'function') {
-      warnOnFunctionType();
+  
+    var isObject = typeof newChild === 'object' && newChild !== null;
+  
+    // 如果newChild是一个对象或者一个数组的形式
+    if (isObject) {
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE:
+          // 首次渲染走这里！！！如果首次渲染的root的大儿子是一个单纯的函数组件或类组件的话
+          // 通过reconcileSingleElement拿到大儿子节点的fiber
+          // 然后修改effectTag属性，看是新增还是更新
+          // 最后返回fiber！
+          return placeSingleChild(reconcileSingleElement(returnFiber, currentFirstChild, newChild, expirationTime));
+        case REACT_PORTAL_TYPE:
+          return placeSingleChild(reconcileSinglePortal(returnFiber, currentFirstChild, newChild, expirationTime));
+      }
     }
-  }
-  if (typeof newChild === 'undefined' && !isUnkeyedTopLevelFragment) {
-    // If the new child is undefined, and the return fiber is a composite
-    // component, throw an error. If Fiber return types are disabled,
-    // we already threw above.
-    switch (returnFiber.tag) {
-      case ClassComponent:
-        {
+  
+    if (typeof newChild === 'string' || typeof newChild === 'number') {
+      return placeSingleChild(reconcileSingleTextNode(returnFiber, currentFirstChild, '' + newChild, expirationTime));
+    }
+  
+    if (isArray(newChild)) {
+      return reconcileChildrenArray(returnFiber, currentFirstChild, newChild, expirationTime);
+    }
+  
+    if (getIteratorFn(newChild)) {
+      return reconcileChildrenIterator(returnFiber, currentFirstChild, newChild, expirationTime);
+    }
+  
+    if (isObject) {
+      throwOnInvalidObjectType(returnFiber, newChild);
+    }
+  
+    {
+      if (typeof newChild === 'function') {
+        warnOnFunctionType();
+      }
+    }
+    if (typeof newChild === 'undefined' && !isUnkeyedTopLevelFragment) {
+      // If the new child is undefined, and the return fiber is a composite
+      // component, throw an error. If Fiber return types are disabled,
+      // we already threw above.
+      switch (returnFiber.tag) {
+        case ClassComponent:
           {
-            var instance = returnFiber.stateNode;
-            if (instance.render._isMockFunction) {
-              // We allow auto-mocks to proceed as if they're returning null.
-              break;
+            {
+              var instance = returnFiber.stateNode;
+              if (instance.render._isMockFunction) {
+                // We allow auto-mocks to proceed as if they're returning null.
+                break;
+              }
             }
           }
+        // Intentionally fall through to the next case, which handles both
+        // functions and classes
+        // eslint-disable-next-lined no-fallthrough
+        case FunctionComponent:
+          {
+            var Component = returnFiber.type;
+            invariant(false, '%s(...): Nothing was returned from render. This usually means a return statement is missing. Or, to render nothing, return null.', Component.displayName || Component.name || 'Component');
+          }
+      }
+    }
+  
+    // Remaining cases are all treated as empty.
+    return deleteRemainingChildren(returnFiber, currentFirstChild);
+  }
+  
+  
+  
+  function reconcileSingleElement(returnFiber, currentFirstChild, element, expirationTime) {
+    // 这个函数是孩子fiber建设的分发器
+
+    // returnFiber是父亲fiber节点
+    // currentFirstChild就是父亲fiber节点的替身的大儿子fiber，也就是当前在页面显示出来的还没有更新的节点！！
+    // element就是父亲fiber节点的大儿子fiber，也就是接下来要处理的节点！！
+    // expirationTime就是全局的nextRenderET（就是root的nextETToWork）
+    
+    var key = element.key;
+    var child = currentFirstChild;
+  
+    // 在首次渲染的时候，currentFirstChild是null，因为替身没有child属性
+    // 如果有替身，就用替身，不用再新建一个fiber
+    while (child !== null) {
+      // the first item in the list.
+      if (child.key === key) {
+        if (child.tag === Fragment ? element.type === REACT_FRAGMENT_TYPE : child.elementType === element.type) {
+          deleteRemainingChildren(returnFiber, child.sibling);
+          var existing = useFiber(child, element.type === REACT_FRAGMENT_TYPE ? element.props.children : element.props, expirationTime);
+          existing.ref = coerceRef(returnFiber, child, element);
+          existing.return = returnFiber;
+          {
+            existing._debugSource = element._source;
+            existing._debugOwner = element._owner;
+          }
+          return existing;
+        } else {
+          deleteRemainingChildren(returnFiber, child);
+          break;
         }
-      // Intentionally fall through to the next case, which handles both
-      // functions and classes
-      // eslint-disable-next-lined no-fallthrough
-      case FunctionComponent:
-        {
-          var Component = returnFiber.type;
-          invariant(false, '%s(...): Nothing was returned from render. This usually means a return statement is missing. Or, to render nothing, return null.', Component.displayName || Component.name || 'Component');
-        }
+      } else {
+        deleteChild(returnFiber, child);
+      }
+      child = child.sibling;
+    }
+  
+    // 空标签走下面的逻辑
+    if (element.type === REACT_FRAGMENT_TYPE) {
+      var created = createFiberFromFragment(element.props.children, returnFiber.mode, expirationTime, element.key);
+      created.return = returnFiber;
+      return created;
+    } else {
+  
+      // 单纯的函数组件或类组件走下面的逻辑
+      // 创建一个fiber，然后更新ref属性
+      // 给return的属性赋予父亲fiber
+      var _created4 = createFiberFromElement(element, returnFiber.mode, expirationTime);
+      _created4.ref = coerceRef(returnFiber, currentFirstChild, element);
+      _created4.return = returnFiber;
+      return _created4;
     }
   }
+  
+  
+  function createFiberFromElement(element, mode, expirationTime) {
+    var owner = null;
+    {
+      owner = element._owner;
+    }
+    var type = element.type;
+    var key = element.key;
+    var pendingProps = element.props;
+  
+    // 孩子的fiber的优先级（过期时间）和父亲的一致！！！！
+    var fiber = createFiberFromTypeAndProps(type, key, pendingProps, owner, mode, expirationTime);
+    {
+      fiber._debugSource = element._source;
+      fiber._debugOwner = element._owner;
+    }
+    return fiber;
+  }
+  
+  
+  function createFiberFromTypeAndProps(type, // React$ElementType
+  key, pendingProps, owner, mode, expirationTime) {
+    var fiber = void 0;
+  
+    // 先假定一个中间类型的fiberTag
+    var fiberTag = IndeterminateComponent;
+    // 这是虚拟DOM的类型
+    var resolvedType = type;
+  
+    // 开始定义fiberTag
+    // 函数组件下面的判断都走不了，fiberTag只能是IndeterminateComponent
+    // 类组件
+    if (typeof type === 'function') {
+      if (shouldConstruct(type)) {
+        fiberTag = ClassComponent;
+      }
+    } else if (typeof type === 'string') {
+      // 文本节点
+      fiberTag = HostComponent;
+    } else {
+      // 其他类型的
+      getTag: switch (type) {
+        case REACT_FRAGMENT_TYPE:
+          return createFiberFromFragment(pendingProps.children, mode, expirationTime, key);
+        case REACT_CONCURRENT_MODE_TYPE:
+          return createFiberFromMode(pendingProps, mode | ConcurrentMode | StrictMode, expirationTime, key);
+        case REACT_STRICT_MODE_TYPE:
+          return createFiberFromMode(pendingProps, mode | StrictMode, expirationTime, key);
+        case REACT_PROFILER_TYPE:
+          return createFiberFromProfiler(pendingProps, mode, expirationTime, key);
+        case REACT_SUSPENSE_TYPE:
+          return createFiberFromSuspense(pendingProps, mode, expirationTime, key);
+        default:
+          {
+            if (typeof type === 'object' && type !== null) {
+              switch (type.$$typeof) {
+                case REACT_PROVIDER_TYPE:
+                  fiberTag = ContextProvider;
+                  break getTag;
+                case REACT_CONTEXT_TYPE:
+                  // This is a consumer
+                  fiberTag = ContextConsumer;
+                  break getTag;
+                case REACT_FORWARD_REF_TYPE:
+                  fiberTag = ForwardRef;
+                  break getTag;
+                case REACT_MEMO_TYPE:
+                  fiberTag = MemoComponent;
+                  break getTag;
+                case REACT_LAZY_TYPE:
+                  fiberTag = LazyComponent;
+                  resolvedType = null;
+                  break getTag;
+              }
+            }
+            var info = '';
+            {
+              if (type === undefined || typeof type === 'object' && type !== null && Object.keys(type).length === 0) {
+                info += ' You likely forgot to export your component from the file ' + "it's defined in, or you might have mixed up default and " + 'named imports.';
+              }
+              var ownerName = owner ? getComponentName(owner.type) : null;
+              if (ownerName) {
+                info += '\n\nCheck the render method of `' + ownerName + '`.';
+              }
+            }
+            invariant(false, 'Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: %s.%s', type == null ? type : typeof type, info);
+          }
+      }
+    }
+  
+    fiber = createFiber(fiberTag, pendingProps, key, mode);
+    fiber.elementType = type;
+    fiber.type = resolvedType;
+    fiber.expirationTime = expirationTime;
+  
+    return fiber;
+  }
+  
+  
+  function shouldConstruct(Component) {
+    var prototype = Component.prototype;
+    return !!(prototype && prototype.isReactComponent);
+  }
+  
+  
+  
+  
+  function coerceRef(returnFiber, current$$1, element) {
+    // 拿到孩子当前的ref
+    var mixedRef = element.ref;
+    if (mixedRef !== null && typeof mixedRef !== 'function' && typeof mixedRef !== 'object') {
+      {
+        if (returnFiber.mode & StrictMode) {
+          var componentName = getComponentName(returnFiber.type) || 'Component';
+          if (!didWarnAboutStringRefInStrictMode[componentName]) {
+            warningWithoutStack$1(false, 'A string ref, "%s", has been found within a strict mode tree. ' + 'String refs are a source of potential bugs and should be avoided. ' + 'We recommend using createRef() instead.' + '\n%s' + '\n\nLearn more about using refs safely here:' + '\nhttps://fb.me/react-strict-mode-string-ref', mixedRef, getStackByFiberInDevAndProd(returnFiber));
+            didWarnAboutStringRefInStrictMode[componentName] = true;
+          }
+        }
+      }
+  
+      if (element._owner) {
+        var owner = element._owner;
+        var inst = void 0;
+        if (owner) {
+          var ownerFiber = owner;
+          !(ownerFiber.tag === ClassComponent) ? invariant(false, 'Function components cannot have refs. Did you mean to use React.forwardRef()?') : void 0;
+          inst = ownerFiber.stateNode;
+        }
+        !inst ? invariant(false, 'Missing owner for string ref %s. This error is likely caused by a bug in React. Please file an issue.', mixedRef) : void 0;
+        var stringRef = '' + mixedRef;
+        // Check if previous string ref matches new string ref
+        if (current$$1 !== null && current$$1.ref !== null && typeof current$$1.ref === 'function' && current$$1.ref._stringRef === stringRef) {
+          return current$$1.ref;
+        }
+        var ref = function (value) {
+          var refs = inst.refs;
+          if (refs === emptyRefsObject) {
+            // This is a lazy pooled frozen object, so we need to initialize.
+            refs = inst.refs = {};
+          }
+          if (value === null) {
+            delete refs[stringRef];
+          } else {
+            refs[stringRef] = value;
+          }
+        };
+        ref._stringRef = stringRef;
+        return ref;
+      } else {
+        !(typeof mixedRef === 'string') ? invariant(false, 'Expected ref to be a function, a string, an object returned by React.createRef(), or null.') : void 0;
+        !element._owner ? invariant(false, 'Element ref was specified as a string (%s) but no owner was set. This could happen for one of the following reasons:\n1. You may be adding a ref to a function component\n2. You may be adding a ref to a component that was not created inside a component\'s render method\n3. You have multiple copies of React loaded\nSee https://fb.me/react-refs-must-have-owner for more information.', mixedRef) : void 0;
+      }
+    }
+    return mixedRef;
+  }
+  
+  
+  
+  
+  
+  function placeSingleChild(newFiber) {
+    // placement的标识说明这是一个新建的fiber
+    // shouldTrackSideEffects肯定是true
+    if (shouldTrackSideEffects && newFiber.alternate === null) {
+      newFiber.effectTag = Placement;
+    }
+    return newFiber;
+  }
 
-  // Remaining cases are all treated as empty.
-  return deleteRemainingChildren(returnFiber, currentFirstChild);
+
+  return reconcileChildFibers
+  
+}
+
+
+var reconcileChildFibers = ChildReconciler(true);
+
+
+
+
+
+function resetHydrationState() {
+  // 如果不支持水化就直接退出吧！！
+  if (!supportsHydration) {
+    return;
+  }
+
+  // 重置水化的属性
+  hydrationParentFiber = null;
+  nextHydratableInstance = null;
+  isHydrating = false;
 }
 
 
 
-function reconcileSingleElement(returnFiber, currentFirstChild, element, expirationTime) {
-  var key = element.key;
-  var child = currentFirstChild;
-  while (child !== null) {
-    // TODO: If key === null and child.key === null, then this only applies to
-    // the first item in the list.
-    if (child.key === key) {
-      if (child.tag === Fragment ? element.type === REACT_FRAGMENT_TYPE : child.elementType === element.type) {
-        deleteRemainingChildren(returnFiber, child.sibling);
-        var existing = useFiber(child, element.type === REACT_FRAGMENT_TYPE ? element.props.children : element.props, expirationTime);
-        existing.ref = coerceRef(returnFiber, child, element);
-        existing.return = returnFiber;
-        {
-          existing._debugSource = element._source;
-          existing._debugOwner = element._owner;
-        }
-        return existing;
-      } else {
-        deleteRemainingChildren(returnFiber, child);
-        break;
-      }
-    } else {
-      deleteChild(returnFiber, child);
-    }
-    child = child.sibling;
+
+
+
+
+function stopProfilerTimerIfRunningAndRecordDelta(fiber, overrideBaseTime) {
+  if (!enableProfilerTimer) {
+    return;
   }
 
-  if (element.type === REACT_FRAGMENT_TYPE) {
-    var created = createFiberFromFragment(element.props.children, returnFiber.mode, expirationTime, element.key);
-    created.return = returnFiber;
-    return created;
+  if (profilerStartTime >= 0) {
+    var elapsedTime = now() - profilerStartTime;
+    fiber.actualDuration += elapsedTime;
+    if (overrideBaseTime) {
+      fiber.selfBaseDuration = elapsedTime;
+    }
+    // 算完之后最后给开始时间恢复默认值！
+    profilerStartTime = -1;
+  }
+}
+
+
+
+function resetCurrentFiber() {
+  {
+    ReactDebugCurrentFrame.getCurrentStack = null;
+    current = null;
+    phase = null;
+  }
+}
+
+
+
+
+
+
+
+// *TODO - 函数组件经过beginWork分发来到mountIndeterminateComponent！！！！
+
+
+
+
+
+
+function mountIndeterminateComponent(_current, workInProgress, Component, renderExpirationTime) {
+  if (_current !== null) {
+    // An indeterminate component only mounts if it suspended inside a non-
+    // concurrent tree, in an inconsistent state. We want to treat it like
+    // a new mount, even though an empty version of it already committed.
+    // Disconnect the alternate pointers.
+    _current.alternate = null;
+    workInProgress.alternate = null;
+    // Since this is conceptually a new fiber, schedule a Placement effect
+    workInProgress.effectTag |= Placement;
+  }
+
+  var props = workInProgress.pendingProps;
+  var unmaskedContext = getUnmaskedContext(workInProgress, Component, false);
+  var context = getMaskedContext(workInProgress, unmaskedContext);
+
+  prepareToReadContext(workInProgress, renderExpirationTime);
+
+  var value = void 0;
+
+  {
+    if (Component.prototype && typeof Component.prototype.render === 'function') {
+      var componentName = getComponentName(Component) || 'Unknown';
+
+      if (!didWarnAboutBadClass[componentName]) {
+        warningWithoutStack$1(false, "The <%s /> component appears to have a render method, but doesn't extend React.Component. " + 'This is likely to cause errors. Change %s to extend React.Component instead.', componentName, componentName);
+        didWarnAboutBadClass[componentName] = true;
+      }
+    }
+
+    if (workInProgress.mode & StrictMode) {
+      ReactStrictModeWarnings.recordLegacyContextWarning(workInProgress, null);
+    }
+
+    ReactCurrentOwner$3.current = workInProgress;
+    value = renderWithHooks(null, workInProgress, Component, props, context, renderExpirationTime);
+  }
+  // React DevTools reads this flag.
+  workInProgress.effectTag |= PerformedWork;
+
+  if (typeof value === 'object' && value !== null && typeof value.render === 'function' && value.$$typeof === undefined) {
+    // Proceed under the assumption that this is a class instance
+    workInProgress.tag = ClassComponent;
+
+    // Throw out any hooks that were used.
+    resetHooks();
+
+    // Push context providers early to prevent context stack mismatches.
+    // During mounting we don't know the child context yet as the instance doesn't exist.
+    // We will invalidate the child context in finishClassComponent() right after rendering.
+    var hasContext = false;
+    if (isContextProvider(Component)) {
+      hasContext = true;
+      pushContextProvider(workInProgress);
+    } else {
+      hasContext = false;
+    }
+
+    workInProgress.memoizedState = value.state !== null && value.state !== undefined ? value.state : null;
+
+    var getDerivedStateFromProps = Component.getDerivedStateFromProps;
+    if (typeof getDerivedStateFromProps === 'function') {
+      applyDerivedStateFromProps(workInProgress, Component, getDerivedStateFromProps, props);
+    }
+
+    adoptClassInstance(workInProgress, value);
+    mountClassInstance(workInProgress, Component, props, renderExpirationTime);
+    return finishClassComponent(null, workInProgress, Component, true, hasContext, renderExpirationTime);
   } else {
-    var _created4 = createFiberFromElement(element, returnFiber.mode, expirationTime);
-    _created4.ref = coerceRef(returnFiber, currentFirstChild, element);
-    _created4.return = returnFiber;
-    return _created4;
+    // Proceed under the assumption that this is a function component
+    workInProgress.tag = FunctionComponent;
+    {
+      if (debugRenderPhaseSideEffects || debugRenderPhaseSideEffectsForStrictMode && workInProgress.mode & StrictMode) {
+        // Only double-render components with Hooks
+        if (workInProgress.memoizedState !== null) {
+          value = renderWithHooks(null, workInProgress, Component, props, context, renderExpirationTime);
+        }
+      }
+    }
+    reconcileChildren(null, workInProgress, value, renderExpirationTime);
+    {
+      validateFunctionComponentInDev(workInProgress, Component);
+    }
+    return workInProgress.child;
   }
 }
