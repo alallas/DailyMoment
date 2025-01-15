@@ -2802,6 +2802,10 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
 
 
 
+// *TODO - root对象经过beginWork分发之后，来到updateHostRoot！！！！
+
+
+
 function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
   // 首次渲染阶段，current$$1是WIP的替身，workInProgress是当前fiber，renderExpirationTime是全局的nextRenderET（就是root的nextETToWork）
 
