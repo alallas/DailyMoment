@@ -262,6 +262,34 @@ var emptyAncestorInfo = {
 };
 
 
+// 是否强制批量更新？？
+var hasForceUpdate = false;
+
+// 当前正在进行更新的额queue对象
+var currentlyProcessingQueue = void 0;
+
+
+
+
+// 9. proceedUpdateQueue阶段
+
+// 副作用链的标识
+var Placement = /*             */2;
+var Update = /*                */4;
+var PlacementAndUpdate = /*    */6;
+var Deletion = /*              */8;
+var ContentReset = /*          */16;
+var Callback = /*              */32;
+var DidCapture = /*            */64;
+var Ref = /*                   */128;
+var Snapshot = /*              */256;
+var Passive = /*               */512;
+
+// 两个变量为React Dev Tools所用
+var NoEffect = /*              */0;
+var PerformedWork = /*         */1;
+
+
 
 
 // *TODO - 创建虚拟DOM（jsx等于虚拟DOM）
@@ -2343,6 +2371,13 @@ var resumeTimersRecursively = function (fiber) {
 
 
 
+
+
+// *TODO - render渲染阶段的workLoop循环，是调度动作的入口点、控制器、排队处、记事本、前台！！！！
+// !核心作用是控制每一个节点是否进入工作间
+
+
+
 function workLoop(isYieldy) {
   // 首次渲染阶段，是非批量更新模式，走第一个逻辑
   if (!isYieldy) {
@@ -2503,9 +2538,14 @@ function startProfilerTimer(fiber) {
 
 
 
+// *TODO - render渲染阶段的workLoop循环里面的beginWork，是为树的每一个节点构造一个fiber！！！！
+// !是对每一个节点的【类型】的分发，（此时位于工作间内部，有点像机场里面门口内的安检程序，需要派发到不同的地方）
+
+
+
 function beginWork(current$$1, workInProgress, renderExpirationTime) {
 
-  // 在首次渲染阶段（首次进入这个函数），updateExpirationTime也就是fiber本身的expirationTime和renderExpirationTime（实际上就是expirationTime）是一样的
+  // 在首次渲染阶段（首次进入这个函数），updateExpirationTime也就是fiber本身的expirationTime，和renderExpirationTime（实际上就是expirationTime）是一样的
   var updateExpirationTime = workInProgress.expirationTime;
 
   // current$$1是workInProgress的替身
@@ -2702,6 +2742,8 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
 
 
 function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
+  // 首次渲染阶段，current$$1是xxx，workInProgress是xx，renderExpirationTime是xxx
+
   // 保存上下文对象到一个统一的栈里面
   pushHostRootContext(workInProgress);
 
@@ -2711,20 +2753,28 @@ function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
   var prevState = workInProgress.memoizedState;
   var prevChildren = prevState !== null ? prevState.element : null;
 
-
+  // 处理更新，拿到更新队列里面最新的一个状态，标记副作用链，
   processUpdateQueue(workInProgress, updateQueue, nextProps, null, renderExpirationTime);
 
+  // 拿到接下来需要更新的state（已经经过队列的所有应该更新的state的合并）
   var nextState = workInProgress.memoizedState;
-  // Caution: React DevTools currently depends on this property
-  // being called "element".
+
+  // 这个element指的是当前节点的下一个节点的虚拟DOM对象，之前在scheduleRootUpdate给payload赋值过一个有element属性的对象
   var nextChildren = nextState.element;
+  // 首次渲染阶段不走下面的逻辑
   if (nextChildren === prevChildren) {
     // If the state is the same as before, that's a bailout because we had
     // no work that expires at this time.
     resetHydrationState();
     return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
   }
+
+
+  // 这里拿到的是root对象
   var root = workInProgress.stateNode;
+
+  // current$$1是workInProgress的替身
+  // 这是ssr的逻辑，如果是水化的话，副作用链改为placement，而不是update，也就是dom节点不变
   if ((current$$1 === null || current$$1.child === null) && root.hydrate && enterHydrationState(workInProgress)) {
     // If we don't have any current children this might be the first pass.
     // We always try to hydrate. If this isn't a hydration pass there won't
@@ -2734,7 +2784,6 @@ function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
     // This is a bit of a hack. We track the host root as a placement to
     // know that we're currently in a mounting state. That way isMounted
     // works as expected. We must reset this before committing.
-    // TODO: Delete this when we delete isMounted and findDOMNode.
     workInProgress.effectTag |= Placement;
 
     // Ensure that children mount into this root without tracking
@@ -2742,8 +2791,8 @@ function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
     // nodes that will be hydrated.
     workInProgress.child = mountChildFibers(workInProgress, null, nextChildren, renderExpirationTime);
   } else {
-    // Otherwise reset hydration state in case we aborted and resumed another
-    // root.
+    // 这是正常react的逻辑，开始对孩子进行调度！！！！！！
+    // nextChildren指的是当前节点的虚拟DOM对象（在【首次渲染阶段】，这个element就是root的下一个节点的虚拟DOM，要么是函数组件，要么是类组件！！）
     reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime);
     resetHydrationState();
   }
@@ -2927,4 +2976,393 @@ function pop(cursor, fiber) {
   }
 
   index--;
+}
+
+
+function processUpdateQueue(workInProgress, queue, props, instance, renderExpirationTime) {
+  hasForceUpdate = false;
+
+  // 这里需要保证提升的更新队列，和目前的更新队列不是一个内存地址的对象，为什么？为啥queue对象就不能复用呢？
+  queue = ensureWorkInProgressQueueIsAClone(workInProgress, queue);
+
+  // 然后替换掉全局的正在更新中的队列对象
+  {
+    currentlyProcessingQueue = queue;
+  }
+
+  // 定义一些本函数才用的变量
+  var newBaseState = queue.baseState;
+  var newFirstUpdate = null;
+  var newExpirationTime = NoWork;
+
+  // 初始化链表遍历中需要更新的中间变量
+  var update = queue.firstUpdate;
+  var resultState = newBaseState;
+  while (update !== null) {
+
+    // 这里的update存的eT就是root.nextExpirationTimeToWorkOn
+    var updateExpirationTime = update.expirationTime;
+
+    // 如果更新的优先级比较小
+    // 首次渲染阶段，两者一样
+    if (updateExpirationTime < renderExpirationTime) {
+      // 这次更新的优先级低，需要跳过
+      if (newFirstUpdate === null) {
+        newFirstUpdate = update;
+        newBaseState = resultState;
+      }
+      // 这个更新还留在链表里面，更新一下newExpirationTime的优先级
+      if (newExpirationTime < updateExpirationTime) {
+        newExpirationTime = updateExpirationTime;
+      }
+
+    } else {
+      // 首次渲染走下面的逻辑
+      // 更新的优先级大，需要进行更新，拿到最新的state，更新resultState变量
+      resultState = getStateFromUpdate(workInProgress, queue, update, resultState, props, instance);
+
+      // 首次渲染阶段，callback为work实例的一个_onCommit空函数
+      var _callback = update.callback;
+      if (_callback !== null) {
+        // effectTag的初始默认值为0，Callback为32，与运算之后标识为32
+        workInProgress.effectTag |= Callback;
+
+        // 重置一下副作用链，以免上次残留的没有清理干净！
+        // 然后依次把queue里面的update对象放到queue上面的effect链表上面，queue还是一个queue，只是把一个地方的属性的东西放到另一个属性上面
+        update.nextEffect = null;
+        if (queue.lastEffect === null) {
+          queue.firstEffect = queue.lastEffect = update;
+        } else {
+          queue.lastEffect.nextEffect = update;
+          queue.lastEffect = update;
+        }
+      }
+    }
+    // 去到更新队列的下一个update
+    update = update.next;
+  }
+
+  // 首次渲染queue.firstCapturedUpdate为null，不走下面
+  // 走到这里，最终resultState为最后的更新好之后的state
+  // 后面再次进入一个update对象的循环，为什么？
+  // queue对象的firstCapturedUpdate和firstUpdate什么区别？？
+  var newFirstCapturedUpdate = null;
+  update = queue.firstCapturedUpdate;
+  while (update !== null) {
+    var _updateExpirationTime = update.expirationTime;
+
+    // 如果最后的这个update的优先级比较小，跳过
+    if (_updateExpirationTime < renderExpirationTime) {
+      if (newFirstCapturedUpdate === null) {
+        // 更新一下newFirstCapturedUpdate的值，Captured是啥意思？
+        newFirstCapturedUpdate = update;
+        if (newFirstUpdate === null) {
+          newBaseState = resultState;
+        }
+      }
+      // 更新一下新的时间
+      if (newExpirationTime < _updateExpirationTime) {
+        newExpirationTime = _updateExpirationTime;
+      }
+    } else {
+      // 更新的优先级大，需要进行更新，拿到最新的state，更新resultState变量
+      resultState = getStateFromUpdate(workInProgress, queue, update, resultState, props, instance);
+
+      // 首次渲染阶段，callback为null
+      var _callback2 = update.callback;
+      if (_callback2 !== null) {
+
+        // 标记一下要更新的类型到副作用链阶段要用的effectTag上面
+        workInProgress.effectTag |= Callback;
+        update.nextEffect = null;
+        if (queue.lastCapturedEffect === null) {
+          queue.firstCapturedEffect = queue.lastCapturedEffect = update;
+        } else {
+          queue.lastCapturedEffect.nextEffect = update;
+          queue.lastCapturedEffect = update;
+        }
+      }
+    }
+    update = update.next;
+  }
+
+  // 如果说一整个下来，newFirstUpdate都是空的，意味着每个update的优先级都很高，进入if的第二个逻辑
+  // 如果不是的话，因此把lastUpdate变为null，因为队列里面按照应该是没有update对象的！
+  if (newFirstUpdate === null) {
+    queue.lastUpdate = null;
+  }
+  if (newFirstCapturedUpdate === null) {
+    queue.lastCapturedUpdate = null;
+  } else {
+    // 标记一下要更新的类型到副作用链阶段要用的effectTag上面
+    workInProgress.effectTag |= Callback;
+  }
+
+  if (newFirstUpdate === null && newFirstCapturedUpdate === null) {
+    // 说明更新优先级都很低，还没更新这两个变量的值，说明此时的resultState就是最新的状态
+    newBaseState = resultState;
+  }
+
+  // 更新queue对象的属性
+  queue.baseState = newBaseState;
+  queue.firstUpdate = newFirstUpdate;
+  queue.firstCapturedUpdate = newFirstCapturedUpdate;
+
+  // 把优先级和状态（memoizedState）一起更新在workInProgress里面
+  workInProgress.expirationTime = newExpirationTime;
+  workInProgress.memoizedState = resultState;
+
+  // 恢复currentlyProcessingQueue变量的值
+  {
+    currentlyProcessingQueue = null;
+  }
+}
+
+
+function ensureWorkInProgressQueueIsAClone(workInProgress, queue) {
+  var current = workInProgress.alternate;
+  if (current !== null) {
+    // If the work-in-progress queue is equal to the current queue,
+    // we need to clone it first.
+    if (queue === current.updateQueue) {
+      queue = workInProgress.updateQueue = cloneUpdateQueue(queue);
+    }
+  }
+  return queue;
+}
+
+
+function cloneUpdateQueue(currentQueue) {
+  var queue = {
+    baseState: currentQueue.baseState,
+    firstUpdate: currentQueue.firstUpdate,
+    lastUpdate: currentQueue.lastUpdate,
+    // keep these effects.
+    firstCapturedUpdate: null,
+    lastCapturedUpdate: null,
+
+    firstEffect: null,
+    lastEffect: null,
+
+    firstCapturedEffect: null,
+    lastCapturedEffect: null
+  };
+  return queue;
+}
+
+
+
+function getStateFromUpdate(workInProgress, queue, update, prevState, nextProps, instance) {
+  switch (update.tag) {
+    case ReplaceState:
+      {
+        var _payload = update.payload;
+        if (typeof _payload === 'function') {
+          // Updater function
+          {
+            enterDisallowedContextReadInDEV();
+            if (debugRenderPhaseSideEffects || debugRenderPhaseSideEffectsForStrictMode && workInProgress.mode & StrictMode) {
+              _payload.call(instance, prevState, nextProps);
+            }
+          }
+          var nextState = _payload.call(instance, prevState, nextProps);
+          {
+            exitDisallowedContextReadInDEV();
+          }
+          return nextState;
+        }
+        // State object
+        return _payload;
+      }
+    case CaptureUpdate:
+      {
+        workInProgress.effectTag = workInProgress.effectTag & ~ShouldCapture | DidCapture;
+      }
+    // Intentional fallthrough
+    case UpdateState:
+      {
+        // 首次渲染，payload是这个对象：update.payload = { element: element };
+        var _payload2 = update.payload;
+        var partialState = void 0;
+        if (typeof _payload2 === 'function') {
+          // 如果state是一个函数，就执行他，然后利用return的新state值
+          // 一些开发环境的设置
+          {
+            enterDisallowedContextReadInDEV();
+            if (debugRenderPhaseSideEffects || debugRenderPhaseSideEffectsForStrictMode && workInProgress.mode & StrictMode) {
+              _payload2.call(instance, prevState, nextProps);
+            }
+          }
+
+          // 这里的instance在首次渲染的时候是null
+          // 这个函数的入参是过去的state，和下一个props
+          partialState = _payload2.call(instance, prevState, nextProps);
+
+          // 一些开发环境的设置
+          {
+            exitDisallowedContextReadInDEV();
+          }
+
+        } else {
+          // 如果payload也就是state的对象不是一个函数，就直接覆盖当前函数的变量
+          partialState = _payload2;
+        }
+
+        if (partialState === null || partialState === undefined) {
+          // 如果state是null，那就用之前的state（用来显示在页面上！！）
+          return prevState;
+        }
+
+        // 用来和之前的state对象合并！注意是合并！
+        // Merge the partial state and the previous state.
+        return _assign({}, prevState, partialState);
+      }
+    case ForceUpdate:
+      {
+        hasForceUpdate = true;
+        return prevState;
+      }
+  }
+  return prevState;
+}
+
+
+
+
+
+// *TODO - beginWork分发之后，对根节点进行处理（整合state）了，然后开始对孩子进行调度！！！！
+
+
+
+
+
+function reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime) {
+  // 这里的current$$1是WIP的替身，
+  // nextChildren是下一个节点的element虚拟DOM（这个会有变化吗，这是nextState.element），
+  // renderExpirationTime就是全局的nextRenderET（就是root的nextETToWork），
+  if (current$$1 === null) {
+    // If this is a fresh new component that hasn't been rendered yet, we
+    // won't update its child set by applying minimal side-effects. Instead,
+    // we will add them all to the child before it gets rendered. That means
+    // we can optimize this reconciliation pass by not tracking side-effects.
+    workInProgress.child = mountChildFibers(workInProgress, null, nextChildren, renderExpirationTime);
+  } else {
+    // 首次渲染走下面的逻辑，current$$1.child将会是null，nextChildren就是root的大儿子（唯一的儿子）
+    // 开始处理fiber的大儿子！！！！
+    workInProgress.child = reconcileChildFibers(workInProgress, current$$1.child, nextChildren, renderExpirationTime);
+  }
+}
+
+
+function reconcileChildFibers(returnFiber, currentFirstChild, newChild, expirationTime) {
+  // 用来处理这种情况 <>{[...]}</> 和 <>...</>
+  // 在这种情况下，保证newChild除去了空的标签符号，剩下里面的所有孩子
+  var isUnkeyedTopLevelFragment = typeof newChild === 'object' && newChild !== null && newChild.type === REACT_FRAGMENT_TYPE && newChild.key === null;
+  if (isUnkeyedTopLevelFragment) {
+    newChild = newChild.props.children;
+  }
+
+  var isObject = typeof newChild === 'object' && newChild !== null;
+
+  // 如果newChild是一个对象或者一个数组的形式
+  if (isObject) {
+    switch (newChild.$$typeof) {
+      case REACT_ELEMENT_TYPE:
+        // 首次渲染走这里！！！如果首次渲染的root的大儿子是一个单纯的函数组件或类组件的话
+        return placeSingleChild(reconcileSingleElement(returnFiber, currentFirstChild, newChild, expirationTime));
+      case REACT_PORTAL_TYPE:
+        return placeSingleChild(reconcileSinglePortal(returnFiber, currentFirstChild, newChild, expirationTime));
+    }
+  }
+
+  if (typeof newChild === 'string' || typeof newChild === 'number') {
+    return placeSingleChild(reconcileSingleTextNode(returnFiber, currentFirstChild, '' + newChild, expirationTime));
+  }
+
+  if (isArray(newChild)) {
+    return reconcileChildrenArray(returnFiber, currentFirstChild, newChild, expirationTime);
+  }
+
+  if (getIteratorFn(newChild)) {
+    return reconcileChildrenIterator(returnFiber, currentFirstChild, newChild, expirationTime);
+  }
+
+  if (isObject) {
+    throwOnInvalidObjectType(returnFiber, newChild);
+  }
+
+  {
+    if (typeof newChild === 'function') {
+      warnOnFunctionType();
+    }
+  }
+  if (typeof newChild === 'undefined' && !isUnkeyedTopLevelFragment) {
+    // If the new child is undefined, and the return fiber is a composite
+    // component, throw an error. If Fiber return types are disabled,
+    // we already threw above.
+    switch (returnFiber.tag) {
+      case ClassComponent:
+        {
+          {
+            var instance = returnFiber.stateNode;
+            if (instance.render._isMockFunction) {
+              // We allow auto-mocks to proceed as if they're returning null.
+              break;
+            }
+          }
+        }
+      // Intentionally fall through to the next case, which handles both
+      // functions and classes
+      // eslint-disable-next-lined no-fallthrough
+      case FunctionComponent:
+        {
+          var Component = returnFiber.type;
+          invariant(false, '%s(...): Nothing was returned from render. This usually means a return statement is missing. Or, to render nothing, return null.', Component.displayName || Component.name || 'Component');
+        }
+    }
+  }
+
+  // Remaining cases are all treated as empty.
+  return deleteRemainingChildren(returnFiber, currentFirstChild);
+}
+
+
+
+function reconcileSingleElement(returnFiber, currentFirstChild, element, expirationTime) {
+  var key = element.key;
+  var child = currentFirstChild;
+  while (child !== null) {
+    // TODO: If key === null and child.key === null, then this only applies to
+    // the first item in the list.
+    if (child.key === key) {
+      if (child.tag === Fragment ? element.type === REACT_FRAGMENT_TYPE : child.elementType === element.type) {
+        deleteRemainingChildren(returnFiber, child.sibling);
+        var existing = useFiber(child, element.type === REACT_FRAGMENT_TYPE ? element.props.children : element.props, expirationTime);
+        existing.ref = coerceRef(returnFiber, child, element);
+        existing.return = returnFiber;
+        {
+          existing._debugSource = element._source;
+          existing._debugOwner = element._owner;
+        }
+        return existing;
+      } else {
+        deleteRemainingChildren(returnFiber, child);
+        break;
+      }
+    } else {
+      deleteChild(returnFiber, child);
+    }
+    child = child.sibling;
+  }
+
+  if (element.type === REACT_FRAGMENT_TYPE) {
+    var created = createFiberFromFragment(element.props.children, returnFiber.mode, expirationTime, element.key);
+    created.return = returnFiber;
+    return created;
+  } else {
+    var _created4 = createFiberFromElement(element, returnFiber.mode, expirationTime);
+    _created4.ref = coerceRef(returnFiber, currentFirstChild, element);
+    _created4.return = returnFiber;
+    return _created4;
+  }
 }
