@@ -4544,19 +4544,74 @@
         return count
     }
 
+    // function main() {
+    //     console.log(solution("9923001859221") === 3);
+    //     // console.log(solution("111222333") === 3);
+    //     // console.log(solution("11551111") === 4);
+    //     // console.log(solution("1234567890") === 0);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+
+
+    function solution(n, m, strings) {
+
+        let map = {}
+        for (let i = 0; i < 26; i++) {
+            map[String.fromCharCode(97 + i)] = i
+        }
+        // console.log('map', map)
+
+        let recorded = []
+        let maxArr = new Set()
+        for (let i = 0; i < strings.length; i++) {
+            let curTang = strings[i]
+            let curTianDu = 0
+
+            let sortedTang = curTang.split('').sort().join('')
+            // console.log(sortedTang)
+
+            for (let j = 0; j < m; j++) {
+                let curString = curTang[j]
+                curTianDu += map[curString]
+            }
+            // console.log('curTianDu', curTianDu)
+            maxArr.add(curTianDu)
+
+            if (recorded.indexOf(sortedTang) === -1) {
+                recorded.push(sortedTang)
+            } else {
+                maxArr.delete(curTianDu)
+                continue
+            }
+
+        }
+
+        if (maxArr.size === 0) {
+            return 0
+        } else {
+            return Math.max(...maxArr);
+        }
+
+    }
+
     function main() {
-        console.log(solution("9923001859221") === 3);
-        // console.log(solution("111222333") === 3);
-        // console.log(solution("11551111") === 4);
-        // console.log(solution("1234567890") === 0);
+        console.log(solution(3, 3, ["ccz", "cba", "zcc"]) === 3);
+        console.log(solution(2, 3, ["abc", "cba"]) === 0);
+        console.log(solution(5, 2, ["aa", "bb", "ab", "ba", "cc"]) === 4);
     }
 
     main();
 
 
-
-
-    
 
 
     
