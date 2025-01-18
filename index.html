@@ -4603,10 +4603,50 @@
 
     }
 
+    // function main() {
+    //     console.log(solution(3, 3, ["ccz", "cba", "zcc"]) === 3);
+    //     console.log(solution(2, 3, ["abc", "cba"]) === 0);
+    //     console.log(solution(5, 2, ["aa", "bb", "ab", "ba", "cc"]) === 4);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+    function solution(n, a) {
+        let map = {}
+        let arr = Array(n).fill(0).map((item, index) => {
+            map[index + 1] = 0
+            return index + 1
+        })
+        // console.log(map, arr)
+        for (let i = 0; i < a.length; i++) {
+            for (let j = i; j < a.length; j++) {
+                let child = a.slice(i, j + 1)
+                // console.log('child', child)
+                child = new Set(child)
+                // console.log('set child', child)
+                let num = child.size
+                // console.log(num)
+                if (arr.indexOf(num) !== -1) {
+                    // console.log('add')
+                    map[num] += 1
+                }
+            }
+        }
+        // console.log(map)
+        return Object.values(map)
+    }
+
     function main() {
-        console.log(solution(3, 3, ["ccz", "cba", "zcc"]) === 3);
-        console.log(solution(2, 3, ["abc", "cba"]) === 0);
-        console.log(solution(5, 2, ["aa", "bb", "ab", "ba", "cc"]) === 4);
+        console.log(JSON.stringify(solution(4, [1, 2, 2, 3])) === JSON.stringify([5, 4, 1, 0]));
+        console.log(JSON.stringify(solution(3, [1, 1, 1])) === JSON.stringify([6, 0, 0]));
+        console.log(JSON.stringify(solution(5, [1, 2, 3, 2, 1])) === JSON.stringify([5, 5, 5, 0, 0]));
     }
 
     main();
