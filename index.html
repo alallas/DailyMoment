@@ -4790,20 +4790,59 @@
         return count;
     }
 
+    // function main() {
+    //     console.log(solution(7, [1, 1, 2, 3, 4, 5, 6]) === 2);
+    //     console.log(solution(8, [1, 1, 2, 2, 3, 4, 5, 6]) === 2);
+    //     // console.log(solution(5, [1, 2, 2, 4, 6]) === 1);
+    //     // console.log(solution(6, [4,1,3,5,5,6]) === 1);
+    //     // console.log(solution(6, [3,6,3,6,1,5]) === 1);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+
+
+    function solution(n, k, a) {
+        a.sort((a, b) => b - a)
+        let num1 = null;
+        let num2 = null;
+        let i = 0;
+        let res = 0
+        while (i < a.length) {
+            let findNum = false
+            num1 = a[i]
+            if (a[i + 1] !== undefined) {
+                if (a[i] - a[i + 1] <= k) {
+                    findNum = true
+                    num2 = a[i + 1]
+                    if (num1 !== null && num2 !== null) {
+                        res += num1 * num2
+                    }
+                    a.splice(i, 1)
+                    a.splice(i, 1)
+                    i = 0
+                }
+            }
+            if (!findNum) {
+                i++;
+            }
+        }
+        return res;
+    }
+
     function main() {
-        console.log(solution(7, [1, 1, 2, 3, 4, 5, 6]) === 2);
-        console.log(solution(8, [1, 1, 2, 2, 3, 4, 5, 6]) === 2);
-        // console.log(solution(5, [1, 2, 2, 4, 6]) === 1);
-        // console.log(solution(6, [4,1,3,5,5,6]) === 1);
-        // console.log(solution(6, [3,6,3,6,1,5]) === 1);
+        console.log(solution(6, 2, [1, 1, 4, 5, 1, 4]) === 21);
+        console.log(solution(4, 1, [3, 3, 4, 4]) === 25);
+        console.log(solution(5, 0, [2, 2, 2, 2, 2]) === 8);
     }
 
     main();
-
-
-
-
-
 
 
 
