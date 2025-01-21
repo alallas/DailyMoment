@@ -4836,13 +4836,79 @@
         return res;
     }
 
+    // function main() {
+    //     console.log(solution(6, 2, [1, 1, 4, 5, 1, 4]) === 21);
+    //     console.log(solution(4, 1, [3, 3, 4, 4]) === 25);
+    //     console.log(solution(5, 0, [2, 2, 2, 2, 2]) === 8);
+    // }
+
+    // main();
+
+
+
+
+
+
+
+    function solution(s) {
+        // debugger
+        let index = 0;
+        let yuan = ["a", "e", "i", "o", "u"];
+        let needToStop = false;
+        s = s.split('')
+        let fast = 0, slow = 0;
+        while(fast < s.length) {
+            if (yuan.indexOf(s[fast]) === -1) {
+                let mid = s[slow]
+                s[slow] = s[fast]
+                s[fast] = mid
+                slow++
+            }
+            fast++;
+        }
+        // console.log(s)
+        while (index < s.length) {
+            if (s[index - 1] !== undefined) {
+                if (yuan.indexOf(s[index - 1]) === -1 && yuan.indexOf(s[index]) === -1) {
+                    let curI = index
+                    let didFindYuan = false
+                    while (curI < s.length) {
+                        let curString = s[curI]
+                        if (yuan.indexOf(curString) !== -1) {
+                            didFindYuan = true
+                            s[curI] = s[index]
+                            s[index] = curString
+                            break
+                        }
+                        curI++
+                    }
+                    if (!didFindYuan) {
+                        // index就是最末尾的位置
+                        needToStop = true
+                        break
+                    }
+                }
+            }
+            index ++;
+        }
+
+        return index;
+    }
+
     function main() {
-        console.log(solution(6, 2, [1, 1, 4, 5, 1, 4]) === 21);
-        console.log(solution(4, 1, [3, 3, 4, 4]) === 25);
-        console.log(solution(5, 0, [2, 2, 2, 2, 2]) === 8);
+        console.log(solution("aaatra") === 6);
+        console.log(solution("tqqa") === 3);
+        console.log(solution("aeiou") === 5);
+        console.log(solution("aqtqttqqt") === 3);
     }
 
     main();
+
+
+
+
+
+
 
 
 
