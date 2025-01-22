@@ -4895,17 +4895,64 @@
         return index;
     }
 
+    // function main() {
+    //     console.log(solution("aaatra") === 6);
+    //     console.log(solution("tqqa") === 3);
+    //     console.log(solution("aeiou") === 5);
+    //     console.log(solution("aqtqttqqt") === 3);
+    // }
+
+    // main();
+
+
+
+
+
+
+        
+    function solution(coins, amount) {
+        let res = []
+        let sum = 0
+        let index = 0
+        let needToMoveNext = false
+        let res2 = []
+        coins.sort((a, b) => b - a)
+        while (index < coins.length) {
+            let curNum = coins[index];
+            res.push(curNum);
+            sum += curNum;
+            if (sum > amount) {
+                res.pop()
+                sum -= curNum
+                needToMoveNext = true
+                index++;
+            } else if (sum === amount) {
+                break
+            }
+        }
+        coins.forEach((item, index) => {
+            if (amount % item === 0 && item !== 1) {
+                let num = amount / item
+                res2 = Array(num).fill(item)
+            }
+        })
+
+        if (res.length < res2.length) {
+            return res
+        } else {
+            return res2
+        }
+
+    }
+
     function main() {
-        console.log(solution("aaatra") === 6);
-        console.log(solution("tqqa") === 3);
-        console.log(solution("aeiou") === 5);
-        console.log(solution("aqtqttqqt") === 3);
+        // Add your test cases here
+        console.log(JSON.stringify(solution([1, 2, 5], 18)) === JSON.stringify([5, 5, 5, 2, 1]));
+        console.log(JSON.stringify(solution([1, 3, 4], 6)) === JSON.stringify([3, 3]));
+        console.log(JSON.stringify(solution([5], 10)) === JSON.stringify([5, 5]));
     }
 
     main();
-
-
-
 
 
 
