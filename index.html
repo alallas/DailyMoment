@@ -4981,16 +4981,35 @@
         return sum;
     }
 
+    // function main() {
+    //     console.log(solution(5, [9, 4, 5, 2, 4]) === 6);
+    //     console.log(solution(4, [1, 2, 3, 5]) === 6);
+    //     console.log(solution(4, [4, 3, 2, 1]) === 0);
+    // }
+
+    // main();
+
+
+
+
+    function solution(n) {
+        const arr = Array(n + 1).fill(0)
+
+        arr[1] = 1
+        arr[2] = 2
+        for (let i = 3; i < arr.length; i++) {
+            arr[i] = arr[i - 1] + arr[i - 2]
+        }
+        console.log(arr)
+        return arr[n];
+    }
+
     function main() {
-        console.log(solution(5, [9, 4, 5, 2, 4]) === 6);
-        console.log(solution(4, [1, 2, 3, 5]) === 6);
-        console.log(solution(4, [4, 3, 2, 1]) === 0);
+        // Add your test cases here
+        console.log(solution(4) === 4);
     }
 
     main();
-
-
-
 
 
 
