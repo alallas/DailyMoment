@@ -5091,15 +5091,59 @@
         }
     }
 
+    // function main() {
+    //     console.log(solution("10101") === 1);
+    //     console.log(solution("212") === 2);
+    //     console.log(solution("1000000") === 1);
+    //     console.log(solution("123456789") === 9);
+    //     console.log(solution("9876543210") === 9);
+    // }
+
+    // main();
+
+
+
+
+
+
+    function solution(n, s) {
+        let newString = '';
+        let map = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+        for (let i = 0; i < s.length; i++) {
+            let cur = s[i];
+            // 找到了字母以及后面的数字
+            if (map.indexOf(cur) === -1 && map.indexOf(s[i + 1]) !== -1) {
+                let curCount = 0;
+                let index = i + 1;
+                while (index < s.length && map.indexOf(s[index]) !== -1) {
+                    index++
+                }
+                curCount = +(s.substring(i + 1, index))
+                // console.log('curCount', curCount)
+                for (let j = 0; j < curCount; j++) {
+                    newString += s[i]
+                }
+            } else if (map.indexOf(cur) === -1 && (map.indexOf(s[i + 1]) === -1 || s[i + 1] === undefined)) {
+                newString += cur
+            }
+            // console.log('newString', newString)
+        }
+        return newString; // Placeholder
+    }
+
     function main() {
-        console.log(solution("10101") === 1);
-        console.log(solution("212") === 2);
-        console.log(solution("1000000") === 1);
-        console.log(solution("123456789") === 9);
-        console.log(solution("9876543210") === 9);
+        console.log(solution(9, "a2b3cde3f") === "aabbbcdeeef");
+        console.log(solution(10, "x44yz5mn51") === "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyzzzzzmnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn");
+        console.log(solution(6, "adbc2d") === "adbccd");
     }
 
     main();
+
+
+
+
+
+
 
 
     
