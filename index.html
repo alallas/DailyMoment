@@ -5131,15 +5131,55 @@
         return newString; // Placeholder
     }
 
+    // function main() {
+    //     console.log(solution(9, "a2b3cde3f") === "aabbbcdeeef");
+    //     console.log(solution(10, "x44yz5mn51") === "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyzzzzzmnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn");
+    //     console.log(solution(6, "adbc2d") === "adbccd");
+    // }
+
+    // main();
+
+
+
+
+
+    function solution(n, a) {
+        if (n === 1) {
+            return a[0]
+        }
+        let max = 0;
+        let maxIndex = 0;
+        a.forEach((item, index) => {
+            if (a[index - 1] !== undefined) {
+                let mul = a[index] * a[index - 1]
+                if (mul > max) {
+                    maxIndex = index
+                    max = mul
+                }
+            }
+        })
+        // console.log(max, '--', maxIndex)
+        let res = a.reduce((prev, curItem, curIndex) => {
+            if (curIndex === maxIndex - 1) {
+                let mul = a[curIndex + 1] * curItem
+                return prev += mul
+            } else if (curIndex === maxIndex) {
+                return prev
+            } else {
+                return prev += curItem
+            }
+        }, 0)
+        // console.log(res)
+        return res;
+    }
+
     function main() {
-        console.log(solution(9, "a2b3cde3f") === "aabbbcdeeef");
-        console.log(solution(10, "x44yz5mn51") === "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyzzzzzmnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn");
-        console.log(solution(6, "adbc2d") === "adbccd");
+        console.log(solution(6, [1, 1, 4, 5, 1, 4]) === 27);
+        console.log(solution(3, [2, 3, 5]) === 17);
+        console.log(solution(17, [13,11,13,14,3,14,2,16,2,17,8,5,4,15,11,9,12]) === 324);
     }
 
     main();
-
-
 
 
 
