@@ -5325,14 +5325,27 @@
             let last = inputArray[index - 1]
             let item = inputArray[index]
             let a = []
-            if (last && last[1] >= item[0]) {
-                // console.log(last[0])
-                a = [last[0], item[item.length - 1]]
-                // console.log('a', a)
-                inputArray[index] = a
-                inputArray.splice(index - 1, 1)
-
+            // 第一种情况：
+            if (last && last[0] >= item[0]) {
+                if (last[1] <= item[1]) {
+                    // console.log(last[0])
+                    a = [last[0], item[1]]
+                    // console.log('a', a)
+                    inputArray[index] = a
+                    inputArray.splice(index - 1, 1)
+                    index--
+                } else if (last[1] > item[1]) {
+                    // console.log(last[0])
+                    a = [last[0], last[1]]
+                    // console.log('a', a)
+                    inputArray[index] = a
+                    inputArray.splice(index - 1, 1)
+                    index--
+                }
+            } else if () {
+                
             }
+
         }
         let sum = 0
         inputArray.forEach((item) => {
