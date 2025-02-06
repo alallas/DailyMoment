@@ -5259,7 +5259,8 @@
 
 
     function solution(n, m, t, a, b) {
-        // debugger
+        // a买入价格
+        debugger
         let max = 0
         for (let i = 0; i < t.length; i++) {
             let time = t[i]
@@ -5271,35 +5272,35 @@
             }
         }
         return max;
+    }小u能赚一百万。因为她向游戏策划投诉，策划和运营为了讨好客户免费送钱。
+
+    function main() {
+        // console.log(solution(3, 10, [3, 4, 5], [2, 3, 5], [3, 5, 7]) === 4);
+        // console.log(solution(2, 8, [2, 3], [3, 4], [5, 7]) === 8);
+        // console.log(solution(4, 12, [1, 2, 3, 4], [2, 3, 4, 5], [4, 5, 6, 8]) === 24);
+        console.log(solution(13, 12, [7,2,5,5,11,13,6,1,13,17,9,15,2], [2,15,14,9,4,5,16,6,12,2,12,10,17], [12,12,7,15,3,10,15,1,2,5,9,3,8]) === 16);
     }
 
-    // function main() {
-    //     // console.log(solution(3, 10, [3, 4, 5], [2, 3, 5], [3, 5, 7]) === 4);
-    //     // console.log(solution(2, 8, [2, 3], [3, 4], [5, 7]) === 8);
-    //     // console.log(solution(4, 12, [1, 2, 3, 4], [2, 3, 4, 5], [4, 5, 6, 8]) === 24);
-    //     console.log(solution(13, 12, [7,2,5,5,11,13,6,1,13,17,9,15,2], [2,15,14,9,4,5,16,6,12,2,12,10,17], [12,12,7,15,3,10,15,1,2,5,9,3,8]) === 16);
+    main();
+
+
+
+
+
+
+    // function solution(n, k, positions) {
+    //     let mid
+    //     let left = positions[0]
+    //     let right = positions[positions.length - 1]
+    //     let index = 1;
+    //     while(left < right && index <= k - 2) {
+    //         mid = (left + right) / 2
+    //         left = mid
+    //         index++;
+    //     }
+    //     console.log('left', left)
+    //     return 0;
     // }
-
-    // main();
-
-
-
-
-
-
-    function solution(n, k, positions) {
-        let mid
-        let left = positions[0]
-        let right = positions[positions.length - 1]
-        let index = 1;
-        while(left < right && index <= k - 2) {
-            mid = (left + right) / 2
-            left = mid
-            index++;
-        }
-        console.log('left', left)
-        return 0;
-    }
 
     // function main() {
     //     let positions1 = [1, 3, 4, 7, 9];
@@ -5314,61 +5315,82 @@
     // main();
 
 
-    function solution(inputArray) {
-        debugger
-        inputArray.sort((a, b) => a[0] - b[0])
-        inputArray.forEach((item) => {
-            item.sort((a, b) => a - b)
-        })
-        // console.log(inputArray)
-        for (let index = 0; index < inputArray.length; index++) {
-            let last = inputArray[index - 1]
-            let item = inputArray[index]
-            let a = []
-            // 第一种情况：
-            if (last && last[0] >= item[0]) {
-                if (last[1] <= item[1]) {
-                    // console.log(last[0])
-                    a = [last[0], item[1]]
-                    // console.log('a', a)
-                    inputArray[index] = a
-                    inputArray.splice(index - 1, 1)
-                    index--
-                } else if (last[1] > item[1]) {
-                    // console.log(last[0])
-                    a = [last[0], last[1]]
-                    // console.log('a', a)
-                    inputArray[index] = a
-                    inputArray.splice(index - 1, 1)
-                    index--
-                }
-            } else if () {
-                
-            }
+    // function solution(inputArray) {
+    //     // debugger
+    //     inputArray.sort((a, b) => a[0] - b[0])
+    //     inputArray.forEach((item) => {
+    //         item.sort((a, b) => a - b)
+    //     })
+    //     // console.log(inputArray)
+    //     for (let index = 0; index < inputArray.length; index++) {
+    //         let last = inputArray[index - 1]
+    //         let item = inputArray[index]
+    //         let a = []
+    //         if (last && (last[0] > item[1] || item[0] > last[1])) {
+    //             continue
+    //         }
+    //         // 第一种情况：a 小于 x
+    //         if (last && last[0] >= item[0]) {
+    //             if (last[1] <= item[1]) {
+    //                 // console.log(last[0])
+    //                 a = [item[0], item[1]]
+    //                 // console.log('a', a)
+    //                 inputArray[index] = a
+    //                 inputArray.splice(index - 1, 1)
+    //                 index--
+    //             } else if (last[1] > item[1]) {
+    //                 // console.log(last[0])
+    //                 a = [item[0], last[1]]
+    //                 // console.log('a', a)
+    //                 inputArray[index] = a
+    //                 inputArray.splice(index - 1, 1)
+    //                 index--
+    //             }
+    //             // 第二种情况：a 大于 x
+    //         } else if (last && last[0] < item[0]) {
+    //             // 第一，y小于b
+    //             if (last[1] <= item[1]) {
+    //                 // console.log(last[0])
+    //                 a = [last[0], item[1]]
+    //                 // console.log('a', a)
+    //                 inputArray[index] = a
+    //                 inputArray.splice(index - 1, 1)
+    //                 index--
+    //                 // 第二，y大于b
+    //             } else if (last[1] > item[1]) {
+    //                 // console.log(last[0])
+    //                 a = [last[0], last[1]]
+    //                 // console.log('a', a)
+    //                 inputArray[index] = a
+    //                 inputArray.splice(index - 1, 1)
+    //                 index--
+    //             }
+    //         }
+    //     }
+    //     let sum = 0
+    //     inputArray.forEach((item) => {
+    //         for (let j = item[0]; j <= item[1]; j++) {
+    //             sum++
+    //         }
+    //     })
+    //     // console.log(inputArray)
+    //     return sum;
+    // }
 
-        }
-        let sum = 0
-        inputArray.forEach((item) => {
-            for (let j = item[0]; j <= item[1]; j++) {
-                sum++
-            }
-        })
-        // console.log(inputArray)
-        return sum;
-    }
+    // function main() {
+    //     //  You can add more test cases here
+    //     // const testArray1 = [[1,4], [7, 10], [3, 5]];
+    //     // const testArray2 = [[1,2], [6, 10], [11, 15]];
+    //     // const testArray3 = [[6,18],[2,16],[12,16],[5,16],[8,10],[1,9],[7,21],[2,3],[7,21],[6,7],[1,24],[9,17],[1,4],[12,18],[2,17],[4,19],[9,22],[8,24],[13,21],[7,8],[19,22],[22,23],[6,14]];
+    //     const testArray4 = [[9,12],[12,23],[10,12],[8,18],[8,12],[1,4],[15,22],[4,7],[22,25],[8,11],[12,23],[10,25],[20,22],[9,22]];
 
-    function main() {
-        //  You can add more test cases here
-        // const testArray1 = [[1,4], [7, 10], [3, 5]];
-        // const testArray2 = [[1,2], [6, 10], [11, 15]];
-        const testArray3 = [[6,18],[2,16],[12,16],[5,16],[8,10],[1,9],[7,21],[2,3],[7,21],[6,7],[1,24],[9,17],[1,4],[12,18],[2,17],[4,19],[9,22],[8,24],[13,21],[7,8],[19,22],[22,23],[6,14]];
+    //     // console.log(solution(testArray1) === 9);
+    //     // console.log(solution(testArray2) === 12);
+    //     // console.log(solution(testArray3) === 24);
+    //     console.log(solution(testArray4) === 25);
+    // }
 
-        // console.log(solution(testArray1) === 9);
-        // console.log(solution(testArray2) === 12);
-        console.log(solution(testArray3) === 24);
-    }
-
-    main();
+    // main();
 
 
 
