@@ -5272,16 +5272,16 @@
             }
         }
         return max;
-    }小u能赚一百万。因为她向游戏策划投诉，策划和运营为了讨好客户免费送钱。
-
-    function main() {
-        // console.log(solution(3, 10, [3, 4, 5], [2, 3, 5], [3, 5, 7]) === 4);
-        // console.log(solution(2, 8, [2, 3], [3, 4], [5, 7]) === 8);
-        // console.log(solution(4, 12, [1, 2, 3, 4], [2, 3, 4, 5], [4, 5, 6, 8]) === 24);
-        console.log(solution(13, 12, [7,2,5,5,11,13,6,1,13,17,9,15,2], [2,15,14,9,4,5,16,6,12,2,12,10,17], [12,12,7,15,3,10,15,1,2,5,9,3,8]) === 16);
     }
 
-    main();
+    // function main() {
+    //     // console.log(solution(3, 10, [3, 4, 5], [2, 3, 5], [3, 5, 7]) === 4);
+    //     // console.log(solution(2, 8, [2, 3], [3, 4], [5, 7]) === 8);
+    //     // console.log(solution(4, 12, [1, 2, 3, 4], [2, 3, 4, 5], [4, 5, 6, 8]) === 24);
+    //     console.log(solution(13, 12, [7,2,5,5,11,13,6,1,13,17,9,15,2], [2,15,14,9,4,5,16,6,12,2,12,10,17], [12,12,7,15,3,10,15,1,2,5,9,3,8]) === 16);
+    // }
+
+    // main();
 
 
 
@@ -5392,6 +5392,76 @@
 
     // main();
 
+
+
+
+
+
+
+
+    function solution(n, a, b) {
+        let diff = a.map((item, index) => {
+            return item - b[index]
+        })
+        console.log('diff', diff)
+        let res = []
+        let layer = []
+        function back(startIndex) {
+            if (layer.length > 0) {
+                res.push([...layer])
+            }
+            for (let i = startIndex; i < diff.length; i++) {
+                layer.push(diff[i])
+                back(i + 1)
+                layer.pop()
+            }
+        }
+        back(0)
+        let max = 0
+        for (let i = 0; i < res.length; i++) {
+            let cur = res[i];
+            let sum = cur.reduce((prev, item, index) => {
+                return prev + item
+            }, 0)
+            console.log('sum', sum)
+            if (Math.abs(sum) > max) {
+                max = Math.abs(sum)
+            }
+        }
+        console.log('max', max)
+        console.log('res', res)
+        return max;
+    }
+
+    function solution(n, a, b) {
+        let diff = a.map((item, index) => item - b[index]);
+
+        let max = 0;
+
+        let dp = new Set();
+        dp.add(0);
+
+        for (let i = 0; i < n; i++) {
+            let current = Array.from(dp);
+            for (let value of current) {
+                dp.add(value + diff[i]);
+            }
+        }
+
+        for (let value of dp) {
+            max = Math.max(max, Math.abs(value));
+        }
+
+        return max;
+    }
+
+    function main() {
+        console.log(solution(4, [4, 2, 1, 1], [2, 1, 4, 4]) === 6);
+        console.log(solution(3, [10, 20, 30], [15, 25, 5]) === 25);
+        console.log(solution(5, [1, 5, 3, 7, 9], [2, 6, 4, 8, 10]) === 5);
+    }
+
+    main();
 
 
 
