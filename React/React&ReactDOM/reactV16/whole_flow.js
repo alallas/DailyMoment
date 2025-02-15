@@ -1,4 +1,4 @@
-// *TODO - 全局变量
+// TODO - 全局变量
 // 1.createElement阶段
 var hasSymbol = typeof Symbol === "function" && Symbol.for;
 var REACT_ELEMENT_TYPE = hasSymbol ? Symbol.for("react.element") : 0xeac7;
@@ -424,7 +424,7 @@ var currentHookNameInDev = null;
 var hookTypesDev = null;
 var hookTypesUpdateIndexDev = -1;
 
-// *TODO - 创建虚拟DOM（jsx等于虚拟DOM）
+// TODO - 创建虚拟DOM（jsx等于虚拟DOM）
 
 function createElementWithValidation(type, props, children) {
   var validType = isValidElementType(type);
@@ -779,7 +779,7 @@ function getComponentName(type) {
   return null;
 }
 
-// *TODO - ReactDOM的render方法，主入口，创建root对象，fiber，ReactRoot对象等
+// TODO - ReactDOM的render方法，主入口，创建root对象，fiber，ReactRoot对象等
 
 var ReactDOM = {
   render: function (element, container, callback) {
@@ -1161,7 +1161,7 @@ function FiberNode(tag, pendingProps, key, mode) {
   }
 }
 
-// *TODO - ReactDOM的render方法，主入口后面的unbatchedUpdates更新函数，调用ReactRoot的render方法更新
+// TODO - ReactDOM的render方法，主入口后面的unbatchedUpdates更新函数，调用ReactRoot的render方法更新
 
 // 创建完root对象之后，进入此函数，这个函数用来调节批量更新
 function unbatchedUpdates(fn, a) {
@@ -1189,8 +1189,8 @@ function unbatchedUpdates(fn, a) {
 // 如果是顶层的执行（顶层的，仅次于root节点的下一个节点），parentComponent就是null
 // 这个时候执行的是ReactRoot对象的render方法
 // *REVIEW - 问题
-// !为什么要把核心主入口函数放到ReactRoot对象上面呢？
-// !是不是因为ReactRoot对象上面保存有root对象，可以直接通过
+// ?为什么要把核心主入口函数放到ReactRoot对象上面呢？
+// ?是不是因为ReactRoot对象上面保存有root对象，可以直接通过
 // legacyRenderSubtreeIntoContainer函数分发两个东西，一个是创建好的ReactRoot对象，一个是定义批量或非批量，执行入口函数
 
 ReactRoot.prototype.render = function (children, callback) {
@@ -1253,7 +1253,7 @@ ReactWork.prototype._onCommit = function () {
   }
 };
 
-// *TODO - ReactRoot对象里面的render方法调用的updateContainer函数，是真正的入口！！！开始计算过期时间（优先级）
+// TODO - ReactRoot对象里面的render方法调用的updateContainer函数，是真正的入口！！！开始计算过期时间（优先级）
 // 分两步，首先计算过期时间，然后根据过期时间进行更新
 
 function updateContainer(element, container, parentComponent, callback) {
@@ -1280,12 +1280,12 @@ function requestCurrentTime() {
     return currentSchedulerTime;
   }
 
-  // !找优先级最高的一个root。。。。。。。目的是？？？？
+  // ?找优先级最高的一个root。。。。。。。目的是？？？？
   findHighestPriorityRoot();
 
   // 如果nextFlushedExpirationTime是优先级低（1）和最低（0）的，都要重新计算一下当前的时间，为什么？？？？？？？
   // 在首次渲染阶段，nextFlushedExpirationTime是0，
-  // !每次findHighestPriorityRoot执行完之后，都会把nextFlushedExpirationTime变为xxxxxx
+  // ?每次findHighestPriorityRoot执行完之后，都会把nextFlushedExpirationTime变为xxxxxx
   if (
     nextFlushedExpirationTime === NoWork ||
     nextFlushedExpirationTime === Never
@@ -1306,7 +1306,7 @@ function findHighestPriorityRoot() {
   var highestPriorityRoot = null;
 
   // 首次渲染阶段：一开始的lastScheduledRoot最后一个root肯定为空，不走这里
-  // !待定看
+  // ?待定看
   if (lastScheduledRoot !== null) {
     var previousScheduledRoot = lastScheduledRoot;
     var root = firstScheduledRoot;
@@ -1364,7 +1364,7 @@ function findHighestPriorityRoot() {
     }
   }
 
-  // !这两个参数用来干嘛？？？？？
+  // ?这两个参数用来干嘛？？？？？
   // 每次找优先级最高的root都会：把红扑扑的根节点和优先级初始化定义一下，优先级为xxx，root为xxx
   // 初始阶段：root是null，优先级是最低级为0
   nextFlushedRoot = highestPriorityRoot;
@@ -1413,13 +1413,13 @@ function computeExpirationForFiber(currentTime, fiber) {
         break;
     }
 
-    // !这里在干嘛？？？？
+    // ?这里在干嘛？？？？
     if (nextRoot !== null && expirationTime === nextRenderExpirationTime) {
       expirationTime -= 1;
     }
   }
 
-  // !这里在设置最低优先级的过期时间，目的是什么？？？？
+  // ?这里在设置最低优先级的过期时间，目的是什么？？？？
   // 首次渲染状态下，lowestPriorityPendingInteractiveExpirationTime是最低优先级，也就是0，但是priorityLevel是3，不满足下面的条件
   if (
     priorityLevel === UserBlockingPriority &&
@@ -1436,7 +1436,7 @@ function getCurrentPriorityLevel() {
   return currentPriorityLevel;
 }
 
-// *TODO - updateContainer函数的最后一个函数updateContainerAtExpirationTime，计算完过期时间，开始着手更新了！！！
+// TODO - updateContainer函数的最后一个函数updateContainerAtExpirationTime，计算完过期时间，开始着手更新了！！！
 // 其中updateContainerAtExpirationTime也是一个小小的包裹，中间保存了上下文到root对象里面
 // scheduleRootUpdate才是更新的开始
 
@@ -1464,7 +1464,7 @@ function updateContainerAtExpirationTime(
     }
   }
 
-  // !这里在设置上下文，目的是什么？？？？
+  // ?这里在设置上下文，目的是什么？？？？
   // 首次渲染阶段：parentComponent为空，拿到空的上下文
   var context = getContextForSubtree(parentComponent);
   // 首次渲染阶段：container，也就是root对象的上下文context是空的，这里给他初始化一个空对象
@@ -1591,7 +1591,7 @@ function enqueueUpdate(fiber, update) {
       queue1 = fiber.updateQueue = createUpdateQueue(fiber.memoizedState);
     }
   } else {
-    // !待补充！！！！！！！！！！！！！！！！！！！
+    // ?待补充！！！！！！！！！！！！！！！！！！！
     // There are two owners.
     queue1 = fiber.updateQueue;
     queue2 = alternate.updateQueue;
@@ -1623,7 +1623,7 @@ function enqueueUpdate(fiber, update) {
     appendUpdateToQueue(queue1, update);
   } else {
     // 这里在处理用到两个队列的情况：
-    // !待补充！！！！！！！！！！！1
+    // ?待补充！！！！！！！！！！！1
     // There are two queues. We need to append the update to both queues,
     // while accounting for the persistent structure of the list — we don't
     // want the same update to be added multiple times.
@@ -1691,7 +1691,7 @@ function appendUpdateToQueue(queue, update) {
   }
 }
 
-// *TODO - scheduleRootUpdate的scheduleWork，保存好更新队列之后，开始全局从root开始调度！！！
+// TODO - scheduleRootUpdate的scheduleWork，保存好更新队列之后，开始全局从root开始调度！！！
 
 function scheduleWork(fiber, expirationTime) {
   // 首先先攀岩到根root上面，无论目前身处哪个fiber，这个root是root对象，而非原生的stateNode
@@ -1716,7 +1716,7 @@ function scheduleWork(fiber, expirationTime) {
     return;
   }
 
-  // !这是在干啥？？？？首次渲染的nextRenderExpirationTime是NoWork，也就是0
+  // ?这是在干啥？？？？首次渲染的nextRenderExpirationTime是NoWork，也就是0
   if (
     !isWorking &&
     nextRenderExpirationTime !== NoWork &&
@@ -1727,7 +1727,7 @@ function scheduleWork(fiber, expirationTime) {
     resetStack();
   }
 
-  // !记录一下最高和最低的优先级，并改一下root的相关属性，目的是？？？？？
+  // ?记录一下最高和最低的优先级，并改一下root的相关属性，目的是？？？？？
   markPendingPriorityLevel(root, expirationTime);
 
   // 首次渲染阶段进入这里面，因为不在working中
@@ -1748,7 +1748,7 @@ function scheduleWork(fiber, expirationTime) {
 }
 
 function scheduleWorkToRoot(fiber, expirationTime) {
-  // !做这个的目的是什么？？？
+  // ?做这个的目的是什么？？？
   recordScheduleUpdate();
 
   // 首次渲染阶段，fiber.stateNode是root对象
@@ -1765,7 +1765,7 @@ function scheduleWorkToRoot(fiber, expirationTime) {
   if (fiber.expirationTime < expirationTime) {
     fiber.expirationTime = expirationTime;
   }
-  // !同时更新一下过去的fiber的过期时间为最新的，为什么？？？？？
+  // ?同时更新一下过去的fiber的过期时间为最新的，为什么？？？？？
   var alternate = fiber.alternate;
   if (alternate !== null && alternate.expirationTime < expirationTime) {
     alternate.expirationTime = expirationTime;
@@ -1812,7 +1812,7 @@ function scheduleWorkToRoot(fiber, expirationTime) {
       // 首次渲染阶段，interactions的size长度为0，走不进去
       var interactions = tracing.__interactionsRef.current;
       if (interactions.size > 0) {
-        // !待补充！！！！！！！！！！！！！！！
+        // ?待补充！！！！！！！！！！！！！！！
         var pendingInteractionMap = root.pendingInteractionMap;
         var pendingInteractions = pendingInteractionMap.get(expirationTime);
         if (pendingInteractions != null) {
@@ -1987,7 +1987,7 @@ function addRootToSchedule(root, expirationTime) {
   } else {
     // 更新阶段：
     // 为什么要拿自己的过期时间和自己的过期时间比？？？？？？
-    // !待补充！！
+    // ?待补充！！
     var remainingExpirationTime = root.expirationTime;
     if (expirationTime > remainingExpirationTime) {
       root.expirationTime = expirationTime;
@@ -1998,7 +1998,7 @@ function addRootToSchedule(root, expirationTime) {
 function performSyncWork() {
   // 同步更新下：
   // minExpirationTime为Sync，优先级最大的，isYieldy为false，说明是非批量更新
-  // !同步和批量的关系？？？？？
+  // ?同步和批量的关系？？？？？
   performWork(Sync, false);
 }
 
@@ -2048,7 +2048,7 @@ function performWork(minExpirationTime, isYieldy) {
     }
   }
 
-  // !如果是批量更新，记录一下callback的信息？？？？？为什么？？？
+  // ?如果是批量更新，记录一下callback的信息？？？？？为什么？？？
   if (isYieldy) {
     callbackExpirationTime = NoWork;
     callbackID = null;
@@ -2135,7 +2135,7 @@ function findHighestPriorityRoot() {
     }
   }
 
-  // !更新一下这两个变量，用来干嘛？？？？？
+  // ?更新一下这两个变量，用来干嘛？？？？？
   // 记录最高优先级的root，也就是定义下一个需要操作的root是谁！
   nextFlushedRoot = highestPriorityRoot;
   nextFlushedExpirationTime = highestPriorityWork;
@@ -2212,7 +2212,7 @@ function performWorkOnRoot(root, expirationTime, isYieldy) {
   isRendering = false;
 }
 
-// *TODO - performWorkOnRoot的renderRoot函数调用，开始isWorking阶段，也就是render渲染阶段！！！
+// TODO - performWorkOnRoot的renderRoot函数调用，开始isWorking阶段，也就是render渲染阶段！！！
 
 function renderRoot(root, isYieldy) {
   // 首次渲染阶段：passiveEffectCallbackHandle和passiveEffectCallback都是null，这个函数不起作用
@@ -2654,8 +2654,8 @@ var resumeTimersRecursively = function (fiber) {
   }
 };
 
-// *TODO - render渲染阶段的workLoop循环，是调度动作的入口点、控制器、排队处、记事本、前台！！！！
-// !核心作用是控制每一个节点是否进入工作间
+// TODO - render渲染阶段的workLoop循环，是调度动作的入口点、控制器、排队处、记事本、前台！！！！
+// ?核心作用是控制每一个节点是否进入工作间
 
 function workLoop(isYieldy) {
   // 首次渲染阶段，是非批量更新模式，走第一个逻辑
@@ -2825,8 +2825,8 @@ function startProfilerTimer(fiber) {
   }
 }
 
-// *TODO - render渲染阶段的workLoop循环里面的beginWork，是为树的每一个节点构造一个fiber！！！！
-// !是对每一个节点的【类型】的分发，（此时位于工作间内部，有点像机场里面门口内的安检程序，需要派发到不同的地方）
+// TODO - render渲染阶段的workLoop循环里面的beginWork，是为树的每一个节点构造一个fiber！！！！
+// ?是对每一个节点的【类型】的分发，（此时位于工作间内部，有点像机场里面门口内的安检程序，需要派发到不同的地方）
 
 function beginWork(current$$1, workInProgress, renderExpirationTime) {
   // 入参：current$$1是workInProgress的替身fiber
@@ -2847,7 +2847,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       // 新旧的props不一样，需要更新
       didReceiveUpdate = true;
     } else if (updateExpirationTime < renderExpirationTime) {
-      // !这里为什么要自己和自己比呢，和之前有一个地方一样，fiber的eT和入参的eT对比，不是一样的么？？？？
+      // ?这里为什么要自己和自己比呢，和之前有一个地方一样，fiber的eT和入参的eT对比，不是一样的么？？？？
       // 新旧的props一样，但是fiber本身的优先级，小于链表里面的亟需更新的优先级，不用更新
       didReceiveUpdate = false;
 
@@ -2943,7 +2943,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
     didReceiveUpdate = false;
   }
 
-  // !把fiber本身的优先级改回为NoWork，最低的，为什么？？？？？
+  // ?把fiber本身的优先级改回为NoWork，最低的，为什么？？？？？
   workInProgress.expirationTime = NoWork;
 
   // 2. 开始分发，哪种类型去哪里
@@ -3125,7 +3125,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
   // 这里分发完之后就没事了！！
 }
 
-// *TODO - root对象经过beginWork分发之后，来到updateHostRoot！！！！
+// TODO - root对象经过beginWork分发之后，来到updateHostRoot！！！！
 
 function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
   // 首次渲染阶段，current$$1是WIP的替身，workInProgress是当前fiber，renderExpirationTime是全局的nextRenderET（就是root的nextETToWork）
@@ -3663,7 +3663,7 @@ function getStateFromUpdate(
   return prevState;
 }
 
-// *TODO - beginWork分发之后，对根节点已经进行处理（整合state）了，然后开始对孩子进行调度！！！！
+// TODO - beginWork分发之后，对根节点已经进行处理（整合state）了，然后开始对孩子进行调度！！！！
 
 function reconcileChildren(
   current$$1,
@@ -4188,7 +4188,7 @@ function resetCurrentFiber() {
   }
 }
 
-// *TODO - 函数组件经过beginWork分发来到mountIndeterminateComponent！！！！
+// TODO - 函数组件经过beginWork分发来到mountIndeterminateComponent！！！！
 
 function mountIndeterminateComponent(
   _current,
@@ -4223,7 +4223,7 @@ function mountIndeterminateComponent(
   var context = getMaskedContext(workInProgress, unmaskedContext);
 
   // 准备好读取这个全局的上下文数据对象
-  // !待研究
+  // ?待研究
   prepareToReadContext(workInProgress, renderExpirationTime);
 
   var value = void 0;
@@ -4583,7 +4583,7 @@ function renderWithHooks(
 
 
 
-// *TODO - 下面是在执行函数组件过程中，进去执行的钩子函数，都是React对象里面的！！！！
+// TODO - 下面是在执行函数组件过程中，进去执行的钩子函数，都是React对象里面的！！！！
 
 
 
