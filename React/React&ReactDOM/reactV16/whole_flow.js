@@ -1,12 +1,12 @@
-// TODO - 全局变量
+// REVIEW - 全局变量
 // 1.createElement阶段
 var hasSymbol = typeof Symbol === "function" && Symbol.for;
 var REACT_ELEMENT_TYPE = hasSymbol ? Symbol.for("react.element") : 0xeac7;
 
 // 2.创建fiber阶段
-// 模式
-var NoContext = 0; // 二进制为000
-var ConcurrentMode = 1; // 二进制为001
+// !渲染模式
+var NoContext = 0; // 二进制为000，非并发模式
+var ConcurrentMode = 1; // 二进制为001，并发模式，需要时间切片，分配优先级
 var StrictMode = 2; // 二进制为010
 var ProfileMode = 4; // 二进制为100
 
@@ -42,7 +42,7 @@ var firstScheduledRoot = null;
 // 最后一个需要更新的root，首次渲染阶段为null，后续在requestWork函数里面变为xxx
 var lastScheduledRoot = null;
 
-// 过期时间（优先级的包裹形态，最终形态）等级定义
+// !过期时间（优先级的包裹形态，最终形态）等级定义
 var NoWork = 0;
 var Never = 1;
 var maxSigned31BitInt = 1073741823;
@@ -51,8 +51,14 @@ var Sync = maxSigned31BitInt;
 var UNIT_SIZE = 10;
 var MAGIC_NUMBER_OFFSET = maxSigned31BitInt - 1;
 
-const hasNativePerformanceNow =
-  typeof performance === "object" && typeof performance.now === "function";
+
+var LOW_PRIORITY_EXPIRATION = 5000;
+var LOW_PRIORITY_BATCH_SIZE = 250;
+var HIGH_PRIORITY_EXPIRATION = 500;
+var HIGH_PRIORITY_BATCH_SIZE = 100;
+
+
+const hasNativePerformanceNow = typeof performance === "object" && typeof performance.now === "function";
 const now = hasNativePerformanceNow
   ? () => performance.now()
   : () => Date.now();
@@ -69,7 +75,7 @@ var currentRendererTime = msToExpirationTime(originalStartTimeMs);
 // 因为首次渲染肯定会执行updateContainer
 var currentSchedulerTime = currentRendererTime;
 
-// 优先级（初始形态）定义
+// !优先级（初始形态）定义
 var ImmediatePriority = 1;
 var UserBlockingPriority = 2;
 var NormalPriority = 3;
@@ -424,9 +430,10 @@ var currentHookNameInDev = null;
 var hookTypesDev = null;
 var hookTypesUpdateIndexDev = -1;
 
-// TODO - 创建虚拟DOM（jsx等于虚拟DOM）
+// REVIEW - 创建虚拟DOM（jsx等于虚拟DOM）
 
 function createElementWithValidation(type, props, children) {
+  // 验证第一个参数！
   var validType = isValidElementType(type);
 
   if (!validType) {
@@ -472,18 +479,21 @@ function createElementWithValidation(type, props, children) {
     );
   }
 
+  // 开始正式整合材料 + 创建对象
   var element = createElement.apply(this, arguments);
 
   if (element == null) {
     return element;
   }
 
+  // 遍历检查孩子
   if (validType) {
     for (var i = 2; i < arguments.length; i++) {
       validateChildKeys(arguments[i], type);
     }
   }
 
+  // 检查props对象是不是有不合法的key名字
   if (type === REACT_FRAGMENT_TYPE) {
     validateFragmentProps(element);
   } else {
@@ -779,7 +789,7 @@ function getComponentName(type) {
   return null;
 }
 
-// TODO - ReactDOM的render方法，主入口，创建root对象，fiber，ReactRoot对象等
+// REVIEW - ReactDOM的render方法，主入口，创建root对象，fiber，ReactRoot对象等
 
 var ReactDOM = {
   render: function (element, container, callback) {
@@ -1161,7 +1171,7 @@ function FiberNode(tag, pendingProps, key, mode) {
   }
 }
 
-// TODO - ReactDOM的render方法，主入口后面的unbatchedUpdates更新函数，调用ReactRoot的render方法更新
+// REVIEW - ReactDOM的render方法，主入口后面的unbatchedUpdates更新函数，调用ReactRoot的render方法更新
 
 // 创建完root对象之后，进入此函数，这个函数用来调节批量更新
 function unbatchedUpdates(fn, a) {
@@ -1253,7 +1263,7 @@ ReactWork.prototype._onCommit = function () {
   }
 };
 
-// TODO - ReactRoot对象里面的render方法调用的updateContainer函数，是真正的入口！！！开始计算过期时间（优先级）
+// REVIEW - ReactRoot对象里面的render方法调用的updateContainer函数，是真正的入口！！！开始计算过期时间（优先级）
 // 分两步，首先计算过期时间，然后根据过期时间进行更新
 
 function updateContainer(element, container, parentComponent, callback) {
@@ -1388,6 +1398,14 @@ function computeExpirationForFiber(currentTime, fiber) {
   // 首次渲染状态下，isConcurrent是false，root的fiber.mode模式为000
   // ConcurrentMode为001，两者运算得到000，就是NoContext
   // 首次渲染状态下，过期时间就是Sync，最大的那个
+
+  // !知识点！
+  // ConcurrentMode：表示启用了并发模式，允许中断渲染以处理更高优先级的任务,会将任务分配到不同的优先级，并分配不同的过期时间，允许中断和恢复。
+  // NoContext：表示当前没有启用并发模式，当前不在Concurrent模式下
+  // 如果当前 fiber 所处的模式 不是并发模式（即没有启用并发模式，fiber.mode 中没有 ConcurrentMode 标志）
+  // 过期时间就是Sync，会立即执行任务而不进行时间分片，所以不需要考虑优先级调度，直接标记为同步处理。
+  // React使用位掩码来组合不同的模式，通过按位与操作可以检查当前是否启用了某个模式。
+
   if ((fiber.mode & ConcurrentMode) === NoContext) {
     expirationTime = Sync;
   } else if (isWorking && !isCommitting$1) {
@@ -1436,7 +1454,33 @@ function getCurrentPriorityLevel() {
   return currentPriorityLevel;
 }
 
-// TODO - updateContainer函数的最后一个函数updateContainerAtExpirationTime，计算完过期时间，开始着手更新了！！！
+
+function computeInteractiveExpiration(currentTime) {
+  return computeExpirationBucket(currentTime, HIGH_PRIORITY_EXPIRATION, HIGH_PRIORITY_BATCH_SIZE);
+}
+
+function computeAsyncExpiration(currentTime) {
+  return computeExpirationBucket(currentTime, LOW_PRIORITY_EXPIRATION, LOW_PRIORITY_BATCH_SIZE);
+}
+
+
+function computeExpirationBucket(currentTime, expirationInMs, bucketSizeMs) {
+  return MAGIC_NUMBER_OFFSET - ceiling(MAGIC_NUMBER_OFFSET - currentTime + expirationInMs / UNIT_SIZE, bucketSizeMs / UNIT_SIZE);
+}
+
+// ceiling 函数用于将数字 num 四舍五入到指定精度（precision）。
+// 它确保了差值 MAGIC_NUMBER_OFFSET - currentTime + expirationInMs / UNIT_SIZE 能够按批次大小 bucketSizeMs 分割成“桶”（buckets），这些桶用于调整任务的调度粒度。
+// 将时间分桶，让一定时间范围内的任务具有相同的过期时间，这样可以批量处理，减少计算次数，优化性能。
+function ceiling(num, precision) {
+  return ((num / precision | 0) + 1) * precision;
+}
+// 按位或0的操作，相当于Math.floor(num/precision)，然后加1再乘以precision，这样就实现了向上取整到precision的倍数。
+// 例如，如果num是12，precision是5，那么结果是15。这样的处理可以让同一时间段内的多个任务具有相同的过期时间
+
+
+
+
+// REVIEW - updateContainer函数的最后一个函数updateContainerAtExpirationTime，计算完过期时间，开始着手更新了！！！
 // 其中updateContainerAtExpirationTime也是一个小小的包裹，中间保存了上下文到root对象里面
 // scheduleRootUpdate才是更新的开始
 
@@ -1450,7 +1494,7 @@ function updateContainerAtExpirationTime(
   // 这里拿到的就是root对象的fiber
   var current$$1 = container.current;
 
-  // debug工具类的设置
+  // 浏览器debug工具类的设置
   {
     // 首次渲染阶段：ReactFiberInstrumentation_1的debugTool是null，不走这里
     if (ReactFiberInstrumentation_1.debugTool) {
@@ -1599,9 +1643,7 @@ function enqueueUpdate(fiber, update) {
       if (queue2 === null) {
         // Neither fiber has an update queue. Create new ones.
         queue1 = fiber.updateQueue = createUpdateQueue(fiber.memoizedState);
-        queue2 = alternate.updateQueue = createUpdateQueue(
-          alternate.memoizedState
-        );
+        queue2 = alternate.updateQueue = createUpdateQueue(alternate.memoizedState);
       } else {
         // Only one fiber has an update queue. Clone to create a new one.
         queue1 = fiber.updateQueue = cloneUpdateQueue(queue2);
@@ -1691,7 +1733,7 @@ function appendUpdateToQueue(queue, update) {
   }
 }
 
-// TODO - scheduleRootUpdate的scheduleWork，保存好更新队列之后，开始全局从root开始调度！！！
+// REVIEW - scheduleRootUpdate的scheduleWork，保存好更新队列之后，开始全局从root开始调度！！！
 
 function scheduleWork(fiber, expirationTime) {
   // 首先先攀岩到根root上面，无论目前身处哪个fiber，这个root是root对象，而非原生的stateNode
@@ -1785,16 +1827,10 @@ function scheduleWorkToRoot(fiber, expirationTime) {
       if (node.childExpirationTime < expirationTime) {
         // 自己本身的孩子优先级需要更新，上一次的对应的节点也需要更新
         node.childExpirationTime = expirationTime;
-        if (
-          alternate !== null &&
-          alternate.childExpirationTime < expirationTime
-        ) {
+        if (alternate !== null && alternate.childExpirationTime < expirationTime) {
           alternate.childExpirationTime = expirationTime;
         }
-      } else if (
-        alternate !== null &&
-        alternate.childExpirationTime < expirationTime
-      ) {
+      } else if (alternate !== null && alternate.childExpirationTime < expirationTime) {
         // 自己的本身的孩子优先级不需要更新，但是也要询问一下上一次的对应的节点是否需要更新
         alternate.childExpirationTime = expirationTime;
       }
@@ -1901,8 +1937,7 @@ function findNextExpirationTimeToWorkOn(completedExpirationTime, root) {
   // 1. 改变nextExpirationTimeToWorkOn
   // 如果优先级最大（最早）的时间不是0（也就是还比较重要），让下一个亟需操作的过期时间为他，即最早（优先级最大）的那个，不然就是最晚的那个
   // 首次渲染阶段，earliestPendingTime等于expirationTime
-  var nextExpirationTimeToWorkOn =
-    earliestPendingTime !== NoWork ? earliestPendingTime : latestPingedTime;
+  var nextExpirationTimeToWorkOn = earliestPendingTime !== NoWork ? earliestPendingTime : latestPingedTime;
 
   // 如果下一个亟需操作的过期时间为0，优先级最低（说明可能不是很重要），并且 当期的fiber的过期时间的优先级最低 或者 比最小优先级的时间要大，也就是latestSuspendedTime还是最小优先级的（没人比得过他）
   if (
@@ -2212,7 +2247,7 @@ function performWorkOnRoot(root, expirationTime, isYieldy) {
   isRendering = false;
 }
 
-// TODO - performWorkOnRoot的renderRoot函数调用，开始isWorking阶段，也就是render渲染阶段！！！
+// REVIEW - performWorkOnRoot的renderRoot函数调用，开始isWorking阶段，也就是render渲染阶段！！！
 
 function renderRoot(root, isYieldy) {
   // 首次渲染阶段：passiveEffectCallbackHandle和passiveEffectCallback都是null，这个函数不起作用
@@ -2654,7 +2689,7 @@ var resumeTimersRecursively = function (fiber) {
   }
 };
 
-// TODO - render渲染阶段的workLoop循环，是调度动作的入口点、控制器、排队处、记事本、前台！！！！
+// REVIEW - render渲染阶段的workLoop循环，是调度动作的入口点、控制器、排队处、记事本、前台！！！！
 // ?核心作用是控制每一个节点是否进入工作间
 
 function workLoop(isYieldy) {
@@ -2825,7 +2860,7 @@ function startProfilerTimer(fiber) {
   }
 }
 
-// TODO - render渲染阶段的workLoop循环里面的beginWork，是为树的每一个节点构造一个fiber！！！！
+// REVIEW - render渲染阶段的workLoop循环里面的beginWork，是为树的每一个节点构造一个fiber！！！！
 // ?是对每一个节点的【类型】的分发，（此时位于工作间内部，有点像机场里面门口内的安检程序，需要派发到不同的地方）
 
 function beginWork(current$$1, workInProgress, renderExpirationTime) {
@@ -3125,7 +3160,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
   // 这里分发完之后就没事了！！
 }
 
-// TODO - root对象经过beginWork分发之后，来到updateHostRoot！！！！
+// REVIEW - root对象经过beginWork分发之后，来到updateHostRoot！！！！
 
 function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
   // 首次渲染阶段，current$$1是WIP的替身，workInProgress是当前fiber，renderExpirationTime是全局的nextRenderET（就是root的nextETToWork）
@@ -3663,7 +3698,7 @@ function getStateFromUpdate(
   return prevState;
 }
 
-// TODO - beginWork分发之后，对根节点已经进行处理（整合state）了，然后开始对孩子进行调度！！！！
+// REVIEW - beginWork分发之后，对根节点已经进行处理（整合state）了，然后开始对孩子进行调度！！！！
 
 function reconcileChildren(
   current$$1,
@@ -4188,11 +4223,11 @@ function resetCurrentFiber() {
   }
 }
 
-// TODO - 函数组件经过beginWork分发来到mountIndeterminateComponent！！！！
+// REVIEW - 函数组件经过beginWork分发来到mountIndeterminateComponent！！！！
 
 function mountIndeterminateComponent(
   _current,
-  workInProgress,
+  workInProgress, 
   Component,
   renderExpirationTime
 ) {
@@ -4583,7 +4618,7 @@ function renderWithHooks(
 
 
 
-// TODO - 下面是在执行函数组件过程中，进去执行的钩子函数，都是React对象里面的！！！！
+// REVIEW - 下面是在执行函数组件过程中，进去执行的钩子函数，都是React对象里面的！！！！
 
 
 
