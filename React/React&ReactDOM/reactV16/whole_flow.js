@@ -2204,7 +2204,7 @@ function performWorkOnRoot(root, expirationTime, isYieldy) {
       renderRoot(root, isYieldy);
 
       // 2. 进入提交阶段
-      // 用root对象的finishedWork来指示是否结束了render阶段
+      // 用root对象的fini shedWork来指示是否结束了render阶段
       finishedWork = root.finishedWork;
       if (finishedWork !== null) {
         completeRoot(root, finishedWork, expirationTime);
@@ -2733,7 +2733,7 @@ function performUnitOfWork(workInProgress) {
       startProfilerTimer(workInProgress);
     }
 
-    // 开始beginWork得到的结果是当前节点的大儿子节点fiber
+    // !开始beginWork得到的结果是当前节点的大儿子节点fiber
     // current$$1是WIP的替身，workInProgress是当前fiber，renderExpirationTime是全局的nextRenderET（就是root的nextETToWork）
     next = beginWork(current$$1, workInProgress, nextRenderExpirationTime);
 
