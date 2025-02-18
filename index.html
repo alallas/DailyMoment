@@ -5465,77 +5465,119 @@
 
 
 
+    // function solution(n, m, k, x) {
+    //     const MOD = BigInt(10**9 + 7);
+    //     x.sort((a, b) => a - b);
+    //     if (m === 0) return 1;
+    //     if (n < m) return 0;
+
+    //     // Precompute factorial and inverse factorial using BigInt
+    //     const maxFact = n;
+    //     const fact = new Array(maxFact + 1).fill(BigInt(1));
+    //     for (let i = 1; i <= maxFact; i++) {
+    //         fact[i] = (fact[i - 1] * BigInt(i)) % MOD;
+    //     }
+
+    //     const invFact = new Array(maxFact + 1).fill(BigInt(1));
+    //     invFact[maxFact] = powMod(fact[maxFact], MOD - BigInt(2), MOD);
+    //     for (let i = maxFact - 1; i >= 0; i--) {
+    //         invFact[i] = (invFact[i + 1] * BigInt(i + 1)) % MOD;
+    //     }
+
+    //     let result = BigInt(0);
+
+    //     for (let i = 0; i < n; i++) {
+    //         const leftVal = x[i];
+    //         let left = i;
+    //         let right = n - 1;
+    //         let j = i;
+    //         while (left <= right) {
+    //             const mid = Math.floor((left + right) / 2);
+    //             if (x[mid] <= leftVal + k) {
+    //                 j = mid;
+    //                 left = mid + 1;
+    //             } else {
+    //                 right = mid - 1;
+    //             }
+    //         }
+    //         const count = j - i + 1;
+    //         if (count >= m) {
+    //             const c = comb(count - 1, m - 1, fact, invFact, MOD);
+    //             result = (result + c) % MOD;
+    //         }
+    //     }
+
+    //     return Number(result % MOD);
+    // }
+
+    // function powMod(base, exp, mod) {
+    //     let result = BigInt(1);
+    //     base = base % mod;
+    //     while (exp > 0) {
+    //         if (exp % BigInt(2) === BigInt(1)) {
+    //             result = (result * base) % mod;
+    //         }
+    //         base = (base * base) % mod;
+    //         exp = exp / BigInt(2);
+    //     }
+    //     return result;
+    // }
+
+    // function comb(n, k, fact, invFact, mod) {
+    //     if (k < 0 || k > n) return BigInt(0);
+    //     return (fact[n] * invFact[k] % mod) * invFact[n - k] % mod;
+    // }
+
+
+
+
     function solution(n, m, k, x) {
-        const MOD = BigInt(10**9 + 7);
+        // 首先保证数组是从小排序的
         x.sort((a, b) => a - b);
-        if (m === 0) return 1;
-        if (n < m) return 0;
-
-        // Precompute factorial and inverse factorial using BigInt
-        const maxFact = n;
-        const fact = new Array(maxFact + 1).fill(BigInt(1));
-        for (let i = 1; i <= maxFact; i++) {
-            fact[i] = (fact[i - 1] * BigInt(i)) % MOD;
-        }
-
-        const invFact = new Array(maxFact + 1).fill(BigInt(1));
-        invFact[maxFact] = powMod(fact[maxFact], MOD - BigInt(2), MOD);
-        for (let i = maxFact - 1; i >= 0; i--) {
-            invFact[i] = (invFact[i + 1] * BigInt(i + 1)) % MOD;
-        }
-
-        let result = BigInt(0);
-
-        for (let i = 0; i < n; i++) {
-            const leftVal = x[i];
-            let left = i;
-            let right = n - 1;
-            let j = i;
-            while (left <= right) {
-                const mid = Math.floor((left + right) / 2);
-                if (x[mid] <= leftVal + k) {
-                    j = mid;
-                    left = mid + 1;
-                } else {
-                    right = mid - 1;
-                }
+        let count = 0
+        // 遍历这个数组，拿到每一个数的最长窗口
+        for (let i = 0; i < x.length; i++) {
+            let left = i
+            let right = i
+            while(right < n && x[right] - x[left] <= k) {
+                right++
             }
-            const count = j - i + 1;
-            if (count >= m) {
-                const c = comb(count - 1, m - 1, fact, invFact, MOD);
-                result = (result + c) % MOD;
+            console.log('right', right)
+            let trueRight = right - 1
+            // 开始算组合数
+            let countInArray = trueRight - left + 1
+            if (countInArray >= m) {
+                const r = comb(countInArray - 1, m - 1)
+                count += r
             }
         }
-
-        return Number(result % MOD);
+        return count
     }
 
-    function powMod(base, exp, mod) {
-        let result = BigInt(1);
-        base = base % mod;
-        while (exp > 0) {
-            if (exp % BigInt(2) === BigInt(1)) {
-                result = (result * base) % mod;
-            }
-            base = (base * base) % mod;
-            exp = exp / BigInt(2);
+    // 阶乘的公式
+    function factorial(x) {
+        let res = 1;
+        for (let i = 2; i <= x; i++) {
+            res *= i
         }
-        return result;
+        return res
     }
 
-    function comb(n, k, fact, invFact, mod) {
-        if (k < 0 || k > n) return BigInt(0);
-        return (fact[n] * invFact[k] % mod) * invFact[n - k] % mod;
+    // 组合的公式：C(n, k) = n!/(k!*(n−k)!）
+    // 意思是从n个数里面选k个数有多少种组合（不看顺序）
+    function comb(n, k) {
+        return factorial(n) / (factorial(k) * factorial(n - k))
     }
+
     
 
-    function main() {
-        console.log(solution(4, 2, 3, [1, 2, 3, 4]) === 6);
-        console.log(solution(4, 2, 2, [1, 2, 3, 4]) === 5);
-        console.log(solution(5, 3, 5, [1, 3, 6, 7, 9]) === 3);
-    }
+    // function main() {
+    //     console.log(solution(4, 2, 3, [1, 2, 3, 4]) === 6);
+    //     console.log(solution(4, 2, 2, [1, 2, 3, 4]) === 5);
+    //     console.log(solution(5, 3, 5, [1, 3, 6, 7, 9]) === 3);
+    // }
 
-    main();
+    // main();
 
 
     // function solution(t1, t2, t3) {
@@ -5564,6 +5606,49 @@
     // }
 
     // main();
+
+
+
+
+
+
+
+    function solution(fruits) {
+        // debugger
+        let max = 0
+        for (let i = 0; i < fruits.length; i++) {
+            console.log('-------------')
+            let left = i;
+            let right = i;
+            let map = {}
+            while(right < fruits.length && Object.keys(map).length <= 2){
+                let curFruit = fruits[right]
+                if (!map[fruits]) {
+                    map[curFruit] = 1
+                    if (Object.keys(map).length > 2) break
+                } else {
+                    map[curFruit] += 1
+                }
+                right++
+            }
+            console.log('right', right)
+            let trueRight = right - 1
+            console.log('trueRight', trueRight)
+            let len = trueRight - left + 1
+            console.log('len', len)
+            max = Math.max(max, len)
+
+        }
+        return max;
+    }
+
+    function main() {
+        console.log(solution([1, 2, 1, 2]) === 4);
+        console.log(solution([2, 0, 1, 2, 2]) === 3);
+        // console.log(solution([1, 2, 3, 2, 2, 4]) === 4);
+    }
+
+    main();
     
 
 
