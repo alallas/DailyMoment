@@ -273,6 +273,7 @@ var Passive = /*               */ 512;
 var NoEffect = /*              */ 0;
 var PerformedWork = /*         */ 1;
 
+
 // 10. scheduleChildren阶段
 
 // 孩子的组件类型的定义，fiber的tag定义！！
@@ -308,10 +309,15 @@ var renderExpirationTime = NoWork;
 // 实际上就是WIP，只是名字不同
 var currentlyRenderingFiber$1 = null;
 
+
+// 钩子相关
+
 // Hooks are stored as a linked list on the fiber's memoizedState field. The
 // current hook list is the list that belongs to the current fiber. The
 // work-in-progress hook list is a new list that will be added to the
 // work-in-progress fiber.
+
+// workInProgressHook用来保存一个函数组件中的所有hook，是有先后顺序的
 var currentHook = null;
 var nextCurrentHook = null;
 var firstWorkInProgressHook = null;
@@ -319,8 +325,13 @@ var workInProgressHook = null;
 var nextWorkInProgressHook = null;
 
 var remainingExpirationTime = NoWork;
+
+// 下面两个是用在useEffect钩子里面的
 var componentUpdateQueue = null;
 var sideEffectTag = 0;
+
+
+
 
 // 什么时候用？？？？？赋予effectTag的值的时候吗
 var NoEffect$1 = /*             */ 0;
@@ -4630,7 +4641,9 @@ function resolveDispatcher() {
 }
 
 
-// 1. 第一个钩子是useReducer
+
+// 其他钩子在开始都有下面两个函数（useXXX和工具箱对应的方法），用来引入mountXXX()
+// 这里只是展示了useReducer
 function useReducer(reducer, initialArg, init) {
   var dispatcher = resolveDispatcher();
   return dispatcher.useReducer(reducer, initialArg, init);
@@ -4649,27 +4662,81 @@ function useReducer(reducer, initialArg, init) {
 //   }
 // },
 
-// 钩子函数
+
+
+
+// 1. useReducer钩子函数
 function mountReducer(reducer, initialArg, init) {
+  // 初始化WIPHook对象及链条
+  // 一个钩子一个hook对象
+  // 用来保存信息，包括state数据，reducer函数
   var hook = mountWorkInProgressHook();
+
+  // 1. 处理state数据
   var initialState = void 0;
+
+  // 第三个参数是一个return初始state对象的函数
+  // 第二个参数是初始的state对象
   if (init !== undefined) {
     initialState = init(initialArg);
   } else {
     initialState = initialArg;
   }
+  // 把初始的状态保存到hook对象里面
   hook.memoizedState = hook.baseState = initialState;
+
+  // 2. 整合state数据和reducer函数的信息
+  // 新建一个队列，保存最新的一个reducer函数和initState
   var queue = hook.queue = {
     last: null,
     dispatch: null,
     lastRenderedReducer: reducer,
     lastRenderedState: initialState
   };
+
+  // 3. 返回一个dispatch函数，
+  // 其中的currentlyRenderingFiber$1在执行函数组件之前已经被赋值了currentlyRenderingFiber$1 = workInProgress;
   var dispatch = queue.dispatch = dispatchAction.bind(null,
   // Flow doesn't know this is non-null, but we do.
   currentlyRenderingFiber$1, queue);
   return [hook.memoizedState, dispatch];
 }
+
+
+
+
+// 2. useState钩子函数
+function mountState(initialState) {
+  // 一个钩子一个hook对象
+  var hook = mountWorkInProgressHook();
+
+  // 1. 处理state数据
+  if (typeof initialState === 'function') {
+    initialState = initialState();
+  }
+  hook.memoizedState = hook.baseState = initialState;
+
+  // 2. 整合state数据和reducer函数的信息
+  // 实际上，useState就是useReducer，他的reducer就是basicStateReducer
+  var queue = hook.queue = {
+    last: null,
+    dispatch: null,
+    lastRenderedReducer: basicStateReducer,
+    lastRenderedState: initialState
+  };
+
+  // 3. 返回一个dispatch函数，用于到时候改变state
+  // 与reducer一模一样
+  var dispatch = queue.dispatch = dispatchAction.bind(null,
+  // Flow doesn't know this is non-null, but we do.
+  currentlyRenderingFiber$1, queue);
+  return [hook.memoizedState, dispatch];
+}
+
+function basicStateReducer(state, action) {
+  return typeof action === 'function' ? action(state) : action;
+}
+
 
 
 
@@ -4684,6 +4751,9 @@ function mountWorkInProgressHook() {
     next: null
   };
 
+  // 把hook对象保存到全局的链条里面，注意是全局
+  // 如果执行了多个函数组件，也一并放到这里面
+  // 那到时候怎么取出来呢？？？
   if (workInProgressHook === null) {
     // This is the first hook in the list
     firstWorkInProgressHook = workInProgressHook = hook;
@@ -4693,4 +4763,182 @@ function mountWorkInProgressHook() {
   }
   return workInProgressHook;
 }
+
+
+
+
+
+function dispatchAction(fiber, queue, action) {
+  !(numberOfReRenders < RE_RENDER_LIMIT) ? invariant(false, 'Too many re-renders. React limits the number of renders to prevent an infinite loop.') : void 0;
+
+  {
+    !(arguments.length <= 3) ? warning$1(false, "State updates from the useState() and useReducer() Hooks don't support the " + 'second callback argument. To execute a side effect after ' + 'rendering, declare it in the component body with useEffect().') : void 0;
+  }
+
+  var alternate = fiber.alternate;
+  if (fiber === currentlyRenderingFiber$1 || alternate !== null && alternate === currentlyRenderingFiber$1) {
+    // This is a render phase update. Stash it in a lazily-created map of
+    // queue -> linked list of updates. After this render pass, we'll restart
+    // and apply the stashed updates on top of the work-in-progress hook.
+    didScheduleRenderPhaseUpdate = true;
+    var update = {
+      expirationTime: renderExpirationTime,
+      action: action,
+      eagerReducer: null,
+      eagerState: null,
+      next: null
+    };
+    if (renderPhaseUpdates === null) {
+      renderPhaseUpdates = new Map();
+    }
+    var firstRenderPhaseUpdate = renderPhaseUpdates.get(queue);
+    if (firstRenderPhaseUpdate === undefined) {
+      renderPhaseUpdates.set(queue, update);
+    } else {
+      // Append the update to the end of the list.
+      var lastRenderPhaseUpdate = firstRenderPhaseUpdate;
+      while (lastRenderPhaseUpdate.next !== null) {
+        lastRenderPhaseUpdate = lastRenderPhaseUpdate.next;
+      }
+      lastRenderPhaseUpdate.next = update;
+    }
+  } else {
+    flushPassiveEffects();
+
+    var currentTime = requestCurrentTime();
+    var _expirationTime = computeExpirationForFiber(currentTime, fiber);
+
+    var _update2 = {
+      expirationTime: _expirationTime,
+      action: action,
+      eagerReducer: null,
+      eagerState: null,
+      next: null
+    };
+
+    // Append the update to the end of the list.
+    var _last = queue.last;
+    if (_last === null) {
+      // This is the first update. Create a circular list.
+      _update2.next = _update2;
+    } else {
+      var first = _last.next;
+      if (first !== null) {
+        // Still circular.
+        _update2.next = first;
+      }
+      _last.next = _update2;
+    }
+    queue.last = _update2;
+
+    if (fiber.expirationTime === NoWork && (alternate === null || alternate.expirationTime === NoWork)) {
+      // The queue is currently empty, which means we can eagerly compute the
+      // next state before entering the render phase. If the new state is the
+      // same as the current state, we may be able to bail out entirely.
+      var _lastRenderedReducer = queue.lastRenderedReducer;
+      if (_lastRenderedReducer !== null) {
+        var prevDispatcher = void 0;
+        {
+          prevDispatcher = ReactCurrentDispatcher$1.current;
+          ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnUpdateInDEV;
+        }
+        try {
+          var currentState = queue.lastRenderedState;
+          var _eagerState = _lastRenderedReducer(currentState, action);
+          // Stash the eagerly computed state, and the reducer used to compute
+          // it, on the update object. If the reducer hasn't changed by the
+          // time we enter the render phase, then the eager state can be used
+          // without calling the reducer again.
+          _update2.eagerReducer = _lastRenderedReducer;
+          _update2.eagerState = _eagerState;
+          if (is(_eagerState, currentState)) {
+            // Fast path. We can bail out without scheduling React to re-render.
+            // It's still possible that we'll need to rebase this update later,
+            // if the component re-renders for a different reason and by that
+            // time the reducer has changed.
+            return;
+          }
+        } catch (error) {
+          // Suppress the error. It will throw again in the render phase.
+        } finally {
+          {
+            ReactCurrentDispatcher$1.current = prevDispatcher;
+          }
+        }
+      }
+    }
+    {
+      if (shouldWarnForUnbatchedSetState === true) {
+        warnIfNotCurrentlyBatchingInDev(fiber);
+      }
+    }
+    scheduleWork(fiber, _expirationTime);
+  }
+}
+
+
+
+
+
+// 3. useEffect钩子函数
+function mountEffect(create, deps) {
+  return mountEffectImpl(Update | Passive, UnmountPassive | MountPassive, create, deps);
+}
+
+
+function mountEffectImpl(fiberEffectTag, hookEffectTag, create, deps) {
+  // 一个钩子一个hook对象
+  var hook = mountWorkInProgressHook();
+
+  // 如果没有输入deps参数的话就是一个null，而不是一个空数组！！
+  var nextDeps = deps === undefined ? null : deps;
+
+  sideEffectTag |= fiberEffectTag;
+
+  // 在这个hook的state里面存的是effect对象，
+  // !什么时候触发这个create函数呢？？？？
+  // 可能在后面执行完函数之后？？？，useEffect就是在首次加载的时候执行这个函数的
+  hook.memoizedState = pushEffect(hookEffectTag, create, undefined, nextDeps);
+}
+
+
+function pushEffect(tag, create, destroy, deps) {
+  // 使用一个effect对象保存信息，包括函数，以及依赖项，以及摧毁的函数
+  var effect = {
+    tag: tag,
+    create: create,
+    destroy: destroy,
+    deps: deps,
+    // Circular
+    next: null
+  };
+
+  // 创造一个环形链表，componentUpdateQueue的环形链表
+  // 函数组件的effect专用的保存过去变化的数据的链表
+  // 保存在全局
+  if (componentUpdateQueue === null) {
+    componentUpdateQueue = createFunctionComponentUpdateQueue();
+    componentUpdateQueue.lastEffect = effect.next = effect;
+  } else {
+    var _lastEffect = componentUpdateQueue.lastEffect;
+    if (_lastEffect === null) {
+      componentUpdateQueue.lastEffect = effect.next = effect;
+    } else {
+      var firstEffect = _lastEffect.next;
+      _lastEffect.next = effect;
+      effect.next = firstEffect;
+      componentUpdateQueue.lastEffect = effect;
+    }
+  }
+  return effect;
+}
+
+
+function createFunctionComponentUpdateQueue() {
+  return {
+    lastEffect: null
+  };
+}
+
+
 
