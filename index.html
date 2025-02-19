@@ -5642,13 +5642,44 @@
         return max;
     }
 
-    function main() {
-        console.log(solution([1, 2, 1, 2]) === 4);
-        console.log(solution([2, 0, 1, 2, 2]) === 3);
-        // console.log(solution([1, 2, 3, 2, 2, 4]) === 4);
+    // function main() {
+    //     console.log(solution([1, 2, 1, 2]) === 4);
+    //     console.log(solution([2, 0, 1, 2, 2]) === 3);
+    //     // console.log(solution([1, 2, 3, 2, 2, 4]) === 4);
+    // }
+
+    // main();
+
+
+    function solution(n, k, people) {
+        let i = 0;
+        let count = 0;
+        let res = 0
+        while (i < n) {
+            if (count === k) {
+                break
+            }
+            res++
+            if (people[i] === 'A') {
+                count++
+            }
+            if (i === n - 1 && count < k) {
+                i = 0
+            } else {
+                i++
+            }
+        }
+        console.log('res', res)
+        return res;
     }
 
-    main();
+    // function main() {
+    //     console.log(solution(3, 3, "AAB") === 4);
+    //     console.log(solution(3, 3, "BBA") === 9);
+    //     console.log(solution(5, 4, "ABABA") === 6);
+    // }
+
+    // main();
     
 
 

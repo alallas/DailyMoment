@@ -4622,16 +4622,75 @@ function renderWithHooks(
 
 
 
-
-
-function useReducer(reducer, initialArg, init) {
-  var dispatcher = resolveDispatcher();
-  return dispatcher.useReducer(reducer, initialArg, init);
-}
-
 function resolveDispatcher() {
   // 拿到hooks的工具箱，这个工具箱子在哪里被赋值？？
   // 在renderWithHooks里面，一旦工具箱子被赋值就立刻执行函数组件的函数
   var dispatcher = ReactCurrentDispatcher.current;
   return dispatcher;
 }
+
+
+// 1. 第一个钩子是useReducer
+function useReducer(reducer, initialArg, init) {
+  var dispatcher = resolveDispatcher();
+  return dispatcher.useReducer(reducer, initialArg, init);
+}
+
+// 工具箱子里面的钩子
+// useReducer: function (reducer, initialArg, init) {
+//   currentHookNameInDev = "useReducer";
+//   mountHookTypesDev();
+//   var prevDispatcher = ReactCurrentDispatcher$1.current;
+//   ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnMountInDEV;
+//   try {
+//     return mountReducer(reducer, initialArg, init);
+//   } finally {
+//     ReactCurrentDispatcher$1.current = prevDispatcher;
+//   }
+// },
+
+// 钩子函数
+function mountReducer(reducer, initialArg, init) {
+  var hook = mountWorkInProgressHook();
+  var initialState = void 0;
+  if (init !== undefined) {
+    initialState = init(initialArg);
+  } else {
+    initialState = initialArg;
+  }
+  hook.memoizedState = hook.baseState = initialState;
+  var queue = hook.queue = {
+    last: null,
+    dispatch: null,
+    lastRenderedReducer: reducer,
+    lastRenderedState: initialState
+  };
+  var dispatch = queue.dispatch = dispatchAction.bind(null,
+  // Flow doesn't know this is non-null, but we do.
+  currentlyRenderingFiber$1, queue);
+  return [hook.memoizedState, dispatch];
+}
+
+
+
+function mountWorkInProgressHook() {
+  var hook = {
+    memoizedState: null,
+
+    baseState: null,
+    queue: null,
+    baseUpdate: null,
+
+    next: null
+  };
+
+  if (workInProgressHook === null) {
+    // This is the first hook in the list
+    firstWorkInProgressHook = workInProgressHook = hook;
+  } else {
+    // Append to the end of the list
+    workInProgressHook = workInProgressHook.next = hook;
+  }
+  return workInProgressHook;
+}
+
