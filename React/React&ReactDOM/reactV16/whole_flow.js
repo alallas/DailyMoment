@@ -314,7 +314,10 @@ var renderExpirationTime = NoWork;
 var currentlyRenderingFiber$1 = null;
 
 
-// 钩子相关
+
+
+// 11.钩子相关
+// 11.1 hook链条
 
 // Hooks are stored as a linked list on the fiber's memoizedState field. The
 // current hook list is the list that belongs to the current fiber. The
@@ -350,8 +353,7 @@ var UnmountPassive = /*       */ 128;
 
 
 
-
-// 11. （不是一个阶段，是一个专题）dispatcher相关的
+// 11.2 dispatcher相关的
 
 // 函数执行过程中使用的存储器，实际上就是ReactCurrentDispatcher，只是为了函数调用方便又赋了一个变量
 var ReactCurrentDispatcher$1 = ReactSharedInternals.ReactCurrentDispatcher;
@@ -452,6 +454,23 @@ var currentHookNameInDev = null;
 // Subsequent renders (updates) reference this list.
 var hookTypesDev = null;
 var hookTypesUpdateIndexDev = -1;
+
+
+
+
+// 12. 上下文相关
+var isPrimaryRenderer = true;
+
+var rendererSigil = void 0;
+{
+  // Use this to detect multiple renderers using the same context
+  rendererSigil = {};
+}
+
+var currentlyRenderingFiber = null;
+var lastContextDependency = null;
+var lastContextWithAllBitsObserved = null;
+
 
 
 
@@ -5354,11 +5373,13 @@ function mountRef(initialValue) {
 
 
 
-// REVIEW - 【上下文】下面是建立一个全局的上下文对象（存储数据的仓库）的方法
-// ?!实际上这个方法在React.render函数执行之前执行
+// REVIEW - 【上下文】下面是上下文相关的方法
+// !包括初始化上下文对象，provider的组件更新，useContext钩子函数
 
 
 
+// 建立一个全局的上下文对象（存储数据的仓库）
+// !实际上这个方法在React.render函数执行之前执行
 function createContext(defaultValue, calculateChangedBits) {
   if (calculateChangedBits === undefined) {
     calculateChangedBits = null;
@@ -5470,16 +5491,21 @@ function createContext(defaultValue, calculateChangedBits) {
 
 
 
-// 一个provider组件，经过beginWork分发之后，来到这里
+// 一个myConetxt.Provider组件，经过beginWork分发之后，来到这里
 function updateContextProvider(current$$1, workInProgress, renderExpirationTime) {
+  
+  // 拿到初始化的上下文对象
   var providerType = workInProgress.type;
   var context = providerType._context;
 
   var newProps = workInProgress.pendingProps;
   var oldProps = workInProgress.memoizedProps;
 
+  // 拿到这个fiber里面的value
   var newValue = newProps.value;
 
+
+  // 什么时候会出现下面这种情况？？？？？？
   {
     var providerPropTypes = workInProgress.type.propTypes;
 
@@ -5488,25 +5514,207 @@ function updateContextProvider(current$$1, workInProgress, renderExpirationTime)
     }
   }
 
+  // 把Provider的value放到全局的context里面
   pushProvider(workInProgress, newValue);
 
+
+  // 更新的时候，比较两个上下文是否发生了变化
   if (oldProps !== null) {
     var oldValue = oldProps.value;
+    // 检查看上下文是哪里发生了变化
     var changedBits = calculateChangedBits(context, newValue, oldValue);
+
+    // 如果没有发生变化
     if (changedBits === 0) {
-      // No change. Bailout early if children are the same.
+      // 并且前后的孩子树都一样，那么这个fiber就不需要更新了
       if (oldProps.children === newProps.children && !hasContextChanged()) {
+        // 早期退出的函数，告诉 React，当前的工作已经完成，可以跳过不必要的处理
         return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
       }
     } else {
-      // The context value changed. Search for matching consumers and schedule
-      // them to update.
+      // 上下文已经变化，更新上下文
       propagateContextChange(workInProgress, context, changedBits, renderExpirationTime);
     }
   }
 
   var newChildren = newProps.children;
+  // 然后开始调和孩子树
   reconcileChildren(current$$1, workInProgress, newChildren, renderExpirationTime);
+  return workInProgress.child;
+}
+
+
+
+
+function pushProvider(providerFiber, nextValue) {
+  // 拿到上下文对象
+  var context = providerFiber.type._context;
+
+  // 初始渲染走这里，
+  if (isPrimaryRenderer) {
+    // 把上下文里面的nextValue值保存在valueCursor的current属性里面
+    push(valueCursor, context._currentValue, providerFiber);
+
+    // 把provider的数据放到这个属性里面
+    context._currentValue = nextValue;
+
+    // 这个属性用来干嘛？？
+    {
+      !(context._currentRenderer === undefined || context._currentRenderer === null || context._currentRenderer === rendererSigil) ? warningWithoutStack$1(false, 'Detected multiple renderers concurrently rendering the ' + 'same context provider. This is currently unsupported.') : void 0;
+      context._currentRenderer = rendererSigil;
+    }
+  } else {
+
+    // 非初始渲染走这里
+    push(valueCursor, context._currentValue2, providerFiber);
+
+    // 有两个保存的地方，两个并发渲染器
+    context._currentValue2 = nextValue;
+    {
+      !(context._currentRenderer2 === undefined || context._currentRenderer2 === null || context._currentRenderer2 === rendererSigil) ? warningWithoutStack$1(false, 'Detected multiple renderers concurrently rendering the ' + 'same context provider. This is currently unsupported.') : void 0;
+      context._currentRenderer2 = rendererSigil;
+    }
+  }
+}
+
+
+
+
+// 下面是useContext钩子的函数
+
+function useContext(Context, unstable_observedBits) {
+  // 拿到hooks的工具箱
+  var dispatcher = resolveDispatcher();
+  {
+    !(unstable_observedBits === undefined) ? warning$1(false, 'useContext() second argument is reserved for future ' + 'use in React. Passing it is not supported. ' + 'You passed: %s.%s', unstable_observedBits, typeof unstable_observedBits === 'number' && Array.isArray(arguments[2]) ? '\n\nDid you call array.map(useContext)? ' + 'Calling Hooks inside a loop is not supported. ' + 'Learn more at https://fb.me/rules-of-hooks' : '') : void 0;
+
+    if (Context._context !== undefined) {
+      var realContext = Context._context;
+      // Don't deduplicate because this legitimately causes bugs
+      // and nobody should be using this in existing code.
+      if (realContext.Consumer === Context) {
+        warning$1(false, 'Calling useContext(Context.Consumer) is not supported, may cause bugs, and will be ' + 'removed in a future major release. Did you mean to call useContext(Context) instead?');
+      } else if (realContext.Provider === Context) {
+        warning$1(false, 'Calling useContext(Context.Provider) is not supported. ' + 'Did you mean to call useContext(Context) instead?');
+      }
+    }
+  }
+
+  // 拿到上下文对象
+  return dispatcher.useContext(Context, unstable_observedBits);
+}
+
+// 接下来进入：
+// useContext: function (context, observedBits) {
+//   currentHookNameInDev = 'useContext';
+//   mountHookTypesDev();
+//   return readContext(context, observedBits);
+// },
+
+
+
+
+function readContext(context, observedBits) {
+  {
+    // This warning would fire if you read context inside a Hook like useMemo.
+    // Unlike the class check below, it's not enforced in production for perf.
+    !!isDisallowedContextReadInDEV ? warning$1(false, 'Context can only be read while React is rendering. ' + 'In classes, you can read it in the render method or getDerivedStateFromProps. ' + 'In function components, you can read it directly in the function body, but not ' + 'inside Hooks like useReducer() or useMemo().') : void 0;
+  }
+
+  // lastContextWithAllBitsObserved初始为null，在prepareToReadContext函数里面也将其变为null
+  if (lastContextWithAllBitsObserved === context) {
+    // Nothing to do. We already observe everything in this context.
+  } else if (observedBits === false || observedBits === 0) {
+    // Do not observe any updates.
+  } else {
+
+    // 这个变量用来干嘛？？？？
+    var resolvedObservedBits = void 0; // Avoid deopting on observable arguments or heterogeneous types.
+    if (typeof observedBits !== 'number' || observedBits === maxSigned31BitInt) {
+      // Observe all updates.
+      lastContextWithAllBitsObserved = context;
+      resolvedObservedBits = maxSigned31BitInt;
+    } else {
+      resolvedObservedBits = observedBits;
+    }
+
+    // 把上下文对象封起来
+    var contextItem = {
+      context: context,
+      observedBits: resolvedObservedBits,
+      next: null
+    };
+
+
+    // 把受封的上下文对象保存在全局的一个链条里面
+    if (lastContextDependency === null) {
+      !(currentlyRenderingFiber !== null) ? invariant(false, 'Context can only be read while React is rendering. In classes, you can read it in the render method or getDerivedStateFromProps. In function components, you can read it directly in the function body, but not inside Hooks like useReducer() or useMemo().') : void 0;
+
+      // 首次渲染进入
+      // 保存到lastContextDependency
+      lastContextDependency = contextItem;
+
+      // 同时currentlyRenderingFiber也要保存
+      currentlyRenderingFiber.contextDependencies = {
+        first: contextItem,
+        expirationTime: NoWork
+      };
+    } else {
+      // Append a new context item.
+      lastContextDependency = lastContextDependency.next = contextItem;
+    }
+  }
+
+  // 返回之前在provider里面push进去过的_currentValue，也就是provider的value的对象/或者其他任何自己定义的数据
+  return isPrimaryRenderer ? context._currentValue : context._currentValue2;
+}
+
+
+
+
+
+
+
+
+// REVIEW - 下面是经过beginWork分发后来到原生的普通的DOM节点的更新函数
+
+
+function updateHostComponent(current$$1, workInProgress, renderExpirationTime) {
+  pushHostContext(workInProgress);
+
+  if (current$$1 === null) {
+    tryToClaimNextHydratableInstance(workInProgress);
+  }
+
+  var type = workInProgress.type;
+  var nextProps = workInProgress.pendingProps;
+  var prevProps = current$$1 !== null ? current$$1.memoizedProps : null;
+
+  var nextChildren = nextProps.children;
+  var isDirectTextChild = shouldSetTextContent(type, nextProps);
+
+  if (isDirectTextChild) {
+    // We special case a direct text child of a host node. This is a common
+    // case. We won't handle it as a reified child. We will instead handle
+    // this in the host environment that also have access to this prop. That
+    // avoids allocating another HostText fiber and traversing it.
+    nextChildren = null;
+  } else if (prevProps !== null && shouldSetTextContent(type, prevProps)) {
+    // If we're switching from a direct text child to a normal child, or to
+    // empty, we need to schedule the text content to be reset.
+    workInProgress.effectTag |= ContentReset;
+  }
+
+  markRef(current$$1, workInProgress);
+
+  // Check the host config to see if the children are offscreen/hidden.
+  if (renderExpirationTime !== Never && workInProgress.mode & ConcurrentMode && shouldDeprioritizeSubtree(type, nextProps)) {
+    // Schedule this fiber to re-render at offscreen priority. Then bailout.
+    workInProgress.expirationTime = workInProgress.childExpirationTime = Never;
+    return null;
+  }
+
+  reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime);
   return workInProgress.child;
 }
 

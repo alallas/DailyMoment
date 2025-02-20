@@ -5680,6 +5680,57 @@
     // }
 
     // main();
+
+
+
+
+
+
+
+    function solution(a, b) {
+        let map = Array(a.length).fill(0).map((item, index) => {
+            return Array(a[index]).fill(0)
+        })
+        map.forEach((item, index) => {
+            item[b[index] - 1] = 1
+        })
+        console.log(map)
+        let count = map[0].indexOf(1)
+        let curPos = count
+        for (let i = 0; i < map.length; i++) {
+            let curTree = map[i]
+            let nextTree = map[i + 1]
+            if (nextTree) {
+                let nextAppleIndex = nextTree.indexOf(1)
+                if (curPos <= nextTree.length - 1) {
+                    let needToWalk = Math.abs(curPos - nextAppleIndex)+ 1
+                    count += needToWalk
+                } else {
+                    let nextTreeTop = nextTree.length - 1
+                    let needToWalk = Math.abs(curPos - nextTreeTop) + (nextTreeTop - nextAppleIndex) + 1
+                    // console.log('Math.abs(curPos - nextTreeTop)', Math.abs(curPos - nextTreeTop))
+                    // console.log('(nextTreeTop - nextAppleIndex)', (nextTreeTop - nextAppleIndex))
+                    count += needToWalk
+                }
+                curPos = nextAppleIndex
+            }
+
+        }
+        console.log(count + 1)
+        return count + 1;
+    }
+
+    // function main() {
+    //     // console.log(solution([3, 4, 5, 6, 7], [1, 2, 3, 4, 5]) === 9);
+    //     // console.log(solution([4, 4, 4], [1, 2, 3]) === 5);
+    //     // console.log(solution([7, 8, 6, 5, 7, 9], [2, 3, 5, 4, 6, 7]) === 14);
+    //     console.log(solution([8,3], [4,3]) === 6);
+    // }
+
+    // main();
+
+
+
     
 
 
