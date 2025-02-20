@@ -1,3 +1,7 @@
+// 一些专题类的查找关键字：
+// 上下文：【上下文】
+
+
 // REVIEW - 全局变量
 // 1.createElement阶段
 var hasSymbol = typeof Symbol === "function" && Symbol.for;
@@ -258,16 +262,16 @@ var currentlyProcessingQueue = void 0;
 // 9. proceedUpdateQueue阶段
 
 // 副作用链的标识
-var Placement = /*             */ 2;
-var Update = /*                */ 4;
-var PlacementAndUpdate = /*    */ 6;
-var Deletion = /*              */ 8;
-var ContentReset = /*          */ 16;
-var Callback = /*              */ 32;
-var DidCapture = /*            */ 64;
-var Ref = /*                   */ 128;
-var Snapshot = /*              */ 256;
-var Passive = /*               */ 512;
+var Placement = /*             */ 2;     // “新插入”
+var Update = /*                */ 4;     // 更新 state 或 props
+var PlacementAndUpdate = /*    */ 6;     // 新插入 + 更新，也就是Placement 和 Update 的组合（2 | 4）
+var Deletion = /*              */ 8;     // 删除
+var ContentReset = /*          */ 16;    // 重置（通常用于节点的文本内容或状态恢复）
+var Callback = /*              */ 32;    // 回调需要执行（例如 componentDidMount、componentDidUpdate）
+var DidCapture = /*            */ 64;    // 捕获到某些异常
+var Ref = /*                   */ 128;   // 当前节点有 ref 需要处理
+var Snapshot = /*              */ 256;   // 需要快照（通常在 getSnapshotBeforeUpdate 生命周期方法中使用）
+var Passive = /*               */ 512;   // 该副作用是被动的（例如，useEffect 的副作用），异步操作
 
 // 两个变量为React Dev Tools所用
 var NoEffect = /*              */ 0;
@@ -324,6 +328,7 @@ var firstWorkInProgressHook = null;
 var workInProgressHook = null;
 var nextWorkInProgressHook = null;
 
+// hook专用的eT？？？
 var remainingExpirationTime = NoWork;
 
 // 下面两个是用在useEffect钩子里面的
@@ -342,6 +347,9 @@ var UnmountLayout = /*        */ 16;
 var MountLayout = /*          */ 32;
 var MountPassive = /*         */ 64;
 var UnmountPassive = /*       */ 128;
+
+
+
 
 // 11. （不是一个阶段，是一个专题）dispatcher相关的
 
@@ -423,23 +431,29 @@ HooksDispatcherOnMountInDEV = {
   },
 };
 
+
 // ？？？？？？？？用来？？
-// Whether an update was scheduled during the currently executing render pass.
+// 是否在当前执行的渲染过程中安排了更新。
 var didScheduleRenderPhaseUpdate = false;
+
 // Lazily created map of render-phase updates
 var renderPhaseUpdates = null;
-// Counter to prevent infinite loops.
+
+// 一个索引，用来拿出当前链条的hook对象
 var numberOfReRenders = 0;
 var RE_RENDER_LIMIT = 25;
 
 // In DEV, this is the name of the currently executing primitive hook
 var currentHookNameInDev = null;
 
+
 // In DEV, this list ensures that hooks are called in the same order between renders.
 // The list stores the order of hooks used during the initial render (mount).
 // Subsequent renders (updates) reference this list.
 var hookTypesDev = null;
 var hookTypesUpdateIndexDev = -1;
+
+
 
 // REVIEW - 创建虚拟DOM（jsx等于虚拟DOM）
 
@@ -3755,7 +3769,7 @@ function ChildReconciler(shouldTrackSideEffects) {
     // currentFirstChild是父亲fiber的替身的大儿子（应该也是一个fiber），也就是当前页面显示的对应的节点
     // newChild是nextState.element，是最新的虚拟DOM
 
-    // 用来处理这种情况 <>{[...]}</> 和 <>...</>
+    // 1. 用来处理这种情况 <>{[...]}</> 和 <>...</>
     // 在这种情况下，保证newChild除去了空的标签符号，剩下里面的所有孩子
     var isUnkeyedTopLevelFragment =
       typeof newChild === "object" &&
@@ -3768,7 +3782,9 @@ function ChildReconciler(shouldTrackSideEffects) {
 
     var isObject = typeof newChild === "object" && newChild !== null;
 
-    // 如果newChild是一个对象或者一个数组的形式
+
+    // 2. 开始分发
+    // 2.1如果newChild是只有一个，且是一个对象或者一个数组的形式（数组不在这里面，去到下面的逻辑）
     if (isObject) {
       switch (newChild.$$typeof) {
         case REACT_ELEMENT_TYPE:
@@ -3807,6 +3823,8 @@ function ChildReconciler(shouldTrackSideEffects) {
       );
     }
 
+    // 一般来说，一个大的父节点下面肯定有很多个子节点，因此newChild就是一个数组的形式
+    // 这里面涉及到diff的算法
     if (isArray(newChild)) {
       return reconcileChildrenArray(
         returnFiber,
@@ -4030,6 +4048,12 @@ function ChildReconciler(shouldTrackSideEffects) {
             expirationTime,
             key
           );
+        // 举例：【上下文】type是一个这样的对象
+        // context.Provider = {
+        //   $$typeof: REACT_PROVIDER_TYPE,
+        //   _context: context
+        // };
+        // case 的前两个都是，一个提供者一个消费者
         default: {
           if (typeof type === "object" && type !== null) {
             switch (type.$$typeof) {
@@ -4193,6 +4217,283 @@ function ChildReconciler(shouldTrackSideEffects) {
     return newFiber;
   }
 
+  function reconcileChildrenArray(returnFiber, currentFirstChild, newChildren, expirationTime) {
+    // 这里源码说有双端优化的更好的算法！！
+    // 针对某一层进行处理！！！
+
+    // 入参：
+    // currentFirstChild是替身WIP的大儿子
+    // newChildren是数组形式的虚拟DOM
+
+    {
+      // 如果类型是REACT_PORTAL_TYPE，需要检查key是否重复，是否是字符串类型
+      var knownKeys = null;
+      for (var i = 0; i < newChildren.length; i++) {
+        var child = newChildren[i];
+        knownKeys = warnOnInvalidKey(child, knownKeys);
+      }
+    }
+
+
+    // 定义一些本函数使用的变量
+    var resultingFirstChild = null;
+    var previousNewFiber = null;
+
+    var oldFiber = currentFirstChild;
+    var lastPlacedIndex = 0;
+    var newIdx = 0;
+    var nextOldFiber = null;
+
+
+    // 1. 下面是更新时的逻辑
+    // 经过首次渲染，lastPlacedIndex为0
+    for (; oldFiber !== null && newIdx < newChildren.length; newIdx++) {
+
+      if (oldFiber.index > newIdx) {
+        // 遍历第一遍为0
+        nextOldFiber = oldFiber;
+        oldFiber = null;
+      } else {
+        nextOldFiber = oldFiber.sibling;
+      }
+      
+      var newFiber = updateSlot(returnFiber, oldFiber, newChildren[newIdx], expirationTime);
+      if (newFiber === null) {
+        // This breaks on empty slots like null children. That's
+        // unfortunate because it triggers the slow path all the time. We need
+        // a better way to communicate whether this was a miss or null,
+        // boolean, undefined, etc.
+        if (oldFiber === null) {
+          oldFiber = nextOldFiber;
+        }
+        break;
+      }
+
+      if (shouldTrackSideEffects) {
+        if (oldFiber && newFiber.alternate === null) {
+          // We matched the slot, but we didn't reuse the existing fiber, so we
+          // need to delete the existing child.
+          deleteChild(returnFiber, oldFiber);
+        }
+      }
+
+      // diff算法，看谁需要移动，谁需要插入，注意：这里面没有处理删除逻辑
+      lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
+      if (previousNewFiber === null) {
+        // Move out of the loop. This only happens for the first run.
+        resultingFirstChild = newFiber;
+      } else {
+        // Defer siblings if we're not at the right index for this slot.
+        // I.e. if we had null values before, then we want to defer this
+        // for each null value. However, we also don't want to call updateSlot
+        // with the previous one.
+        previousNewFiber.sibling = newFiber;
+      }
+      previousNewFiber = newFiber;
+      oldFiber = nextOldFiber;
+    }
+
+
+    if (newIdx === newChildren.length) {
+      // We've reached the end of the new children. We can delete the rest.
+      deleteRemainingChildren(returnFiber, oldFiber);
+      return resultingFirstChild;
+    }
+
+
+    // 2. 首次渲染走下面
+    if (oldFiber === null) {
+      // If we don't have any more existing children we can choose a fast path
+      // since the rest will all be insertions.
+      for (; newIdx < newChildren.length; newIdx++) {
+
+        // 首先新建孩子fiber，每个孩子都新建一个fiber。
+        // 由此可见当遍历到一个节点的时候，他的所有孩子节点都会相应地建立起fiber
+        // 往右探索的时候，需要先判断这个fiber是否已经存在了
+        var _newFiber = createChild(returnFiber, newChildren[newIdx], expirationTime);
+        if (!_newFiber) {
+          continue;
+        }
+
+        // 然后移动孩子的顺序，都是新增的节点，最后lastPlacedIndex不变，还是为0
+        // 这里给fiber加上index的属性，记录位置
+        lastPlacedIndex = placeChild(_newFiber, lastPlacedIndex, newIdx);
+
+        // 首次渲染且遍历第一遍这个为null
+        if (previousNewFiber === null) {
+          // 让大儿子变量为_newFiber
+          resultingFirstChild = _newFiber;
+        } else {
+          // 遍历第二遍往后
+          // 在这里赋予sibling的属性
+          previousNewFiber.sibling = _newFiber;
+        }
+        // 让当前的fiber进入一个中间变量（等待空间）等待下一次给他赋予sibling的属性，以便连接兄弟
+        previousNewFiber = _newFiber;
+      }
+      return resultingFirstChild;
+    }
+
+    // Add all children to a key map for quick lookups.
+    var existingChildren = mapRemainingChildren(returnFiber, oldFiber);
+
+    // Keep scanning and use the map to restore deleted items as moves.
+    for (; newIdx < newChildren.length; newIdx++) {
+      var _newFiber2 = updateFromMap(existingChildren, returnFiber, newIdx, newChildren[newIdx], expirationTime);
+      if (_newFiber2) {
+        if (shouldTrackSideEffects) {
+          if (_newFiber2.alternate !== null) {
+            // The new fiber is a work in progress, but if there exists a
+            // current, that means that we reused the fiber. We need to delete
+            // it from the child list so that we don't add it to the deletion
+            // list.
+            existingChildren.delete(_newFiber2.key === null ? newIdx : _newFiber2.key);
+          }
+        }
+        lastPlacedIndex = placeChild(_newFiber2, lastPlacedIndex, newIdx);
+        if (previousNewFiber === null) {
+          resultingFirstChild = _newFiber2;
+        } else {
+          previousNewFiber.sibling = _newFiber2;
+        }
+        previousNewFiber = _newFiber2;
+      }
+    }
+
+    if (shouldTrackSideEffects) {
+      // Any existing children that weren't consumed above were deleted. We need
+      // to add them to the deletion list.
+      existingChildren.forEach(function (child) {
+        return deleteChild(returnFiber, child);
+      });
+    }
+
+    return resultingFirstChild;
+  }
+
+
+
+
+
+  function createChild(returnFiber, newChild, expirationTime) {
+    // newChildren是单个虚拟DOM
+
+    // 分发：
+    // 文本节点
+    if (typeof newChild === 'string' || typeof newChild === 'number') {
+      var created = createFiberFromText('' + newChild, returnFiber.mode, expirationTime);
+      created.return = returnFiber;
+      return created;
+    }
+
+
+    // 正常的节点
+    // 建立fiber，注意这里没有进行sibling的相连接，
+    // sibling的连接放在了reconcileChildrenArray，在执行完当前函数之后，在for循环中
+    if (typeof newChild === 'object' && newChild !== null) {
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE:
+          {
+            var _created = createFiberFromElement(newChild, returnFiber.mode, expirationTime);
+            _created.ref = coerceRef(returnFiber, null, newChild);
+            _created.return = returnFiber;
+            return _created;
+          }
+        case REACT_PORTAL_TYPE:
+          {
+            var _created2 = createFiberFromPortal(newChild, returnFiber.mode, expirationTime);
+            _created2.return = returnFiber;
+            return _created2;
+          }
+      }
+
+      // 如果这个也是个数组，当作被<></>包围了，直接用createFiberFromFragment
+      if (isArray(newChild) || getIteratorFn(newChild)) {
+        var _created3 = createFiberFromFragment(newChild, returnFiber.mode, expirationTime, null);
+        _created3.return = returnFiber;
+        return _created3;
+      }
+
+      throwOnInvalidObjectType(returnFiber, newChild);
+    }
+
+    {
+      if (typeof newChild === 'function') {
+        warnOnFunctionType();
+      }
+    }
+
+    return null;
+  }
+
+
+
+  // 类似于V15的diff算法！！！
+  // 跟fiber在数组中的位置是相关的，这里没有处理删除！！
+  function placeChild(newFiber, lastPlacedIndex, newIndex) {
+
+    // 给这个fiber加上一个index的属性，保存自己在父亲的孩子数组中的位置
+    newFiber.index = newIndex;
+
+    // shouldTrackSideEffects是true
+    if (!shouldTrackSideEffects) {
+      // Noop.
+      return lastPlacedIndex;
+    }
+
+    // 如果有替身存在
+    var current$$1 = newFiber.alternate;
+    if (current$$1 !== null) {
+      var oldIndex = current$$1.index;
+      if (oldIndex < lastPlacedIndex) {
+        // 这是移动的情况 
+        // 如果本fiber【老的index】比【最后一个需要移动的节点】还要小
+        // 说明这个fiber在之前是位于左的，需要向右边移动（事先定义好只能向右边移动）
+        // 标记为移动，返回当前的lastPlacedIndex
+        newFiber.effectTag = Placement;
+        return lastPlacedIndex;
+      } else {
+        // oldIndex >= lastPlacedIndex的情况：
+        // 更新首个孩子时，由于lastPlacedIndex为0，所以肯定会走到这里，也就是此时的lastPlacedIndex被更新为这个fiber过去所在的位置
+        // 如果发现这个孩子的老位置比过去位于最右边的节点的位置还要大，
+        // 那就说明左边有东西要向右移动到这里，这个节点本身自己则不需要处理，同时更新一下最大的lastPlacedIndex
+        return oldIndex;
+      }
+    } else {
+      // 首次渲染走这里
+      // 这是插入的情况，都是新增，lastIndex不变，为0
+      newFiber.effectTag = Placement;
+      return lastPlacedIndex;
+    }
+
+
+
+    // 在v15里面，代码长这样
+    // if (oldChildElement === newChildElement) {
+    //   这个时候说明是复用的老节点，接下来要看是否需要移动
+    //   if (oldChildElement._mountIndex < lastIndex) {
+    //     diffQueue.push({
+    //       parentNode,
+    //       type: MOVE,
+    //       fromIndex: oldChildElement._mountIndex,
+    //       toIndex: i,
+    //     });
+    //   }
+    //   lastIndex = Math.max(oldChildElement._mountIndex, lastIndex);
+    // } else {
+    //   diffQueue.push({
+    //     parentNode,
+    //     type: INSERT,
+    //     toIndex: i,
+    //     dom: createDOM(newChildElement),
+    //   });
+    // }
+
+
+  }
+
+
+
   return reconcileChildFibers;
 }
 
@@ -4304,6 +4605,7 @@ function mountIndeterminateComponent(
     // 把当前的workInProgress保存到ReactCurrentOwner$3.current
     ReactCurrentOwner$3.current = workInProgress;
     // 把hooks的工具箱赋给全局变量，这样react对象就能拿到对应的函数，在函数组件执行中就能使用这些钩子函数
+    // 拿到的是孩子树
     value = renderWithHooks(
       null,
       workInProgress,
@@ -4316,21 +4618,29 @@ function mountIndeterminateComponent(
   // React DevTools reads this flag.
   workInProgress.effectTag |= PerformedWork;
 
+
+
+  // 4. 开始分发（根据孩子树的类型）
+  // 第一种情况是是一个类组件
   if (
     typeof value === "object" &&
     value !== null &&
     typeof value.render === "function" &&
     value.$$typeof === undefined
   ) {
-    // Proceed under the assumption that this is a class instance
+    // 但是这里为什么改的是父亲的WIP呢？？？？？不应该是孩子的吗
     workInProgress.tag = ClassComponent;
 
-    // Throw out any hooks that were used.
+    // 重置一下全局变量，相当于任何组件（里面可能用了很多的hook），都用同一个内存的东西来作为全局变量
+    // 任意地方使用
     resetHooks();
 
-    // Push context providers early to prevent context stack mismatches.
-    // During mounting we don't know the child context yet as the instance doesn't exist.
-    // We will invalidate the child context in finishClassComponent() right after rendering.
+
+    // 4.1上下文设置：
+
+    //尽早推送上下文提供程序，以防止上下文堆栈不匹配。
+    //在挂载过程中，我们还不知道子上下文，因为实例不存在。
+    //我们将在渲染后立即在finishClassComponent（）中使子上下文无效。
     var hasContext = false;
     if (isContextProvider(Component)) {
       hasContext = true;
@@ -4339,9 +4649,24 @@ function mountIndeterminateComponent(
       hasContext = false;
     }
 
-    workInProgress.memoizedState =
-      value.state !== null && value.state !== undefined ? value.state : null;
+    // 4.2把state改变一下：
+    workInProgress.memoizedState = value.state !== null && value.state !== undefined ? value.state : null;
 
+    // 4.3 还没有执行类组件之前，执行getDerivedStateFromProps(nextProps, nextState)生命周期函数
+    // 根据新的 props 来计算和更新组件的 state，在初次渲染和每次 props 或 state 变化时都会被调用。
+    // 它返回一个对象（更新后的 state），或者返回 null（表示不需要更新 state）。
+    // 也就是：用来在执行类组件的render函数之前，提前判断是否需要更新？？？
+    // 例子：
+    // static getDerivedStateFromProps(nextProps, nextState) {
+    //   如果 props 发生变化，更新 state
+    //   if (nextProps.initialCount !== nextState.count) {
+    //     return {
+    //       count: nextProps.initialCount
+    //     };
+    //   }
+    //   如果没有变化，返回 null，表示不需要更新 state
+    //   return null;
+    // }
     var getDerivedStateFromProps = Component.getDerivedStateFromProps;
     if (typeof getDerivedStateFromProps === "function") {
       applyDerivedStateFromProps(
@@ -4352,8 +4677,10 @@ function mountIndeterminateComponent(
       );
     }
 
+    // 4.4 更新类组件：
     adoptClassInstance(workInProgress, value);
     mountClassInstance(workInProgress, Component, props, renderExpirationTime);
+
     return finishClassComponent(
       null,
       workInProgress,
@@ -4363,8 +4690,11 @@ function mountIndeterminateComponent(
       renderExpirationTime
     );
   } else {
-    // Proceed under the assumption that this is a function component
+
+    // 第二种情况不是一个类组件，其他任何类型只要不是类组件都归类于FunctionComponent
     workInProgress.tag = FunctionComponent;
+
+
     {
       if (
         debugRenderPhaseSideEffects ||
@@ -4384,10 +4714,15 @@ function mountIndeterminateComponent(
         }
       }
     }
+
+    // 对孩子进行更新调和，结果会保存在WIP的child属性里面
     reconcileChildren(null, workInProgress, value, renderExpirationTime);
+
+    // 结束之后做一个小小的验证
     {
       validateFunctionComponentInDev(workInProgress, Component);
     }
+    // 返回大儿子，回到beginWork函数，继续往下探索
     return workInProgress.child;
   }
 }
@@ -4545,7 +4880,10 @@ function renderWithHooks(
   // 期间使用钩子！！！，这里假设使用了reducer和state的钩子
   var children = Component(props, refOrContext);
 
-  //
+
+
+  // 是否在当前执行的渲染过程中安排了更新，首次渲染的时候这个变量为false，不走这里
+  // 更新阶段应该会走这里，这里是在找到hook的链条，然后从头开始计数，同时执行函数，得到最后被覆盖的最新的子树
   if (didScheduleRenderPhaseUpdate) {
     do {
       didScheduleRenderPhaseUpdate = false;
@@ -4573,14 +4911,23 @@ function renderWithHooks(
     numberOfReRenders = 0;
   }
 
+
+  // 4. 函数组件执行完之后，对一些全局变量进行覆盖更新
+
+
   // We can assume the previous dispatcher is always this one, since we set it
   // at the beginning of the render phase and there's no re-entrancy.
   ReactCurrentDispatcher$1.current = ContextOnlyDispatcher;
 
+
+  // 拿到已经执行过函数的WIP
   var renderedWork = currentlyRenderingFiber$1;
 
+  // state保存一下hook链条的第一个hook对象
   renderedWork.memoizedState = firstWorkInProgressHook;
+  // 首次渲染的时候，WIP的eT改为了NoWork
   renderedWork.expirationTime = remainingExpirationTime;
+  // WIP的更新队列变成了effect的链表
   renderedWork.updateQueue = componentUpdateQueue;
   renderedWork.effectTag |= sideEffectTag;
 
@@ -4592,6 +4939,8 @@ function renderWithHooks(
   // hookTypesDev could catch more cases (e.g. context) but only in DEV bundles.
   var didRenderTooFewHooks = currentHook !== null && currentHook.next !== null;
 
+
+  // 5. 重置所有的hook相关的全局变量
   renderExpirationTime = NoWork;
   currentlyRenderingFiber$1 = null;
 
@@ -4623,6 +4972,7 @@ function renderWithHooks(
       )
     : void 0;
 
+  // 6. 返回孩子树，函数组件的返回值
   return children;
 }
 
@@ -4696,6 +5046,7 @@ function mountReducer(reducer, initialArg, init) {
 
   // 3. 返回一个dispatch函数，
   // 其中的currentlyRenderingFiber$1在执行函数组件之前已经被赋值了currentlyRenderingFiber$1 = workInProgress;
+  // 这里为什么不是一个新的state作为第一个参数，setxxx不是都是以一个新的state对象为参数的吗？？？
   var dispatch = queue.dispatch = dispatchAction.bind(null,
   // Flow doesn't know this is non-null, but we do.
   currentlyRenderingFiber$1, queue);
@@ -4940,5 +5291,223 @@ function createFunctionComponentUpdateQueue() {
   };
 }
 
+
+
+// 4. useMemo钩子函数
+function mountMemo(nextCreate, deps) {
+  // 一个钩子一个hook对象
+  var hook = mountWorkInProgressHook();
+
+  var nextDeps = deps === undefined ? null : deps;
+  var nextValue = nextCreate();
+
+  // memo的第一个参数是一个函数，return值是新的一个变量
+  // 这里存的是memo的下一个value，以及依赖项本身
+  hook.memoizedState = [nextValue, nextDeps];
+
+  // 返回这个变量
+  return nextValue;
+}
+
+
+
+
+// 5. useCallback钩子函数
+function mountCallback(callback, deps) {
+  // 一个钩子一个hook对象
+  var hook = mountWorkInProgressHook();
+
+  var nextDeps = deps === undefined ? null : deps;
+  hook.memoizedState = [callback, nextDeps];
+
+  // 返回的是第一个函数参数本身的函数
+  // 在这里面不用执行进入的第一个函数，而是等到依赖项发生变化的时候才 
+  return callback;
+}
+
+
+
+
+
+// 6. useRef钩子函数
+function mountRef(initialValue) {
+  var hook = mountWorkInProgressHook();
+
+  // 把变量存到一个对象的current里面！！
+  var ref = { current: initialValue };
+
+  // Object.seal
+  // 禁止新增属性：不能再向对象中添加新的属性。
+  // 禁止删除属性：不能删除对象中已有的属性。
+  // 现有属性仍然可修改：可以修改对象中已经存在的属性的值（如果这些属性是可写的）。
+  {
+    Object.seal(ref);
+  }
+
+  // 这里存起来的是ref对象
+  hook.memoizedState = ref;
+  return ref;
+}
+
+
+
+
+
+
+// REVIEW - 【上下文】下面是建立一个全局的上下文对象（存储数据的仓库）的方法
+// ?!实际上这个方法在React.render函数执行之前执行
+
+
+
+function createContext(defaultValue, calculateChangedBits) {
+  if (calculateChangedBits === undefined) {
+    calculateChangedBits = null;
+  } else {
+    {
+      !(calculateChangedBits === null || typeof calculateChangedBits === 'function') ? warningWithoutStack$1(false, 'createContext: Expected the optional second argument to be a ' + 'function. Instead received: %s', calculateChangedBits) : void 0;
+    }
+  }
+
+  var context = {
+    $$typeof: REACT_CONTEXT_TYPE,
+    _calculateChangedBits: calculateChangedBits,
+
+    // 保存全局的数据！
+    // 作为支持多个并发渲染器的解决方法，我们将一些渲染器归类为主要渲染器，而另一些则归类为次要渲染器。
+    // 我们最多只期望有两个并发渲染器：React Native（主要）和Fabric（次要）；React DOM（主要）和React ART（次要）。
+    // 辅助渲染器将其上下文值存储在单独的字段中。
+    _currentValue: defaultValue,
+    _currentValue2: defaultValue,
+
+    // 用于跟踪此上下文当前在单个渲染器中支持多少个并发渲染器。例如并行服务器渲染。
+    _threadCount: 0,
+    
+    // 提供者与消费者的存储地方
+    Provider: null,
+    Consumer: null
+  };
+
+  // context的Provider保存了context对象的信息
+  // 这个provider在外部的写法是<MyContext.Provider>，等于React.createElement(MyContext.Provider)
+  // 因此这个虚拟DOM的type就是这么一个对象
+  context.Provider = {
+    $$typeof: REACT_PROVIDER_TYPE,
+    _context: context
+  };
+
+  var hasWarnedAboutUsingNestedContextConsumers = false;
+  var hasWarnedAboutUsingConsumerProvider = false;
+
+  {
+
+    // context的Consumer保存了context对象的信息
+    var Consumer = {
+      $$typeof: REACT_CONTEXT_TYPE,
+      _context: context,
+      _calculateChangedBits: context._calculateChangedBits
+    };
+
+    // 保存一些属性：
+    Object.defineProperties(Consumer, {
+      Provider: {
+        get: function () {
+          if (!hasWarnedAboutUsingConsumerProvider) {
+            hasWarnedAboutUsingConsumerProvider = true;
+            warning$1(false, 'Rendering <Context.Consumer.Provider> is not supported and will be removed in ' + 'a future major release. Did you mean to render <Context.Provider> instead?');
+          }
+          return context.Provider;
+        },
+        set: function (_Provider) {
+          context.Provider = _Provider;
+        }
+      },
+      _currentValue: {
+        get: function () {
+          return context._currentValue;
+        },
+        set: function (_currentValue) {
+          context._currentValue = _currentValue;
+        }
+      },
+      _currentValue2: {
+        get: function () {
+          return context._currentValue2;
+        },
+        set: function (_currentValue2) {
+          context._currentValue2 = _currentValue2;
+        }
+      },
+      _threadCount: {
+        get: function () {
+          return context._threadCount;
+        },
+        set: function (_threadCount) {
+          context._threadCount = _threadCount;
+        }
+      },
+      Consumer: {
+        get: function () {
+          if (!hasWarnedAboutUsingNestedContextConsumers) {
+            hasWarnedAboutUsingNestedContextConsumers = true;
+            warning$1(false, 'Rendering <Context.Consumer.Consumer> is not supported and will be removed in ' + 'a future major release. Did you mean to render <Context.Consumer> instead?');
+          }
+          return context.Consumer;
+        }
+      }
+    });
+    // $FlowFixMe: Flow complains about missing properties because it doesn't understand defineProperty
+    context.Consumer = Consumer;
+  }
+
+  {
+    context._currentRenderer = null;
+    context._currentRenderer2 = null;
+  }
+
+  return context;
+}
+
+
+
+
+// 一个provider组件，经过beginWork分发之后，来到这里
+function updateContextProvider(current$$1, workInProgress, renderExpirationTime) {
+  var providerType = workInProgress.type;
+  var context = providerType._context;
+
+  var newProps = workInProgress.pendingProps;
+  var oldProps = workInProgress.memoizedProps;
+
+  var newValue = newProps.value;
+
+  {
+    var providerPropTypes = workInProgress.type.propTypes;
+
+    if (providerPropTypes) {
+      checkPropTypes(providerPropTypes, newProps, 'prop', 'Context.Provider', getCurrentFiberStackInDev);
+    }
+  }
+
+  pushProvider(workInProgress, newValue);
+
+  if (oldProps !== null) {
+    var oldValue = oldProps.value;
+    var changedBits = calculateChangedBits(context, newValue, oldValue);
+    if (changedBits === 0) {
+      // No change. Bailout early if children are the same.
+      if (oldProps.children === newProps.children && !hasContextChanged()) {
+        return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
+      }
+    } else {
+      // The context value changed. Search for matching consumers and schedule
+      // them to update.
+      propagateContextChange(workInProgress, context, changedBits, renderExpirationTime);
+    }
+  }
+
+  var newChildren = newProps.children;
+  reconcileChildren(current$$1, workInProgress, newChildren, renderExpirationTime);
+  return workInProgress.child;
+}
 
 
