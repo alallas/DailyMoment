@@ -5731,6 +5731,27 @@
 
 
 
+
+
+
+
+
+    function solution(n, m) {
+        if ((n % 2 === 0 && m % 2 === 0) || (n % 2 !== 0 && m % 2 !== 0)) {
+            return 'No'
+        }
+        return "Yes"; // placeholder return
+    }
+
+    function main() {
+        console.log(solution(1, 1) === "No");
+        console.log(solution(1, 4) === "Yes");
+        console.log(solution(4, 1) === "Yes");
+        console.log(solution(4, 4) === "No");
+    }
+
+    main();
+
     
 
 

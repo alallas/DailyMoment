@@ -473,6 +473,130 @@ var lastContextWithAllBitsObserved = null;
 
 
 
+// 13. completeWork阶段
+
+// 真实DOM的索引，指向fiber的
+var randomKey = Math.random().toString(36).slice(2);
+var internalInstanceKey = '__reactInternalInstance$' + randomKey;
+var internalEventHandlersKey = '__reactEventHandlers$' + randomKey;
+
+
+// 给原生DOM进行setProp的时候用到了，
+var DANGEROUSLY_SET_INNER_HTML = 'dangerouslySetInnerHTML';
+var SUPPRESS_CONTENT_EDITABLE_WARNING = 'suppressContentEditableWarning';
+var SUPPRESS_HYDRATION_WARNING$1 = 'suppressHydrationWarning';
+var AUTOFOCUS = 'autoFocus';
+var CHILDREN = 'children';
+var STYLE$1 = 'style';
+var HTML = '__html';
+
+
+
+// 14. 事件触发相关
+
+// 所有事件
+
+function unsafeCastStringToDOMTopLevelType(topLevelType) {
+  return topLevelType;
+}
+
+var TOP_ABORT = unsafeCastStringToDOMTopLevelType('abort');
+var TOP_ANIMATION_END = unsafeCastStringToDOMTopLevelType(getVendorPrefixedEventName('animationend'));
+var TOP_ANIMATION_ITERATION = unsafeCastStringToDOMTopLevelType(getVendorPrefixedEventName('animationiteration'));
+var TOP_ANIMATION_START = unsafeCastStringToDOMTopLevelType(getVendorPrefixedEventName('animationstart'));
+var TOP_BLUR = unsafeCastStringToDOMTopLevelType('blur');
+var TOP_CAN_PLAY = unsafeCastStringToDOMTopLevelType('canplay');
+var TOP_CAN_PLAY_THROUGH = unsafeCastStringToDOMTopLevelType('canplaythrough');
+var TOP_CANCEL = unsafeCastStringToDOMTopLevelType('cancel');
+var TOP_CHANGE = unsafeCastStringToDOMTopLevelType('change');
+var TOP_CLICK = unsafeCastStringToDOMTopLevelType('click');
+var TOP_CLOSE = unsafeCastStringToDOMTopLevelType('close');
+var TOP_COMPOSITION_END = unsafeCastStringToDOMTopLevelType('compositionend');
+var TOP_COMPOSITION_START = unsafeCastStringToDOMTopLevelType('compositionstart');
+var TOP_COMPOSITION_UPDATE = unsafeCastStringToDOMTopLevelType('compositionupdate');
+var TOP_CONTEXT_MENU = unsafeCastStringToDOMTopLevelType('contextmenu');
+var TOP_COPY = unsafeCastStringToDOMTopLevelType('copy');
+var TOP_CUT = unsafeCastStringToDOMTopLevelType('cut');
+var TOP_DOUBLE_CLICK = unsafeCastStringToDOMTopLevelType('dblclick');
+var TOP_AUX_CLICK = unsafeCastStringToDOMTopLevelType('auxclick');
+var TOP_DRAG = unsafeCastStringToDOMTopLevelType('drag');
+var TOP_DRAG_END = unsafeCastStringToDOMTopLevelType('dragend');
+var TOP_DRAG_ENTER = unsafeCastStringToDOMTopLevelType('dragenter');
+var TOP_DRAG_EXIT = unsafeCastStringToDOMTopLevelType('dragexit');
+var TOP_DRAG_LEAVE = unsafeCastStringToDOMTopLevelType('dragleave');
+var TOP_DRAG_OVER = unsafeCastStringToDOMTopLevelType('dragover');
+var TOP_DRAG_START = unsafeCastStringToDOMTopLevelType('dragstart');
+var TOP_DROP = unsafeCastStringToDOMTopLevelType('drop');
+var TOP_DURATION_CHANGE = unsafeCastStringToDOMTopLevelType('durationchange');
+var TOP_EMPTIED = unsafeCastStringToDOMTopLevelType('emptied');
+var TOP_ENCRYPTED = unsafeCastStringToDOMTopLevelType('encrypted');
+var TOP_ENDED = unsafeCastStringToDOMTopLevelType('ended');
+var TOP_ERROR = unsafeCastStringToDOMTopLevelType('error');
+var TOP_FOCUS = unsafeCastStringToDOMTopLevelType('focus');
+var TOP_GOT_POINTER_CAPTURE = unsafeCastStringToDOMTopLevelType('gotpointercapture');
+var TOP_INPUT = unsafeCastStringToDOMTopLevelType('input');
+var TOP_INVALID = unsafeCastStringToDOMTopLevelType('invalid');
+var TOP_KEY_DOWN = unsafeCastStringToDOMTopLevelType('keydown');
+var TOP_KEY_PRESS = unsafeCastStringToDOMTopLevelType('keypress');
+var TOP_KEY_UP = unsafeCastStringToDOMTopLevelType('keyup');
+var TOP_LOAD = unsafeCastStringToDOMTopLevelType('load');
+var TOP_LOAD_START = unsafeCastStringToDOMTopLevelType('loadstart');
+var TOP_LOADED_DATA = unsafeCastStringToDOMTopLevelType('loadeddata');
+var TOP_LOADED_METADATA = unsafeCastStringToDOMTopLevelType('loadedmetadata');
+var TOP_LOST_POINTER_CAPTURE = unsafeCastStringToDOMTopLevelType('lostpointercapture');
+var TOP_MOUSE_DOWN = unsafeCastStringToDOMTopLevelType('mousedown');
+var TOP_MOUSE_MOVE = unsafeCastStringToDOMTopLevelType('mousemove');
+var TOP_MOUSE_OUT = unsafeCastStringToDOMTopLevelType('mouseout');
+var TOP_MOUSE_OVER = unsafeCastStringToDOMTopLevelType('mouseover');
+var TOP_MOUSE_UP = unsafeCastStringToDOMTopLevelType('mouseup');
+var TOP_PASTE = unsafeCastStringToDOMTopLevelType('paste');
+var TOP_PAUSE = unsafeCastStringToDOMTopLevelType('pause');
+var TOP_PLAY = unsafeCastStringToDOMTopLevelType('play');
+var TOP_PLAYING = unsafeCastStringToDOMTopLevelType('playing');
+var TOP_POINTER_CANCEL = unsafeCastStringToDOMTopLevelType('pointercancel');
+var TOP_POINTER_DOWN = unsafeCastStringToDOMTopLevelType('pointerdown');
+
+
+var TOP_POINTER_MOVE = unsafeCastStringToDOMTopLevelType('pointermove');
+var TOP_POINTER_OUT = unsafeCastStringToDOMTopLevelType('pointerout');
+var TOP_POINTER_OVER = unsafeCastStringToDOMTopLevelType('pointerover');
+var TOP_POINTER_UP = unsafeCastStringToDOMTopLevelType('pointerup');
+var TOP_PROGRESS = unsafeCastStringToDOMTopLevelType('progress');
+var TOP_RATE_CHANGE = unsafeCastStringToDOMTopLevelType('ratechange');
+var TOP_RESET = unsafeCastStringToDOMTopLevelType('reset');
+var TOP_SCROLL = unsafeCastStringToDOMTopLevelType('scroll');
+var TOP_SEEKED = unsafeCastStringToDOMTopLevelType('seeked');
+var TOP_SEEKING = unsafeCastStringToDOMTopLevelType('seeking');
+var TOP_SELECTION_CHANGE = unsafeCastStringToDOMTopLevelType('selectionchange');
+var TOP_STALLED = unsafeCastStringToDOMTopLevelType('stalled');
+var TOP_SUBMIT = unsafeCastStringToDOMTopLevelType('submit');
+var TOP_SUSPEND = unsafeCastStringToDOMTopLevelType('suspend');
+var TOP_TEXT_INPUT = unsafeCastStringToDOMTopLevelType('textInput');
+var TOP_TIME_UPDATE = unsafeCastStringToDOMTopLevelType('timeupdate');
+var TOP_TOGGLE = unsafeCastStringToDOMTopLevelType('toggle');
+var TOP_TOUCH_CANCEL = unsafeCastStringToDOMTopLevelType('touchcancel');
+var TOP_TOUCH_END = unsafeCastStringToDOMTopLevelType('touchend');
+var TOP_TOUCH_MOVE = unsafeCastStringToDOMTopLevelType('touchmove');
+var TOP_TOUCH_START = unsafeCastStringToDOMTopLevelType('touchstart');
+var TOP_TRANSITION_END = unsafeCastStringToDOMTopLevelType(getVendorPrefixedEventName('transitionend'));
+var TOP_VOLUME_CHANGE = unsafeCastStringToDOMTopLevelType('volumechange');
+var TOP_WAITING = unsafeCastStringToDOMTopLevelType('waiting');
+var TOP_WHEEL = unsafeCastStringToDOMTopLevelType('wheel');
+
+var knownHTMLTopLevelTypes = [TOP_ABORT, TOP_CANCEL, TOP_CAN_PLAY, TOP_CAN_PLAY_THROUGH, TOP_CLOSE, TOP_DURATION_CHANGE, TOP_EMPTIED, TOP_ENCRYPTED, TOP_ENDED, TOP_ERROR, TOP_INPUT, TOP_INVALID, TOP_LOAD, TOP_LOADED_DATA, TOP_LOADED_METADATA, TOP_LOAD_START, TOP_PAUSE, TOP_PLAY, TOP_PLAYING, TOP_PROGRESS, TOP_RATE_CHANGE, TOP_RESET, TOP_SEEKED, TOP_SEEKING, TOP_STALLED, TOP_SUBMIT, TOP_SUSPEND, TOP_TIME_UPDATE, TOP_TOGGLE, TOP_VOLUME_CHANGE, TOP_WAITING];
+
+var interactiveEventTypeNames = [[TOP_BLUR, 'blur'], [TOP_CANCEL, 'cancel'], [TOP_CLICK, 'click'], [TOP_CLOSE, 'close'], [TOP_CONTEXT_MENU, 'contextMenu'], [TOP_COPY, 'copy'], [TOP_CUT, 'cut'], [TOP_AUX_CLICK, 'auxClick'], [TOP_DOUBLE_CLICK, 'doubleClick'], [TOP_DRAG_END, 'dragEnd'], [TOP_DRAG_START, 'dragStart'], [TOP_DROP, 'drop'], [TOP_FOCUS, 'focus'], [TOP_INPUT, 'input'], [TOP_INVALID, 'invalid'], [TOP_KEY_DOWN, 'keyDown'], [TOP_KEY_PRESS, 'keyPress'], [TOP_KEY_UP, 'keyUp'], [TOP_MOUSE_DOWN, 'mouseDown'], [TOP_MOUSE_UP, 'mouseUp'], [TOP_PASTE, 'paste'], [TOP_PAUSE, 'pause'], [TOP_PLAY, 'play'], [TOP_POINTER_CANCEL, 'pointerCancel'], [TOP_POINTER_DOWN, 'pointerDown'], [TOP_POINTER_UP, 'pointerUp'], [TOP_RATE_CHANGE, 'rateChange'], [TOP_RESET, 'reset'], [TOP_SEEKED, 'seeked'], [TOP_SUBMIT, 'submit'], [TOP_TOUCH_CANCEL, 'touchCancel'], [TOP_TOUCH_END, 'touchEnd'], [TOP_TOUCH_START, 'touchStart'], [TOP_VOLUME_CHANGE, 'volumeChange']];
+var nonInteractiveEventTypeNames = [[TOP_ABORT, 'abort'], [TOP_ANIMATION_END, 'animationEnd'], [TOP_ANIMATION_ITERATION, 'animationIteration'], [TOP_ANIMATION_START, 'animationStart'], [TOP_CAN_PLAY, 'canPlay'], [TOP_CAN_PLAY_THROUGH, 'canPlayThrough'], [TOP_DRAG, 'drag'], [TOP_DRAG_ENTER, 'dragEnter'], [TOP_DRAG_EXIT, 'dragExit'], [TOP_DRAG_LEAVE, 'dragLeave'], [TOP_DRAG_OVER, 'dragOver'], [TOP_DURATION_CHANGE, 'durationChange'], [TOP_EMPTIED, 'emptied'], [TOP_ENCRYPTED, 'encrypted'], [TOP_ENDED, 'ended'], [TOP_ERROR, 'error'], [TOP_GOT_POINTER_CAPTURE, 'gotPointerCapture'], [TOP_LOAD, 'load'], [TOP_LOADED_DATA, 'loadedData'], [TOP_LOADED_METADATA, 'loadedMetadata'], [TOP_LOAD_START, 'loadStart'], [TOP_LOST_POINTER_CAPTURE, 'lostPointerCapture'], [TOP_MOUSE_MOVE, 'mouseMove'], [TOP_MOUSE_OUT, 'mouseOut'], [TOP_MOUSE_OVER, 'mouseOver'], [TOP_PLAYING, 'playing'], [TOP_POINTER_MOVE, 'pointerMove'], [TOP_POINTER_OUT, 'pointerOut'], [TOP_POINTER_OVER, 'pointerOver'], [TOP_PROGRESS, 'progress'], [TOP_SCROLL, 'scroll'], [TOP_SEEKING, 'seeking'], [TOP_STALLED, 'stalled'], [TOP_SUSPEND, 'suspend'], [TOP_TIME_UPDATE, 'timeUpdate'], [TOP_TOGGLE, 'toggle'], [TOP_TOUCH_MOVE, 'touchMove'], [TOP_TRANSITION_END, 'transitionEnd'], [TOP_WAITING, 'waiting'], [TOP_WHEEL, 'wheel']];
+
+var eventTypes$4 = {};
+var topLevelEventsToDispatchConfig = {};
+
+// 事件对象的插件，用来补充一些属性
+var plugins = [];
+
+var eventQueue = null;
+
+
 
 // REVIEW - 创建虚拟DOM（jsx等于虚拟DOM）
 
@@ -2905,7 +3029,8 @@ function startProfilerTimer(fiber) {
 }
 
 // REVIEW - render渲染阶段的workLoop循环里面的beginWork，是为树的每一个节点构造一个fiber！！！！
-// ?是对每一个节点的【类型】的分发，（此时位于工作间内部，有点像机场里面门口内的安检程序，需要派发到不同的地方）
+// !是对每一个节点的【类型】的分发，（此时位于工作间内部，有点像机场里面门口内的安检程序，需要派发到不同的地方）
+// 分发出去的函数，每个经过了reconcilChildren之后，最终返回的是大儿子
 
 function beginWork(current$$1, workInProgress, renderExpirationTime) {
   // 入参：current$$1是workInProgress的替身fiber
@@ -3754,10 +3879,7 @@ function reconcileChildren(
   // nextChildren是下一个节点的element虚拟DOM（这个会有变化吗，这是nextState.element），
   // renderExpirationTime就是全局的nextRenderET（就是root的nextETToWork），
   if (current$$1 === null) {
-    // If this is a fresh new component that hasn't been rendered yet, we
-    // won't update its child set by applying minimal side-effects. Instead,
-    // we will add them all to the child before it gets rendered. That means
-    // we can optimize this reconciliation pass by not tracking side-effects.
+    // 下面的函数也就是ChildReconciler(false);也就是reconcileChildFibers
     workInProgress.child = mountChildFibers(
       workInProgress,
       null,
@@ -4513,10 +4635,64 @@ function ChildReconciler(shouldTrackSideEffects) {
 
 
 
+
+  function deleteRemainingChildren(returnFiber, currentFirstChild) {
+
+    // 从reconcileChildFibers过来的
+    // returnFiber是父亲fiber
+    // currentFirstChild是父亲fiber的替身的大儿子（应该也是一个fiber），也就是当前页面显示的对应的节点
+
+    // shouldTrackSideEffects为true的话，就不用删掉，因为只是标记
+    // 而这个函数的逻辑是要删掉
+    if (!shouldTrackSideEffects) {
+      // Noop.
+      return null;
+    }
+
+    // 把这个fiber删掉，因为newChild(新的虚拟DOM)为null，才来到这里
+    var childToDelete = currentFirstChild;
+    while (childToDelete !== null) {
+      deleteChild(returnFiber, childToDelete);
+      childToDelete = childToDelete.sibling;
+    }
+    return null;
+  }
+
+
+  function deleteChild(returnFiber, childToDelete) {
+    if (!shouldTrackSideEffects) {
+      // Noop.
+      return;
+    }
+    // Deletions are added in reversed order so we add it to the front.
+    // At this point, the return fiber's effect list is empty except for
+    // deletions, so we can just append the deletion to the list. The remaining
+    // effects aren't added until the complete phase. Once we implement
+    // resuming, this may not be true.
+
+    // 放到父亲的副作用链上面
+    var last = returnFiber.lastEffect;
+    if (last !== null) {
+      last.nextEffect = childToDelete;
+      returnFiber.lastEffect = childToDelete;
+    } else {
+      returnFiber.firstEffect = returnFiber.lastEffect = childToDelete;
+    }
+
+    // 标记删除！！
+    childToDelete.nextEffect = null;
+    childToDelete.effectTag = Deletion;
+
+  }
+
+
   return reconcileChildFibers;
 }
 
+
 var reconcileChildFibers = ChildReconciler(true);
+var mountChildFibers = ChildReconciler(false);
+
 
 function resetHydrationState() {
   // 如果不支持水化就直接退出吧！！
@@ -5123,7 +5299,7 @@ function mountWorkInProgressHook() {
 
   // 把hook对象保存到全局的链条里面，注意是全局
   // 如果执行了多个函数组件，也一并放到这里面
-  // 那到时候怎么取出来呢？？？
+  // 那到时候怎么取出来呢？？？用一个全局索引
   if (workInProgressHook === null) {
     // This is the first hook in the list
     firstWorkInProgressHook = workInProgressHook = hook;
@@ -5680,8 +5856,11 @@ function readContext(context, observedBits) {
 
 
 function updateHostComponent(current$$1, workInProgress, renderExpirationTime) {
+
+  // 1.更新一下全局的上下文信息
   pushHostContext(workInProgress);
 
+  // 首次渲染的时候，如果是ssr的情况，走下面
   if (current$$1 === null) {
     tryToClaimNextHydratableInstance(workInProgress);
   }
@@ -5691,31 +5870,1881 @@ function updateHostComponent(current$$1, workInProgress, renderExpirationTime) {
   var prevProps = current$$1 !== null ? current$$1.memoizedProps : null;
 
   var nextChildren = nextProps.children;
+
+  // 2.判断接下来的新的是不是一个文本节点，也就是children是一个字符串的形式
   var isDirectTextChild = shouldSetTextContent(type, nextProps);
 
   if (isDirectTextChild) {
-    // We special case a direct text child of a host node. This is a common
-    // case. We won't handle it as a reified child. We will instead handle
-    // this in the host environment that also have access to this prop. That
-    // avoids allocating another HostText fiber and traversing it.
+    // 如果是的话，就不要遍历孩子了，不需要针对文本节点新建一个fiber
+    // 然后进入reconcileChildFibers的时候直接去到deleteRemainingChildren
+    // ?!然后直接去到下一个节点（child或者sibling），为什么？？？
+    // !相当于这个节点是最后一个节点了，直接返回
     nextChildren = null;
+
   } else if (prevProps !== null && shouldSetTextContent(type, prevProps)) {
-    // If we're switching from a direct text child to a normal child, or to
-    // empty, we need to schedule the text content to be reset.
+    // 新的不是一个文本节点，而过去是一个文本节点，说明这个fiber是需要把内容替换掉的，记录到副作用里面
     workInProgress.effectTag |= ContentReset;
   }
 
+  // 有ref的话，workInProgress.effectTag |= Ref
   markRef(current$$1, workInProgress);
 
-  // Check the host config to see if the children are offscreen/hidden.
+  // 3. 是否需要将某个子树的渲染优先级降级，避免不必要的渲染
+  // 确认这不是一个永久的、不能被暂停的任务 且 当前的工作是否处于并发模式 且 是否需要降低该组件（type）的渲染优先级
   if (renderExpirationTime !== Never && workInProgress.mode & ConcurrentMode && shouldDeprioritizeSubtree(type, nextProps)) {
-    // Schedule this fiber to re-render at offscreen priority. Then bailout.
+    // 将 workInProgress 和它的子节点的过期时间设置为 Never，意味着这个节点及其子节点将不会再在当前的渲染周期内被渲染，直到下一个渲染周期
+    // 设置 expirationTime 为 Never 表示这个 fiber 被“延迟”了
     workInProgress.expirationTime = workInProgress.childExpirationTime = Never;
     return null;
   }
 
+  // 4. 进入孩子层级，如果是文本节点，传入的nextChildren是null
   reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime);
   return workInProgress.child;
 }
+
+
+
+function pushHostContext(fiber) {
+
+  var rootInstance = requiredContext(rootInstanceStackCursor.current);
+  // 拿到目前在栈中的指针对应的上下文对象
+  var context = requiredContext(contextStackCursor$1.current);
+
+  // 拿到最新的上下文，里面记录的是节点的type类型
+  var nextContext = getChildHostContext(context, fiber.type, rootInstance);
+
+  // 如果两个上下文是一个内存地址，直接退出，
+  // 但是getChildHostContext返回了一个全新的上下文对象不是吗
+  // 所以两者永远都是不可能相等的
+  if (context === nextContext) {
+    return;
+  }
+
+  // 如果这是一个新的上下文，把上下文和fiber同时保存一下
+  push(contextFiberStackCursor, fiber, fiber);
+  push(contextStackCursor$1, nextContext, fiber);
+}
+
+
+function requiredContext(c) {
+  !(c !== NO_CONTEXT) ? invariant(false, 'Expected host context to exist. This error is likely caused by a bug in React. Please file an issue.') : void 0;
+  return c;
+}
+
+
+function getChildHostContext(parentHostContext, type, rootContainerInstance) {
+  {
+    var parentHostContextDev = parentHostContext;
+
+    // 把最新的type融入到以前的上下文对象里面
+    var _namespace = getChildNamespace(parentHostContextDev.namespace, type);
+    var _ancestorInfo2 = updatedAncestorInfo(parentHostContextDev.ancestorInfo, type);
+    
+    // 返回更新过的上下文
+    return { namespace: _namespace, ancestorInfo: _ancestorInfo2 };
+  }
+}
+
+var updatedAncestorInfo = function () {};
+updatedAncestorInfo = function (oldInfo, tag) {
+  var ancestorInfo = _assign({}, oldInfo || emptyAncestorInfo);
+  var info = { tag: tag };
+
+  if (inScopeTags.indexOf(tag) !== -1) {
+    ancestorInfo.aTagInScope = null;
+    ancestorInfo.buttonTagInScope = null;
+    ancestorInfo.nobrTagInScope = null;
+  }
+  if (buttonScopeTags.indexOf(tag) !== -1) {
+    ancestorInfo.pTagInButtonScope = null;
+  }
+
+  // See rules for 'li', 'dd', 'dt' start tags in
+  // https://html.spec.whatwg.org/multipage/syntax.html#parsing-main-inbody
+  if (specialTags.indexOf(tag) !== -1 && tag !== 'address' && tag !== 'div' && tag !== 'p') {
+    ancestorInfo.listItemTagAutoclosing = null;
+    ancestorInfo.dlItemTagAutoclosing = null;
+  }
+
+  ancestorInfo.current = info;
+
+  if (tag === 'form') {
+    ancestorInfo.formTag = info;
+  }
+  if (tag === 'a') {
+    ancestorInfo.aTagInScope = info;
+  }
+  if (tag === 'button') {
+    ancestorInfo.buttonTagInScope = info;
+  }
+  if (tag === 'nobr') {
+    ancestorInfo.nobrTagInScope = info;
+  }
+  if (tag === 'p') {
+    ancestorInfo.pTagInButtonScope = info;
+  }
+  if (tag === 'li') {
+    ancestorInfo.listItemTagAutoclosing = info;
+  }
+  if (tag === 'dd' || tag === 'dt') {
+    ancestorInfo.dlItemTagAutoclosing = info;
+  }
+
+  return ancestorInfo;
+};
+
+
+
+
+function tryToClaimNextHydratableInstance(fiber) {
+  if (!isHydrating) {
+    return;
+  }
+  var nextInstance = nextHydratableInstance;
+  if (!nextInstance) {
+    // Nothing to hydrate. Make it an insertion.
+    insertNonHydratedInstance(hydrationParentFiber, fiber);
+    isHydrating = false;
+    hydrationParentFiber = fiber;
+    return;
+  }
+  var firstAttemptedInstance = nextInstance;
+  if (!tryHydrate(fiber, nextInstance)) {
+    // If we can't hydrate this instance let's try the next one.
+    // We use this as a heuristic. It's based on intuition and not data so it
+    // might be flawed or unnecessary.
+    nextInstance = getNextHydratableSibling(firstAttemptedInstance);
+    if (!nextInstance || !tryHydrate(fiber, nextInstance)) {
+      // Nothing to hydrate. Make it an insertion.
+      insertNonHydratedInstance(hydrationParentFiber, fiber);
+      isHydrating = false;
+      hydrationParentFiber = fiber;
+      return;
+    }
+    // We matched the next one, we'll now assume that the first one was
+    // superfluous and we'll delete it. Since we can't eagerly delete it
+    // we'll have to schedule a deletion. To do that, this node needs a dummy
+    // fiber associated with it.
+    deleteHydratableInstance(hydrationParentFiber, firstAttemptedInstance);
+  }
+  hydrationParentFiber = fiber;
+  nextHydratableInstance = getFirstHydratableChild(nextInstance);
+}
+
+
+
+function shouldSetTextContent(type, props) {
+  return type === 'textarea' || type === 'option' || type === 'noscript' || typeof props.children === 'string' || typeof props.children === 'number' || typeof props.dangerouslySetInnerHTML === 'object' && props.dangerouslySetInnerHTML !== null && props.dangerouslySetInnerHTML.__html != null;
+}
+
+
+function markRef(current$$1, workInProgress) {
+  var ref = workInProgress.ref;
+  if (current$$1 === null && ref !== null || current$$1 !== null && current$$1.ref !== ref) {
+    // Schedule a Ref effect
+    workInProgress.effectTag |= Ref;
+  }
+}
+
+
+
+function shouldDeprioritizeSubtree(type, props) {
+  return !!props.hidden;
+}
+
+
+
+
+
+
+// REVIEW - 下面是当WIP的大儿子为null的时候，开始向右遍历从performUnitOfWork函数进来的
+// 里面的结构有点像performUnitOfWork里面有beginWork，分发之后最终去到reconcileChildren
+// 这里就是compeleteUnitOfWork里面有completeWork
+
+
+
+
+
+function completeUnitOfWork(workInProgress) {
+  // 试图complete当前的fiber，然后往右边走，不然就返回父亲
+  while (true) {
+
+    // 目前的flushed状态的fiber就是替身。
+    // 理想情况下，任何东西都不应该依赖于此，但在这里依赖它意味着我们不需要在正在进行的工作上增加额外的字段。
+    var current$$1 = workInProgress.alternate;
+
+    // 把全局变量current改为当前的fiber
+    {
+      setCurrentFiber(workInProgress);
+    }
+
+    var returnFiber = workInProgress.return;
+    var siblingFiber = workInProgress.sibling;
+
+    // 第一种情况是： fiber 当前还没有完成渲染工作，并且没有标记为“没有副作用”
+    // NoEffect表示没有副作用，Incomplete表示该fiber没有完成其渲染工作。
+    // 检查workInProgress.effectTag是否包含 Incomplete 但不包含 NoEffect
+    // 说明这个 fiber 当前还没有完成渲染工作，并且没有标记为“没有副作用”
+    // 首次渲染的时候进入到这里面
+    if ((workInProgress.effectTag & Incomplete) === NoEffect) {
+
+      // 定义是否需要修复
+      if (true && replayFailedUnitOfWorkWithInvokeGuardedCallback) {
+        // Don't replay if it fails during completion phase.
+        mayReplayFailedUnitOfWork = false;
+      }
+
+      nextUnitOfWork = workInProgress;
+
+      // 1.1开始向右向上遍历
+      if (enableProfilerTimer) {
+        // 时间暂停，表明从上往下遍历的阶段结束，开始向右向上遍历
+        if (workInProgress.mode & ProfileMode) {
+          startProfilerTimer(workInProgress);
+        }
+        // 进入到completeWork
+        nextUnitOfWork = completeWork(current$$1, workInProgress, nextRenderExpirationTime);
+        
+        if (workInProgress.mode & ProfileMode) {
+          // Update render duration assuming we didn't error.
+          stopProfilerTimerIfRunningAndRecordDelta(workInProgress, false);
+        }
+      } else {
+        nextUnitOfWork = completeWork(current$$1, workInProgress, nextRenderExpirationTime);
+      }
+
+
+      if (true && replayFailedUnitOfWorkWithInvokeGuardedCallback) {
+        // We're out of completion phase so replaying is fine now.
+        mayReplayFailedUnitOfWork = true;
+      }
+      stopWorkTimer(workInProgress);
+      resetChildExpirationTime(workInProgress, nextRenderExpirationTime);
+      {
+        resetCurrentFiber();
+      }
+
+      if (nextUnitOfWork !== null) {
+        // Completing this fiber spawned new work. Work on that next.
+        return nextUnitOfWork;
+      }
+
+      if (returnFiber !== null &&
+      // Do not append effects to parents if a sibling failed to complete
+      (returnFiber.effectTag & Incomplete) === NoEffect) {
+        // Append all the effects of the subtree and this fiber onto the effect
+        // list of the parent. The completion order of the children affects the
+        // side-effect order.
+        if (returnFiber.firstEffect === null) {
+          returnFiber.firstEffect = workInProgress.firstEffect;
+        }
+        if (workInProgress.lastEffect !== null) {
+          if (returnFiber.lastEffect !== null) {
+            returnFiber.lastEffect.nextEffect = workInProgress.firstEffect;
+          }
+          returnFiber.lastEffect = workInProgress.lastEffect;
+        }
+
+        // If this fiber had side-effects, we append it AFTER the children's
+        // side-effects. We can perform certain side-effects earlier if
+        // needed, by doing multiple passes over the effect list. We don't want
+        // to schedule our own side-effect on our own list because if end up
+        // reusing children we'll schedule this effect onto itself since we're
+        // at the end.
+        var effectTag = workInProgress.effectTag;
+        // Skip both NoWork and PerformedWork tags when creating the effect list.
+        // PerformedWork effect is read by React DevTools but shouldn't be committed.
+        if (effectTag > PerformedWork) {
+          if (returnFiber.lastEffect !== null) {
+            returnFiber.lastEffect.nextEffect = workInProgress;
+          } else {
+            returnFiber.firstEffect = workInProgress;
+          }
+          returnFiber.lastEffect = workInProgress;
+        }
+      }
+
+      if (true && ReactFiberInstrumentation_1.debugTool) {
+        ReactFiberInstrumentation_1.debugTool.onCompleteWork(workInProgress);
+      }
+
+      if (siblingFiber !== null) {
+        // If there is more work to do in this returnFiber, do that next.
+        return siblingFiber;
+      } else if (returnFiber !== null) {
+        // If there's no more work in this returnFiber. Complete the returnFiber.
+        workInProgress = returnFiber;
+        continue;
+      } else {
+        // We've reached the root.
+        return null;
+      }
+    } else {
+      if (enableProfilerTimer && workInProgress.mode & ProfileMode) {
+        // Record the render duration for the fiber that errored.
+        stopProfilerTimerIfRunningAndRecordDelta(workInProgress, false);
+
+        // Include the time spent working on failed children before continuing.
+        var actualDuration = workInProgress.actualDuration;
+        var child = workInProgress.child;
+        while (child !== null) {
+          actualDuration += child.actualDuration;
+          child = child.sibling;
+        }
+        workInProgress.actualDuration = actualDuration;
+      }
+
+      // This fiber did not complete because something threw. Pop values off
+      // the stack without entering the complete phase. If this is a boundary,
+      // capture values if possible.
+      var next = unwindWork(workInProgress, nextRenderExpirationTime);
+      // Because this fiber did not complete, don't reset its expiration time.
+      if (workInProgress.effectTag & DidCapture) {
+        // Restarting an error boundary
+        stopFailedWorkTimer(workInProgress);
+      } else {
+        stopWorkTimer(workInProgress);
+      }
+
+      {
+        resetCurrentFiber();
+      }
+
+      if (next !== null) {
+        stopWorkTimer(workInProgress);
+        if (true && ReactFiberInstrumentation_1.debugTool) {
+          ReactFiberInstrumentation_1.debugTool.onCompleteWork(workInProgress);
+        }
+
+        // If completing this work spawned new work, do that next. We'll come
+        // back here again.
+        // Since we're restarting, remove anything that is not a host effect
+        // from the effect tag.
+        next.effectTag &= HostEffectMask;
+        return next;
+      }
+
+      if (returnFiber !== null) {
+        // Mark the parent fiber as incomplete and clear its effect list.
+        returnFiber.firstEffect = returnFiber.lastEffect = null;
+        returnFiber.effectTag |= Incomplete;
+      }
+
+      if (true && ReactFiberInstrumentation_1.debugTool) {
+        ReactFiberInstrumentation_1.debugTool.onCompleteWork(workInProgress);
+      }
+
+      if (siblingFiber !== null) {
+        // If there is more work to do in this returnFiber, do that next.
+        return siblingFiber;
+      } else if (returnFiber !== null) {
+        // If there's no more work in this returnFiber. Complete the returnFiber.
+        workInProgress = returnFiber;
+        continue;
+      } else {
+        return null;
+      }
+    }
+  }
+
+}
+
+
+
+function setCurrentFiber(fiber) {
+  {
+    ReactDebugCurrentFrame.getCurrentStack = getCurrentFiberStackInDev;
+    current = fiber;
+    phase = null;
+  }
+}
+
+
+
+
+
+
+function completeWork(current, workInProgress, renderExpirationTime) {
+  // 入参：
+  // current是WIP的替身
+
+  var newProps = workInProgress.pendingProps;
+
+  // 如果首次进入这个函数，这个时候的WIP是最底层的fiber，不是单纯的文本，而是普通节点，其孩子是文本
+  // 开始分发！！！
+  switch (workInProgress.tag) {
+    case IndeterminateComponent:
+      break;
+    case LazyComponent:
+      break;
+    case SimpleMemoComponent:
+    case FunctionComponent:
+      break;
+    case ClassComponent:
+      {
+        var Component = workInProgress.type;
+        if (isContextProvider(Component)) {
+          popContext(workInProgress);
+        }
+        break;
+      }
+    case HostRoot:
+      {
+        popHostContainer(workInProgress);
+        popTopLevelContextObject(workInProgress);
+        var fiberRoot = workInProgress.stateNode;
+        if (fiberRoot.pendingContext) {
+          fiberRoot.context = fiberRoot.pendingContext;
+          fiberRoot.pendingContext = null;
+        }
+        if (current === null || current.child === null) {
+          // If we hydrated, pop so that we can delete any remaining children
+          // that weren't hydrated.
+          popHydrationState(workInProgress);
+          // This resets the hacky state to fix isMounted before committing.
+          // Delete this when we delete isMounted and findDOMNode.
+          workInProgress.effectTag &= ~Placement;
+        }
+        updateHostContainer(workInProgress);
+        break;
+      }
+    case HostComponent:
+      // 普通的节点（树的最底层）走这里
+      {
+        // 首先弹出栈里面的上下文，为什么？？？
+        popHostContext(workInProgress);
+
+        // 拿到根节点的root原生DOM节点
+        var rootContainerInstance = getRootHostContainer();
+        var type = workInProgress.type;
+
+        // 更新的时候走这里
+        if (current !== null && workInProgress.stateNode != null) {
+          updateHostComponent$1(current, workInProgress, type, newProps, rootContainerInstance);
+
+          if (current.ref !== workInProgress.ref) {
+            markRef$1(workInProgress);
+          }
+        } else {
+
+          // 首次渲染走这里
+          if (!newProps) {
+            !(workInProgress.stateNode !== null) ? invariant(false, 'We must have new props for new mounts. This error is likely caused by a bug in React. Please file an issue.') : void 0;
+            // This can happen when we abort work.
+            break;
+          }
+
+          // 这里拿到的上下文不是之前那个fiber节点的上下文吗，因为在前面已经pop出去了
+          var currentHostContext = getHostContext();
+
+          var wasHydrated = popHydrationState(workInProgress);
+
+          // 水化走下面
+          if (wasHydrated) {
+            // Move this and createInstance step into the beginPhase
+            // to consolidate.
+            if (prepareToHydrateHostInstance(workInProgress, rootContainerInstance, currentHostContext)) {
+              // If changes to the hydrated node needs to be applied at the
+              // commit-phase we mark this as such.
+              markUpdate(workInProgress);
+            }
+
+          } else {
+            // 非水化走下面
+
+            // 1. 创建一个真实的当前节点的DOM（空的）
+            var instance = createInstance(type, newProps, rootContainerInstance, currentHostContext, workInProgress);
+
+            // 2. 把这个节点的孩子真实DOM附上去到这个真实DOM
+            appendAllChildren(instance, workInProgress, false, false);
+
+            // 3. 为这个真实的DOM赋予属性和内容
+            if (finalizeInitialChildren(instance, type, newProps, rootContainerInstance, currentHostContext)) {
+              markUpdate(workInProgress);
+            }
+            workInProgress.stateNode = instance;
+          }
+
+          if (workInProgress.ref !== null) {
+            // If there is a ref on a host node we need to schedule a callback
+            markRef$1(workInProgress);
+          }
+        }
+        break;
+      }
+    case HostText:
+      {
+        var newText = newProps;
+        if (current && workInProgress.stateNode != null) {
+          var oldText = current.memoizedProps;
+          // If we have an alternate, that means this is an update and we need
+          // to schedule a side-effect to do the updates.
+          updateHostText$1(current, workInProgress, oldText, newText);
+        } else {
+          if (typeof newText !== 'string') {
+            !(workInProgress.stateNode !== null) ? invariant(false, 'We must have new props for new mounts. This error is likely caused by a bug in React. Please file an issue.') : void 0;
+            // This can happen when we abort work.
+          }
+          var _rootContainerInstance = getRootHostContainer();
+          var _currentHostContext = getHostContext();
+          var _wasHydrated = popHydrationState(workInProgress);
+          if (_wasHydrated) {
+            if (prepareToHydrateHostTextInstance(workInProgress)) {
+              markUpdate(workInProgress);
+            }
+          } else {
+            workInProgress.stateNode = createTextInstance(newText, _rootContainerInstance, _currentHostContext, workInProgress);
+          }
+        }
+        break;
+      }
+    case ForwardRef:
+      break;
+    case SuspenseComponent:
+      {
+        var nextState = workInProgress.memoizedState;
+        if ((workInProgress.effectTag & DidCapture) !== NoEffect) {
+          // Something suspended. Re-render with the fallback children.
+          workInProgress.expirationTime = renderExpirationTime;
+          // Do not reset the effect list.
+          return workInProgress;
+        }
+
+        var nextDidTimeout = nextState !== null;
+        var prevDidTimeout = current !== null && current.memoizedState !== null;
+
+        if (current !== null && !nextDidTimeout && prevDidTimeout) {
+          // We just switched from the fallback to the normal children. Delete
+          // the fallback.
+          // Would it be better to store the fallback fragment on
+          var currentFallbackChild = current.child.sibling;
+          if (currentFallbackChild !== null) {
+            // Deletions go at the beginning of the return fiber's effect list
+            var first = workInProgress.firstEffect;
+            if (first !== null) {
+              workInProgress.firstEffect = currentFallbackChild;
+              currentFallbackChild.nextEffect = first;
+            } else {
+              workInProgress.firstEffect = workInProgress.lastEffect = currentFallbackChild;
+              currentFallbackChild.nextEffect = null;
+            }
+            currentFallbackChild.effectTag = Deletion;
+          }
+        }
+
+        if (nextDidTimeout || prevDidTimeout) {
+          // If the children are hidden, or if they were previous hidden, schedule
+          // an effect to toggle their visibility. This is also used to attach a
+          // retry listener to the promise.
+          workInProgress.effectTag |= Update;
+        }
+        break;
+      }
+    case Fragment:
+      break;
+    case Mode:
+      break;
+    case Profiler:
+      break;
+    case HostPortal:
+      popHostContainer(workInProgress);
+      updateHostContainer(workInProgress);
+      break;
+    case ContextProvider:
+      // Pop provider fiber
+      popProvider(workInProgress);
+      break;
+    case ContextConsumer:
+      break;
+    case MemoComponent:
+      break;
+    case IncompleteClassComponent:
+      {
+        // Same as class component case. I put it down here so that the tags are
+        // sequential to ensure this switch is compiled to a jump table.
+        var _Component = workInProgress.type;
+        if (isContextProvider(_Component)) {
+          popContext(workInProgress);
+        }
+        break;
+      }
+    case DehydratedSuspenseComponent:
+      {
+        if (enableSuspenseServerRenderer) {
+          if (current === null) {
+            var _wasHydrated2 = popHydrationState(workInProgress);
+            !_wasHydrated2 ? invariant(false, 'A dehydrated suspense component was completed without a hydrated node. This is probably a bug in React.') : void 0;
+            skipPastDehydratedSuspenseInstance(workInProgress);
+          } else if ((workInProgress.effectTag & DidCapture) === NoEffect) {
+            // This boundary did not suspend so it's now hydrated.
+            // To handle any future suspense cases, we're going to now upgrade it
+            // to a Suspense component. We detach it from the existing current fiber.
+            current.alternate = null;
+            workInProgress.alternate = null;
+            workInProgress.tag = SuspenseComponent;
+            workInProgress.memoizedState = null;
+            workInProgress.stateNode = null;
+          }
+        }
+        break;
+      }
+    default:
+      invariant(false, 'Unknown unit of work tag. This error is likely caused by a bug in React. Please file an issue.');
+  }
+
+  return null;
+}
+
+
+
+
+function popHostContext(fiber) {
+  // 这里把栈的上下文对象以及fiber栈弹出
+  if (contextFiberStackCursor.current !== fiber) {
+    return;
+  }
+
+  pop(contextStackCursor$1, fiber);
+  pop(contextFiberStackCursor, fiber);
+}
+
+
+function getRootHostContainer() {
+  var rootInstance = requiredContext(rootInstanceStackCursor.current);
+  return rootInstance;
+}
+
+function getHostContext() {
+  var context = requiredContext(contextStackCursor$1.current);
+  return context;
+}
+
+
+
+function popHydrationState(fiber) {
+  if (!supportsHydration) {
+    return false;
+  }
+  if (fiber !== hydrationParentFiber) {
+    // We're deeper than the current hydration context, inside an inserted
+    // tree.
+    return false;
+  }
+  if (!isHydrating) {
+    // If we're not currently hydrating but we're in a hydration context, then
+    // we were an insertion and now need to pop up reenter hydration of our
+    // siblings.
+    popToNextHostParent(fiber);
+    isHydrating = true;
+    return false;
+  }
+
+  var type = fiber.type;
+
+  // If we have any remaining hydratable nodes, we need to delete them now.
+  // We only do this deeper than head and body since they tend to have random
+  // other nodes in them. We also ignore components with pure text content in
+  // side of them.
+  // Better heuristic.
+  if (fiber.tag !== HostComponent || type !== 'head' && type !== 'body' && !shouldSetTextContent(type, fiber.memoizedProps)) {
+    var nextInstance = nextHydratableInstance;
+    while (nextInstance) {
+      deleteHydratableInstance(fiber, nextInstance);
+      nextInstance = getNextHydratableSibling(nextInstance);
+    }
+  }
+
+  popToNextHostParent(fiber);
+  nextHydratableInstance = hydrationParentFiber ? getNextHydratableSibling(fiber.stateNode) : null;
+  return true;
+}
+
+
+
+
+function createInstance(type, props, rootContainerInstance, hostContext, internalInstanceHandle) {
+  // 入参：
+  // type是WIP的type
+  // props是WIP的pendingProps
+  // rootContainerInstance是root的原生DOM
+  // hostContext是当前的上下文对象？？？？？包含了标签类型和标准的
+  // internalInstanceHandle是当前的WIP
+
+  var parentNamespace = void 0;
+  {
+    // 检查一下文本节点和标签是否合规
+    var hostContextDev = hostContext;
+    validateDOMNesting(type, null, hostContextDev.ancestorInfo);
+    if (typeof props.children === 'string' || typeof props.children === 'number') {
+      var string = '' + props.children;
+      var ownAncestorInfo = updatedAncestorInfo(hostContextDev.ancestorInfo, type);
+      validateDOMNesting(null, string, ownAncestorInfo);
+    }
+    parentNamespace = hostContextDev.namespace;
+  }
+
+  // 创建一个真正的DOM
+  var domElement = createElement(type, props, rootContainerInstance, parentNamespace);
+
+  // 把fiber赋到真正的DOM的属性上面（这个属性名是随机的）
+  precacheFiberNode(internalInstanceHandle, domElement);
+
+  // 把props赋到真正的DOM的属性上面（这个属性名是随机的）
+  updateFiberProps(domElement, props);
+
+  // 返回的是一个空的真实的DOM
+  return domElement;
+}
+
+
+
+validateDOMNesting = function (childTag, childText, ancestorInfo) {
+  ancestorInfo = ancestorInfo || emptyAncestorInfo;
+  var parentInfo = ancestorInfo.current;
+  var parentTag = parentInfo && parentInfo.tag;
+
+  if (childText != null) {
+    !(childTag == null) ? warningWithoutStack$1(false, 'validateDOMNesting: when childText is passed, childTag should be null') : void 0;
+    childTag = '#text';
+  }
+
+  var invalidParent = isTagValidWithParent(childTag, parentTag) ? null : parentInfo;
+  var invalidAncestor = invalidParent ? null : findInvalidAncestorForTag(childTag, ancestorInfo);
+  var invalidParentOrAncestor = invalidParent || invalidAncestor;
+  if (!invalidParentOrAncestor) {
+    return;
+  }
+
+  var ancestorTag = invalidParentOrAncestor.tag;
+  var addendum = getCurrentFiberStackInDev();
+
+  var warnKey = !!invalidParent + '|' + childTag + '|' + ancestorTag + '|' + addendum;
+  if (didWarn[warnKey]) {
+    return;
+  }
+  didWarn[warnKey] = true;
+
+  var tagDisplayName = childTag;
+  var whitespaceInfo = '';
+  if (childTag === '#text') {
+    if (/\S/.test(childText)) {
+      tagDisplayName = 'Text nodes';
+    } else {
+      tagDisplayName = 'Whitespace text nodes';
+      whitespaceInfo = " Make sure you don't have any extra whitespace between tags on " + 'each line of your source code.';
+    }
+  } else {
+    tagDisplayName = '<' + childTag + '>';
+  }
+
+  if (invalidParent) {
+    var info = '';
+    if (ancestorTag === 'table' && childTag === 'tr') {
+      info += ' Add a <tbody> to your code to match the DOM tree generated by ' + 'the browser.';
+    }
+    warningWithoutStack$1(false, 'validateDOMNesting(...): %s cannot appear as a child of <%s>.%s%s%s', tagDisplayName, ancestorTag, whitespaceInfo, info, addendum);
+  } else {
+    warningWithoutStack$1(false, 'validateDOMNesting(...): %s cannot appear as a descendant of ' + '<%s>.%s', tagDisplayName, ancestorTag, addendum);
+  }
+};
+
+
+
+
+
+function createElement(type, props, rootContainerElement, parentNamespace) {
+  // parentNamespace是标准
+  // rootContainerInstance是root的容器
+
+  var isCustomComponentTag = void 0;
+
+  // 首先拿到整个文档
+  var ownerDocument = getOwnerDocumentFromRootContainer(rootContainerElement);
+  var domElement = void 0;
+  var namespaceURI = parentNamespace;
+  if (namespaceURI === HTML_NAMESPACE) {
+    namespaceURI = getIntrinsicNamespace(type);
+  }
+  if (namespaceURI === HTML_NAMESPACE) {
+
+    {
+      // 检查是否是自我定制的一个DOM（自我定制的DOM中间有横杆tagName.indexOf('-') === -1）
+      isCustomComponentTag = isCustomComponent(type, props);
+      // Should this check be gated by parent namespace? Not sure we want to
+      // allow <SVG> or <mATH>.
+      !(isCustomComponentTag || type === type.toLowerCase()) ? warning$1(false, '<%s /> is using incorrect casing. ' + 'Use PascalCase for React components, ' + 'or lowercase for HTML elements.', type) : void 0;
+    }
+
+    // 开始根据type建立DOM节点
+    if (type === 'script') {
+      // Create the script via .innerHTML so its "parser-inserted" flag is
+      // set to true and it does not execute
+      var div = ownerDocument.createElement('div');
+      div.innerHTML = '<script><' + '/script>'; // eslint-disable-line
+      // This is guaranteed to yield a script element.
+      var firstChild = div.firstChild;
+      domElement = div.removeChild(firstChild);
+    } else if (typeof props.is === 'string') {
+      // $FlowIssue `createElement` should be updated for Web Components
+      domElement = ownerDocument.createElement(type, { is: props.is });
+    } else {
+
+      // 这里的ownerDocument相当于document，相当于从一个DOM节点上拿到了这个方法
+      domElement = ownerDocument.createElement(type);
+
+      // 一些特殊标签的props处理
+      if (type === 'select') {
+        var node = domElement;
+        if (props.multiple) {
+          node.multiple = true;
+        } else if (props.size) {
+          node.size = props.size;
+        }
+      }
+    }
+  } else {
+    domElement = ownerDocument.createElementNS(namespaceURI, type);
+  }
+
+  {
+    if (namespaceURI === HTML_NAMESPACE) {
+      if (!isCustomComponentTag && Object.prototype.toString.call(domElement) === '[object HTMLUnknownElement]' && !Object.prototype.hasOwnProperty.call(warnedUnknownTags, type)) {
+        warnedUnknownTags[type] = true;
+        warning$1(false, 'The tag <%s> is unrecognized in this browser. ' + 'If you meant to render a React component, start its name with ' + 'an uppercase letter.', type);
+      }
+    }
+  }
+
+  // 返回DOM节点
+  return domElement;
+}
+
+
+
+
+function getOwnerDocumentFromRootContainer(rootContainerElement) {
+  return rootContainerElement.nodeType === DOCUMENT_NODE ? rootContainerElement : rootContainerElement.ownerDocument;
+}
+
+
+
+function isCustomComponent(tagName, props) {
+  if (tagName.indexOf('-') === -1) {
+    return typeof props.is === 'string';
+  }
+  switch (tagName) {
+    // These are reserved SVG and MathML elements.
+    // We don't mind this whitelist too much because we expect it to never grow.
+    // The alternative is to track the namespace in a few places which is convoluted.
+    // https://w3c.github.io/webcomponents/spec/custom/#custom-elements-core-concepts
+    case 'annotation-xml':
+    case 'color-profile':
+    case 'font-face':
+    case 'font-face-src':
+    case 'font-face-uri':
+    case 'font-face-format':
+    case 'font-face-name':
+    case 'missing-glyph':
+      return false;
+    default:
+      return true;
+  }
+}
+
+
+
+function precacheFiberNode(hostInst, node) {
+  node[internalInstanceKey] = hostInst;
+}
+
+
+function updateFiberProps(node, props) {
+  node[internalEventHandlersKey] = props;
+}
+
+
+
+
+
+var appendAllChildren = void 0;
+appendAllChildren = function (parent, workInProgress, needsVisibilityToggle, isHidden) {
+
+  // 参数：
+  // parent是真实的空的DOM
+
+  // 1.如果这个WIP是一个原生的，内容为文本的节点，那么他的child为null
+  // 因为在beginWork分发出去的函数处理children的过程中，把此fiber的child变为了null
+  // 2.如果这个WIP不是上述情况，那么都会经过下面的操作，都有child，直到把所有的原生的节点都放到当前的节点下面
+
+  // 向下递归这个节点的所有子节点，直到最最底层的，没有child
+  var node = workInProgress.child;
+  while (node !== null) {
+    if (node.tag === HostComponent || node.tag === HostText) {
+
+      // 如果这个孩子是一个原生的节点，直接加到原生的父亲节点的下面
+      appendInitialChild(parent, node.stateNode);
+
+    } else if (node.tag === HostPortal) {
+
+    } else if (node.child !== null) {
+      // 如果这个时候还不是底层的节点，继续往底层走
+      node.child.return = node;
+      node = node.child;
+      continue;
+    }
+
+    // 特殊情况
+    if (node === workInProgress) {
+      return;
+    }
+
+    // 向上遍历，直到node.sibling有值
+    // 然后处理他的sibling，跳出第一个while，然后再往下探查
+    while (node.sibling === null) {
+      if (node.return === null || node.return === workInProgress) {
+        return;
+      }
+      node = node.return;
+    }
+
+    // 向右边遍历，直到node没有兄弟姐妹
+    node.sibling.return = node.return;
+    node = node.sibling;
+  }
+};
+
+function appendInitialChild(parentInstance, child) {
+  parentInstance.appendChild(child);
+}
+
+
+function finalizeInitialChildren(domElement, type, props, rootContainerInstance, hostContext) {
+  // 为真实的DOM设置属性
+  setInitialProperties(domElement, type, props, rootContainerInstance);
+
+
+  return shouldAutoFocusHostComponent(type, props);
+}
+
+
+
+function setInitialProperties(domElement, tag, rawProps, rootContainerElement) {
+  // tag是type
+  // rootContainerElement是根节点的原生dom节点
+
+  // 检查这是否一个定制的节点
+  var isCustomComponentTag = isCustomComponent(tag, rawProps);
+
+  // 1. 检查props是否符合规范
+  {
+    validatePropertiesInDevelopment(tag, rawProps);
+    if (isCustomComponentTag && !didWarnShadyDOM && domElement.shadyRoot) {
+      warning$1(false, '%s is using shady DOM. Using shady DOM with React can ' + 'cause things to break subtly.', getCurrentFiberOwnerNameInDevOrNull() || 'A component');
+      didWarnShadyDOM = true;
+    }
+  }
+
+  // 2. 定义好props
+  var props = void 0;
+  switch (tag) {
+    case 'iframe':
+    case 'object':
+      trapBubbledEvent(TOP_LOAD, domElement);
+      props = rawProps;
+      break;
+    case 'video':
+    case 'audio':
+      // Create listener for each media event
+      for (var i = 0; i < mediaEventTypes.length; i++) {
+        trapBubbledEvent(mediaEventTypes[i], domElement);
+      }
+      props = rawProps;
+      break;
+    case 'source':
+      trapBubbledEvent(TOP_ERROR, domElement);
+      props = rawProps;
+      break;
+    case 'img':
+    case 'image':
+    case 'link':
+      trapBubbledEvent(TOP_ERROR, domElement);
+      trapBubbledEvent(TOP_LOAD, domElement);
+      props = rawProps;
+      break;
+    case 'form':
+      trapBubbledEvent(TOP_RESET, domElement);
+      trapBubbledEvent(TOP_SUBMIT, domElement);
+      props = rawProps;
+      break;
+    case 'details':
+      trapBubbledEvent(TOP_TOGGLE, domElement);
+      props = rawProps;
+      break;
+    case 'input':
+      initWrapperState(domElement, rawProps);
+
+      // 包装一下props对象，加一些属性，比如checked
+      props = getHostProps(domElement, rawProps);
+
+      // 跟踪事件委托
+      trapBubbledEvent(TOP_INVALID, domElement);
+
+      // 确保监听onChange事件
+      ensureListeningTo(rootContainerElement, 'onChange');
+      break;
+    case 'option':
+      validateProps(domElement, rawProps);
+      props = getHostProps$1(domElement, rawProps);
+      break;
+    case 'select':
+      initWrapperState$1(domElement, rawProps);
+      props = getHostProps$2(domElement, rawProps);
+      trapBubbledEvent(TOP_INVALID, domElement);
+      // For controlled components we always need to ensure we're listening
+      // to onChange. Even if there is no listener.
+      ensureListeningTo(rootContainerElement, 'onChange');
+      break;
+    case 'textarea':
+      initWrapperState$2(domElement, rawProps);
+      props = getHostProps$3(domElement, rawProps);
+      trapBubbledEvent(TOP_INVALID, domElement);
+      // For controlled components we always need to ensure we're listening
+      // to onChange. Even if there is no listener.
+      ensureListeningTo(rootContainerElement, 'onChange');
+      break;
+    default:
+      props = rawProps;
+  }
+
+  // 3. 再次检查props是否规范，给出警告
+  assertValidProps(tag, props);
+
+  setInitialDOMProperties(tag, domElement, rootContainerElement, props, isCustomComponentTag);
+
+  switch (tag) {
+    case 'input':
+      // Make sure we check if this is still unmounted or do any clean
+      // up necessary since we never stop tracking anymore.
+      track(domElement);
+      postMountWrapper(domElement, rawProps, false);
+      break;
+    case 'textarea':
+      // Make sure we check if this is still unmounted or do any clean
+      // up necessary since we never stop tracking anymore.
+      track(domElement);
+      postMountWrapper$3(domElement, rawProps);
+      break;
+    case 'option':
+      postMountWrapper$1(domElement, rawProps);
+      break;
+    case 'select':
+      postMountWrapper$2(domElement, rawProps);
+      break;
+    default:
+      if (typeof props.onClick === 'function') {
+        // This cast may not be sound for SVG, MathML or custom elements.
+        trapClickOnNonInteractiveElement(domElement);
+      }
+      break;
+  }
+}
+
+
+function getHostProps(element, props) {
+  var node = element;
+  var checked = props.checked;
+
+  var hostProps = _assign({}, props, {
+    defaultChecked: undefined,
+    defaultValue: undefined,
+    value: undefined,
+    checked: checked != null ? checked : node._wrapperState.initialChecked
+  });
+
+  return hostProps;
+}
+
+
+
+function assertValidProps(tag, props) {
+  if (!props) {
+    return;
+  }
+  // Note the use of `==` which checks for null or undefined.
+  if (voidElementTags[tag]) {
+    !(props.children == null && props.dangerouslySetInnerHTML == null) ? invariant(false, '%s is a void element tag and must neither have `children` nor use `dangerouslySetInnerHTML`.%s', tag, ReactDebugCurrentFrame$2.getStackAddendum()) : void 0;
+  }
+  if (props.dangerouslySetInnerHTML != null) {
+    !(props.children == null) ? invariant(false, 'Can only set one of `children` or `props.dangerouslySetInnerHTML`.') : void 0;
+    !(typeof props.dangerouslySetInnerHTML === 'object' && HTML$1 in props.dangerouslySetInnerHTML) ? invariant(false, '`props.dangerouslySetInnerHTML` must be in the form `{__html: ...}`. Please visit https://fb.me/react-invariant-dangerously-set-inner-html for more information.') : void 0;
+  }
+  {
+    !(props.suppressContentEditableWarning || !props.contentEditable || props.children == null) ? warning$1(false, 'A component is `contentEditable` and contains `children` managed by ' + 'React. It is now your responsibility to guarantee that none of ' + 'those nodes are unexpectedly modified or duplicated. This is ' + 'probably not intentional.') : void 0;
+  }
+  !(props.style == null || typeof props.style === 'object') ? invariant(false, 'The `style` prop expects a mapping from style properties to values, not a string. For example, style={{marginRight: spacing + \'em\'}} when using JSX.%s', ReactDebugCurrentFrame$2.getStackAddendum()) : void 0;
+}
+
+
+
+
+function setInitialDOMProperties(tag, domElement, rootContainerElement, nextProps, isCustomComponentTag) {
+  // 遍历props对象
+  for (var propKey in nextProps) {
+    // 不要原型上面的
+    if (!nextProps.hasOwnProperty(propKey)) {
+      continue;
+    }
+    var nextProp = nextProps[propKey];
+
+    // 如果是style
+    if (propKey === STYLE$1) {
+      // 冻结一下，不允许修改
+      {
+        if (nextProp) {
+          // Freeze the next style object so that we can assume it won't be
+          // mutated. We have already warned for this in the past.
+          Object.freeze(nextProp);
+        }
+      }
+      // Relies on `updateStylesByID` not mutating `styleUpdates`.
+      setValueForStyles(domElement, nextProp);
+    } else if (propKey === DANGEROUSLY_SET_INNER_HTML) {
+      var nextHtml = nextProp ? nextProp[HTML] : undefined;
+      if (nextHtml != null) {
+        setInnerHTML(domElement, nextHtml);
+      }
+    } else if (propKey === CHILDREN) {
+      if (typeof nextProp === 'string') {
+        // Avoid setting initial textContent when the text is empty. In IE11 setting
+        // textContent on a <textarea> will cause the placeholder to not
+        // show within the <textarea> until it has been focused and blurred again.
+        // https://github.com/facebook/react/issues/6731#issuecomment-254874553
+        var canSetTextContent = tag !== 'textarea' || nextProp !== '';
+        if (canSetTextContent) {
+          setTextContent(domElement, nextProp);
+        }
+      } else if (typeof nextProp === 'number') {
+        setTextContent(domElement, '' + nextProp);
+      }
+    } else if (propKey === SUPPRESS_CONTENT_EDITABLE_WARNING || propKey === SUPPRESS_HYDRATION_WARNING$1) {
+      // Noop
+    } else if (propKey === AUTOFOCUS) {
+      // We polyfill it separately on the client during commit.
+      // We could have excluded it in the property list instead of
+      // adding a special case here, but then it wouldn't be emitted
+      // on server rendering (but we *do* want to emit it in SSR).
+    } else if (registrationNameModules.hasOwnProperty(propKey)) {
+      if (nextProp != null) {
+        if (true && typeof nextProp !== 'function') {
+          warnForInvalidEventListener(propKey, nextProp);
+        }
+        ensureListeningTo(rootContainerElement, propKey);
+      }
+    } else if (nextProp != null) {
+      setValueForProperty(domElement, propKey, nextProp, isCustomComponentTag);
+    }
+  }
+}
+
+
+
+function setValueForStyles(node, styles) {
+  var style = node.style;
+  for (var styleName in styles) {
+    if (!styles.hasOwnProperty(styleName)) {
+      continue;
+    }
+
+    var isCustomProperty = styleName.indexOf('--') === 0;
+    {
+      if (!isCustomProperty) {
+        warnValidStyle$1(styleName, styles[styleName]);
+      }
+    }
+
+    var styleValue = dangerousStyleValue(styleName, styles[styleName], isCustomProperty);
+    if (styleName === 'float') {
+      styleName = 'cssFloat';
+    }
+
+    // 为原生的DOM的style属性设置style对象
+    if (isCustomProperty) {
+      style.setProperty(styleName, styleValue);
+    } else {
+      style[styleName] = styleValue;
+    }
+  }
+}
+
+
+
+
+var setInnerHTML = createMicrosoftUnsafeLocalFunction(function (node, html) {
+  // IE does not have innerHTML for SVG nodes, so instead we inject the
+  // new markup in a temp node and then move the child nodes across into
+  // the target node
+
+  if (node.namespaceURI === Namespaces.svg && !('innerHTML' in node)) {
+    reusableSVGContainer = reusableSVGContainer || document.createElement('div');
+    reusableSVGContainer.innerHTML = '<svg>' + html + '</svg>';
+    var svgNode = reusableSVGContainer.firstChild;
+    while (node.firstChild) {
+      node.removeChild(node.firstChild);
+    }
+    while (svgNode.firstChild) {
+      node.appendChild(svgNode.firstChild);
+    }
+  } else {
+    node.innerHTML = html;
+  }
+});
+
+
+
+
+
+
+
+
+// REVIEW - 事件触发相关（在completeWork里面的initialProps，也就是为真实DOM加上props时会走到下面）
+
+
+
+function ensureListeningTo(rootContainerElement, registrationName) {
+  // rootContainerElement是根节点的真实DOM
+  // registrationName是事件名称
+  var isDocumentOrFragment = rootContainerElement.nodeType === DOCUMENT_NODE || rootContainerElement.nodeType === DOCUMENT_FRAGMENT_NODE;
+  var doc = isDocumentOrFragment ? rootContainerElement : rootContainerElement.ownerDocument;
+  
+  // 确保根节点的原生dom节点有效
+  listenTo(registrationName, doc);
+}
+
+
+
+function listenTo(registrationName, mountAt) {
+  // mountAt是根节点的真实DOM
+  // registrationName是事件名称
+
+
+  // 拿到是否已经开始监听的信息
+  var isListening = getListeningForDocument(mountAt);
+  var dependencies = registrationNameDependencies[registrationName];
+
+  // 为isListening赋予一个属性，就是dependency，值为tue，说明这是一个已经监听了的
+  for (var i = 0; i < dependencies.length; i++) {
+    var dependency = dependencies[i];
+    if (!(isListening.hasOwnProperty(dependency) && isListening[dependency])) {
+      switch (dependency) {
+        case TOP_SCROLL:
+          trapCapturedEvent(TOP_SCROLL, mountAt);
+          break;
+        case TOP_FOCUS:
+        case TOP_BLUR:
+          trapCapturedEvent(TOP_FOCUS, mountAt);
+          trapCapturedEvent(TOP_BLUR, mountAt);
+          // We set the flag for a single dependency later in this function,
+          // but this ensures we mark both as attached rather than just one.
+          isListening[TOP_BLUR] = true;
+          isListening[TOP_FOCUS] = true;
+          break;
+        case TOP_CANCEL:
+        case TOP_CLOSE:
+          if (isEventSupported(getRawEventName(dependency))) {
+            trapCapturedEvent(dependency, mountAt);
+          }
+          break;
+        case TOP_INVALID:
+        case TOP_SUBMIT:
+        case TOP_RESET:
+          // We listen to them on the target DOM elements.
+          // Some of them bubble so we don't want them to fire twice.
+          break;
+        default:
+          // By default, listen on the top level to all non-media events.
+          // Media events don't bubble so adding the listener wouldn't do anything.
+          var isMediaEvent = mediaEventTypes.indexOf(dependency) !== -1;
+          if (!isMediaEvent) {
+            trapBubbledEvent(dependency, mountAt);
+          }
+          break;
+      }
+      isListening[dependency] = true;
+    }
+  }
+}
+
+
+
+function getListeningForDocument(mountAt) {
+  // In IE8, `mountAt` is a host object and doesn't have `hasOwnProperty`
+  // directly.
+  if (!Object.prototype.hasOwnProperty.call(mountAt, topListenersIDKey)) {
+    mountAt[topListenersIDKey] = reactTopListenersCounter++;
+    alreadyListeningTo[mountAt[topListenersIDKey]] = {};
+  }
+  return alreadyListeningTo[mountAt[topListenersIDKey]];
+}
+
+
+
+
+function trapCapturedEvent(topLevelType, element) {
+  if (!element) {
+    return null;
+  }
+  var dispatch = isInteractiveTopLevelEventType(topLevelType) ? dispatchInteractiveEvent : dispatchEvent;
+
+  addEventCaptureListener(element, getRawEventName(topLevelType), dispatch.bind(null, topLevelType));
+}
+
+
+function trapBubbledEvent(topLevelType, element) {
+  if (!element) {
+    return null;
+  }
+
+  // 检查是否交互的，依据此拿到dispatch函数
+  var dispatch = isInteractiveTopLevelEventType(topLevelType) ? dispatchInteractiveEvent : dispatchEvent;
+
+  // 给这个原生的DOM监听一个事件，dispatch则是监听到这个事件之后的处理函数
+  addEventBubbleListener(element, getRawEventName(topLevelType), dispatch.bind(null, topLevelType));
+}
+
+
+
+var isInteractiveTopLevelEventType = SimpleEventPlugin.isInteractiveTopLevelEventType;
+var SimpleEventPlugin = {
+  eventTypes: eventTypes$4,
+
+  isInteractiveTopLevelEventType: function (topLevelType) {
+    var config = topLevelEventsToDispatchConfig[topLevelType];
+    return config !== undefined && config.isInteractive === true;
+  },
+}
+
+
+function dispatchInteractiveEvent(topLevelType, nativeEvent) {
+  // 这个函数实际上是执行fn，并把topLevelType和nativeEvent作为这个函数的参数
+  interactiveUpdates(dispatchEvent, topLevelType, nativeEvent);
+}
+
+function interactiveUpdates(fn, a, b) {
+  return _interactiveUpdatesImpl(fn, a, b);
+}
+
+var _interactiveUpdatesImpl = function (fn, a, b) {
+  return fn(a, b);
+};
+
+
+
+function dispatchEvent(topLevelType, nativeEvent) {
+  if (!_enabled) {
+    return;
+  }
+
+  // 通过这个事件对象找到这个原生的DOM对象
+  var nativeEventTarget = getEventTarget(nativeEvent);
+
+  // 从原生的节点里面找到相应的fiber
+  var targetInst = getClosestInstanceFromNode(nativeEventTarget);
+
+  if (targetInst !== null && typeof targetInst.tag === 'number' && !isFiberMounted(targetInst)) {
+    // If we get an event (ex: img onload) before committing that
+    // component's mount, ignore it for now (that is, treat it as if it was an
+    // event on a non-React tree). We might also consider queueing events and
+    // dispatching them after the mount.
+    targetInst = null;
+  }
+
+  // 包裹原生的事件对象
+  // 从回调事件的池子里面拿出一个对象
+  var bookKeeping = getTopLevelCallbackBookKeeping(topLevelType, nativeEvent, targetInst);
+
+  // 开始更新
+  try {
+    // Event queue being processed in the same cycle allows
+    // `preventDefault`.
+    batchedUpdates(handleTopLevel, bookKeeping);
+  } finally {
+    releaseTopLevelCallbackBookKeeping(bookKeeping);
+  }
+}
+
+
+function getEventTarget(nativeEvent) {
+  // 从原生对象里面拿到原生的DOM节点，也就是这个事件绑定的节点
+  var target = nativeEvent.target || nativeEvent.srcElement || window;
+
+  // Normalize SVG <use> element events #4963
+  if (target.correspondingUseElement) {
+    target = target.correspondingUseElement;
+  }
+
+  // 如果这是一个文本找到包裹这个文本的父亲节点
+  return target.nodeType === TEXT_NODE ? target.parentNode : target;
+}
+
+
+function getClosestInstanceFromNode(node) {
+  // 根据原生DOM找fiber
+  // 拿到之前createInstance保存在原生节点里面的key，指向的是这个节点的fiber对象
+  if (node[internalInstanceKey]) {
+    return node[internalInstanceKey];
+  }
+
+  // 没有的话找父母的
+  while (!node[internalInstanceKey]) {
+    if (node.parentNode) {
+      node = node.parentNode;
+    } else {
+      // Top of the tree. This node must not be part of a React tree (or is
+      // unmounted, potentially).
+      return null;
+    }
+  }
+
+  var inst = node[internalInstanceKey];
+
+  // 如果这是一个原生的fiber节点，直接返回
+  if (inst.tag === HostComponent || inst.tag === HostText) {
+    // In Fiber, this will always be the deepest root.
+    return inst;
+  }
+
+  return null;
+}
+
+
+
+function getTopLevelCallbackBookKeeping(topLevelType, nativeEvent, targetInst) {
+  // targetInst就是fiber
+  // 从池子里面拿出一个事件对象，加一些信息
+  if (callbackBookkeepingPool.length) {
+    var instance = callbackBookkeepingPool.pop();
+    instance.topLevelType = topLevelType;
+    instance.nativeEvent = nativeEvent;
+    instance.targetInst = targetInst;
+    return instance;
+  }
+  // 如果没有的话就新建一个，包裹原来的事件对象，加了事件名称和fiber的信息
+  return {
+    topLevelType: topLevelType,
+    nativeEvent: nativeEvent,
+    targetInst: targetInst,
+    ancestors: []
+  };
+}
+
+
+
+function batchedUpdates(fn, bookkeeping) {
+  if (isBatching) {
+    // If we are currently inside another batch, we need to wait until it
+    // fully completes before restoring state.
+    return fn(bookkeeping);
+  }
+  isBatching = true;
+  try {
+    return _batchedUpdatesImpl(fn, bookkeeping);
+  } finally {
+    // Here we wait until all updates have propagated, which is important
+    // when using controlled components within layers:
+    // https://github.com/facebook/react/issues/1698
+    // Then we restore state of any controlled component.
+    isBatching = false;
+    var controlledComponentsHavePendingUpdates = needsStateRestore();
+    if (controlledComponentsHavePendingUpdates) {
+      // If a controlled event was fired, we may need to restore the state of
+      // the DOM node back to the controlled value. This is necessary when React
+      // bails out of the update without touching the DOM.
+      _flushInteractiveUpdatesImpl();
+      restoreStateIfNeeded();
+    }
+  }
+}
+
+
+
+function handleTopLevel(bookKeeping) {
+  // 找到这个事件对象的fiber
+  var targetInst = bookKeeping.targetInst;
+
+  // Loop through the hierarchy, in case there's any nested components.
+  // It's important that we build the array of ancestors before calling any
+  // event handlers, because event handlers can modify the DOM, leading to
+  // inconsistencies with ReactMount's node cache. See #1105.
+  var ancestor = targetInst;
+
+  // 下面是在找这个节点的根fiber。
+  // 方法是：先找根fiber，再找根真实DOM
+  do {
+    if (!ancestor) {
+      bookKeeping.ancestors.push(ancestor);
+      break;
+    }
+    // 这个root已经是根节点的真实的DOM了
+    var root = findRootContainerNode(ancestor);
+    if (!root) {
+      break;
+    }
+    // 把当前节点的fiber保存到事件对象中（后面会变为root的真实节点，也就是root）
+    bookKeeping.ancestors.push(ancestor);
+
+    // 根据这个fiber拿到root的真实DOM，或者附近的节点的真实DOM，最终返回null，结束循环
+    ancestor = getClosestInstanceFromNode(root);
+  } while (ancestor);
+
+  // 下面这里不是在冒泡
+  // 这个数组存的只是祖先节点以及自己本身，对所有的祖先节点以及自己本身遍历，执行事件函数
+  for (var i = 0; i < bookKeeping.ancestors.length; i++) {
+    targetInst = bookKeeping.ancestors[i];
+    runExtractedEventsInBatch(bookKeeping.topLevelType, targetInst, bookKeeping.nativeEvent, getEventTarget(bookKeeping.nativeEvent));
+  }
+}
+
+
+function findRootContainerNode(inst) {
+  // 源码在这里说：
+  // 缓存它以防止不必要的DOM遍历可能是一个好主意，但如果不使用变异观察器来监听所有DOM更改，很难正确地进行缓存。
+  // 找到根节点的fiber
+  while (inst.return) {
+    inst = inst.return;
+  }
+  if (inst.tag !== HostRoot) {
+    // This can happen if we're in a detached tree.
+    return null;
+  }
+  // 拿到这个根fiber的root对象的真实DOM节点
+  return inst.stateNode.containerInfo;
+}
+
+
+
+
+
+function runExtractedEventsInBatch(topLevelType, targetInst, nativeEvent, nativeEventTarget) {
+  // 入参是：
+  // topLevelType是事件名称
+  // targetInst是fiber
+  // nativeEvent是原生的event对象
+  // nativeEventTarget是真实DOM节点
+
+  // 首先把插件的东西融合到一起
+  var events = extractEvents(topLevelType, targetInst, nativeEvent, nativeEventTarget);
+  runEventsInBatch(events);
+}
+
+
+function extractEvents(topLevelType, targetInst, nativeEvent, nativeEventTarget) {
+  // 入参是：
+  // topLevelType是事件名称
+  // targetInst是fiber
+  // nativeEvent是原生的event对象
+  // nativeEventTarget是真实DOM节点
+  var events = null;
+  for (var i = 0; i < plugins.length; i++) {
+    // Not every plugin in the ordering may be loaded at runtime.
+    var possiblePlugin = plugins[i];
+    if (possiblePlugin) {
+      var extractedEvents = possiblePlugin.extractEvents(topLevelType, targetInst, nativeEvent, nativeEventTarget);
+      if (extractedEvents) {
+        // 如果有人为定义的插件，就加上
+        events = accumulateInto(events, extractedEvents);
+      }
+    }
+  }
+  // 返回一个二维数组
+  return events;
+}
+
+
+
+function accumulateInto(current, next) {
+  !(next != null) ? invariant(false, 'accumulateInto(...): Accumulated items must not be null or undefined.') : void 0;
+
+  if (current == null) {
+    return next;
+  }
+
+  // Both are not empty. Warning: Never call x.concat(y) when you are not
+  // certain that x is an Array (x could be a string with concat method).
+  if (Array.isArray(current)) {
+    if (Array.isArray(next)) {
+      // 如果两者都是数组，加到后面
+      current.push.apply(current, next);
+      return current;
+    }
+    current.push(next);
+    return current;
+  }
+
+  // 结合两者
+  if (Array.isArray(next)) {
+    // A bit too dangerous to mutate `next`.
+    return [current].concat(next);
+  }
+
+  // 返回一个二维数组
+  return [current, next];
+}
+
+
+
+
+function runEventsInBatch(events) {
+  // 整合所有的event
+  if (events !== null) {
+    eventQueue = accumulateInto(eventQueue, events);
+  }
+
+  // Set `eventQueue` to null before processing it so that we can tell if more
+  // events get enqueued while processing.
+  var processingEventQueue = eventQueue;
+  eventQueue = null;
+
+  if (!processingEventQueue) {
+    return;
+  }
+
+  // 多少个事件队列就执行多少次（比如一个DOM发生了多个事件，而这些事件都被监听了）
+  // 这里只是在执行本fiber的所有事件，还没到冒泡的时候
+  // 到这一步才开始执行，用户定义的监听函数
+  forEachAccumulated(processingEventQueue, executeDispatchesAndReleaseTopLevel);
+
+  !!eventQueue ? invariant(false, 'processEventQueue(): Additional events were enqueued while processing an event queue. Support for this has not yet been implemented.') : void 0;
+  // This would be a good time to rethrow if any of the event handlers threw.
+  rethrowCaughtError();
+}
+
+
+
+function forEachAccumulated(arr, cb, scope) {
+  if (Array.isArray(arr)) {
+    arr.forEach(cb, scope);
+  } else if (arr) {
+    cb.call(scope, arr);
+  }
+}
+
+
+var executeDispatchesAndReleaseTopLevel = function (e) {
+  return executeDispatchesAndRelease(e);
+};
+
+var executeDispatchesAndRelease = function (event) {
+  if (event) {
+    executeDispatchesInOrder(event);
+
+    if (!event.isPersistent()) {
+      event.constructor.release(event);
+    }
+  }
+};
+
+function executeDispatchesInOrder(event) {
+  var dispatchListeners = event._dispatchListeners;
+  var dispatchInstances = event._dispatchInstances;
+  {
+    validateEventDispatches(event);
+  }
+  if (Array.isArray(dispatchListeners)) {
+    // 如果是一个数组就要按顺序监听
+    for (var i = 0; i < dispatchListeners.length; i++) {
+      if (event.isPropagationStopped()) {
+        break;
+      }
+      // 执行监听函数
+      executeDispatch(event, dispatchListeners[i], dispatchInstances[i]);
+    }
+  } else if (dispatchListeners) {
+    // 执行监听函数
+    executeDispatch(event, dispatchListeners, dispatchInstances);
+  }
+  event._dispatchListeners = null;
+  event._dispatchInstances = null;
+}
+
+
+function executeDispatch(event, listener, inst) {
+  var type = event.type || 'unknown-event';
+  // 拿到原生DOM
+  event.currentTarget = getNodeFromInstance(inst);
+
+  // 开始执行监听函数
+  invokeGuardedCallbackAndCatchFirstError(type, listener, undefined, event);
+  event.currentTarget = null;
+}
+
+
+function getNodeFromInstance(inst) {
+  if (inst.tag === HostComponent || inst.tag === HostText) {
+    // In Fiber this, is just the state node right now. We assume it will be
+    // a host component or host text.
+    return inst.stateNode;
+  }
+
+  // Without this first invariant, passing a non-DOM-component triggers the next
+  // invariant for a missing parent, which is super confusing.
+  invariant(false, 'getNodeFromInstance: Invalid argument.');
+}
+
+
+function invokeGuardedCallbackAndCatchFirstError(name, func, context, a, b, c, d, e, f) {
+  invokeGuardedCallback.apply(this, arguments);
+  if (hasError) {
+    var error = clearCaughtError();
+    if (!hasRethrowError) {
+      hasRethrowError = true;
+      rethrowError = error;
+    }
+  }
+}
+
+
+function invokeGuardedCallback(name, func, context, a, b, c, d, e, f) {
+  hasError = false;
+  caughtError = null;
+  invokeGuardedCallbackDev.apply(reporter, arguments);
+}
+
+
+var invokeGuardedCallbackDev = function (name, func, context, a, b, c, d, e, f) {
+  // 这是单个事件的执行函数，冒泡不在这里
+
+  // If document doesn't exist we know for sure we will crash in this method
+  // when we call document.createEvent(). However this can cause confusing
+  // errors: https://github.com/facebookincubator/create-react-app/issues/3482
+  // So we preemptively throw with a better message instead.
+  !(typeof document !== 'undefined') ? invariant(false, 'The `document` global was defined when React was initialized, but is not defined anymore. This can happen in a test environment if a component schedules an update from an asynchronous callback, but the test has already finished running. To solve this, you can either unmount the component at the end of your test (and ensure that any asynchronous operations get canceled in `componentWillUnmount`), or you can change the test itself to be asynchronous.') : void 0;
+  var evt = document.createEvent('Event');
+
+  // Keeps track of whether the user-provided callback threw an error. We
+  // set this to true at the beginning, then set it to false right after
+  // calling the function. If the function errors, `didError` will never be
+  // set to false. This strategy works even if the browser is flaky and
+  // fails to call our global error handler, because it doesn't rely on
+  // the error event at all.
+  var didError = true;
+
+  // Keeps track of the value of window.event so that we can reset it
+  // during the callback to let user code access window.event in the
+  // browsers that support it.
+  var windowEvent = window.event;
+
+  // Keeps track of the descriptor of window.event to restore it after event
+  // dispatching: https://github.com/facebook/react/issues/13688
+  var windowEventDescriptor = Object.getOwnPropertyDescriptor(window, 'event');
+
+  // Create an event handler for our fake event. We will synchronously
+  // dispatch our fake event using `dispatchEvent`. Inside the handler, we
+  // call the user-provided callback.
+  var funcArgs = Array.prototype.slice.call(arguments, 3);
+  function callCallback() {
+    // We immediately remove the callback from event listeners so that
+    // nested `invokeGuardedCallback` calls do not clash. Otherwise, a
+    // nested call would trigger the fake event handlers of any call higher
+    // in the stack.
+    fakeNode.removeEventListener(evtType, callCallback, false);
+
+    // We check for window.hasOwnProperty('event') to prevent the
+    // window.event assignment in both IE <= 10 as they throw an error
+    // "Member not found" in strict mode, and in Firefox which does not
+    // support window.event.
+    if (typeof window.event !== 'undefined' && window.hasOwnProperty('event')) {
+      window.event = windowEvent;
+    }
+
+    func.apply(context, funcArgs);
+    didError = false;
+  }
+
+  // Create a global error event handler. We use this to capture the value
+  // that was thrown. It's possible that this error handler will fire more
+  // than once; for example, if non-React code also calls `dispatchEvent`
+  // and a handler for that event throws. We should be resilient to most of
+  // those cases. Even if our error event handler fires more than once, the
+  // last error event is always used. If the callback actually does error,
+  // we know that the last error event is the correct one, because it's not
+  // possible for anything else to have happened in between our callback
+  // erroring and the code that follows the `dispatchEvent` call below. If
+  // the callback doesn't error, but the error event was fired, we know to
+  // ignore it because `didError` will be false, as described above.
+  var error = void 0;
+  // Use this to track whether the error event is ever called.
+  var didSetError = false;
+  var isCrossOriginError = false;
+
+  function handleWindowError(event) {
+    error = event.error;
+    didSetError = true;
+    if (error === null && event.colno === 0 && event.lineno === 0) {
+      isCrossOriginError = true;
+    }
+    if (event.defaultPrevented) {
+      // Some other error handler has prevented default.
+      // Browsers silence the error report if this happens.
+      // We'll remember this to later decide whether to log it or not.
+      if (error != null && typeof error === 'object') {
+        try {
+          error._suppressLogging = true;
+        } catch (inner) {
+          // Ignore.
+        }
+      }
+    }
+  }
+
+
+  // Create a fake event type.
+  var evtType = 'react-' + (name ? name : 'invokeguardedcallback');
+
+  // Attach our event handlers
+  window.addEventListener('error', handleWindowError);
+  fakeNode.addEventListener(evtType, callCallback, false);
+
+  // Synchronously dispatch our fake event. If the user-provided function
+  // errors, it will trigger our global error handler.
+  evt.initEvent(evtType, false, false);
+  fakeNode.dispatchEvent(evt);
+
+  if (windowEventDescriptor) {
+    Object.defineProperty(window, 'event', windowEventDescriptor);
+  }
+
+  if (didError) {
+    if (!didSetError) {
+      // The callback errored, but the error event never fired.
+      error = new Error('An error was thrown inside one of your components, but React ' + "doesn't know what it was. This is likely due to browser " + 'flakiness. React does its best to preserve the "Pause on ' + 'exceptions" behavior of the DevTools, which requires some ' + "DEV-mode only tricks. It's possible that these don't work in " + 'your browser. Try triggering the error in production mode, ' + 'or switching to a modern browser. If you suspect that this is ' + 'actually an issue with React, please file an issue.');
+    } else if (isCrossOriginError) {
+      error = new Error("A cross-origin error was thrown. React doesn't have access to " + 'the actual error object in development. ' + 'See https://fb.me/react-crossorigin-error for more information.');
+    }
+    this.onError(error);
+  }
+
+  // Remove our event listeners
+  window.removeEventListener('error', handleWindowError);
+};
+
+
+
+
+
+function addEventBubbleListener(element, eventType, listener) {
+  element.addEventListener(eventType, listener, false);
+}
+
+function getRawEventName(topLevelType) {
+  return unsafeCastDOMTopLevelTypeToString(topLevelType);
+}
+
+function unsafeCastDOMTopLevelTypeToString(topLevelType) {
+  return topLevelType;
+}
+
+
+
 
 
