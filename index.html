@@ -5743,15 +5743,121 @@
         return "Yes"; // placeholder return
     }
 
-    function main() {
-        console.log(solution(1, 1) === "No");
-        console.log(solution(1, 4) === "Yes");
-        console.log(solution(4, 1) === "Yes");
-        console.log(solution(4, 4) === "No");
+    // function main() {
+    //     console.log(solution(1, 1) === "No");
+    //     console.log(solution(1, 4) === "Yes");
+    //     console.log(solution(4, 1) === "Yes");
+    //     console.log(solution(4, 4) === "No");
+    // }
+
+    // main();
+
+
+
+
+
+
+    function solution(x, y) {
+        // 找子矩形！！！
+        let count = 0
+        function zhengCal(zheng_size) {
+            // 正菱形
+            // let zheng_size = 1
+            for (let i = zheng_size; i <= x; i = i + zheng_size) {
+                for (let j = zheng_size; j <= y; j = j + zheng_size) {
+                    if (j > y - zheng_size || i > x - zheng_size) {
+                        continue
+                    }
+                    count++
+                }
+            }
+        }
+        function shuCal(shu_x_size, shu_y_size) {
+            // 竖扁菱形
+            // let shu_x_size = 1, shu_y_size = 2
+            if (shu_y_size > y + 1 || shu_x_size > x + 1) {
+                return
+            }
+            for (let i = shu_x_size; i <= x; i = i + shu_x_size) {
+                for (let j = shu_y_size; j <= y; j = j + shu_y_size) {
+                    if (j > y + 1 || i > x + 1) {
+                        break
+                    }
+                    if (j > y - shu_y_size || i > x - shu_x_size) {
+                        continue
+                    }
+                    count++
+                }
+            }
+        }
+        function hengCal(heng_x_size, heng_y_size) {
+            // 横扁菱形
+            // let heng_x_size = 2, heng_y_size = 1
+            if (heng_y_size > y + 1 || heng_x_size > x + 1) {
+                return
+            }
+            for (let i = heng_x_size; i <= x; i = i + heng_x_size) {
+                for (let j = heng_y_size; j <= y; j = j + heng_y_size) {
+                    if (j > y + 1 || i > x + 1) {
+                        break
+                    }
+                    if (j > y - heng_y_size || i > x - heng_x_size) {
+                        continue
+                    }
+                    count++
+                }
+            }
+        }
+        let zheng = Math.floor(x / 2)
+
+        for (let i = 1; i <= zheng; i++) {
+            zhengCal(i)
+            shuCal(i, i * 2)
+            hengCal(i * 2, i)
+        }
+        console.log(count)
+        return count;
     }
 
-    main();
 
+
+    function solution(x, y) {
+        let count = 0;
+
+        // 遍历菱形的中心点
+        // 网格上每个点都遍历一下
+        for (let cx = 0; cx <= x; cx++) {
+            for (let cy = 0; cy <= y; cy++) {
+                // 对于每个中心点，遍历对角线长度（的一半）
+                // 其中一个竖向的对角线长度对应着很多种情况的横向的对角线长度
+
+                // dx <= cx && dx <= x - cx表示中心点左右要有足够的位置给到对角线
+                // 比如，dx <= cx表示中心点要在对角线的右边
+                // dx <= x - cx表示中心点右边有足够长的对角线长度
+                for (let dx = 1; dx <= cx && dx <= x - cx; dx++) {
+                    for (let dy = 1; dy <= cy && dy <= y - cy; dy++) {
+                        // 把情况再限定一下，防止最后++的时候出了界限，count也会被加1
+                        if (cx - dx >= 0 && cx + dx <= x && cy - dy >= 0 && cy + dy <= y) {
+                            count++;
+                        }
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+
+
+
+    // function main() {
+    //     console.log(solution(2, 2) === 1);
+    //     console.log(solution(3, 3) === 4);
+    //     console.log(solution(4, 2) === 4);
+    //     console.log(solution(4, 14) === 196);
+    // }
+
+    // main();
     
 
 

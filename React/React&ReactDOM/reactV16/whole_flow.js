@@ -110,8 +110,10 @@ var isCommitting$1 = false;
 // 下一个将要创建fiber的虚拟DOM，也是一个单元
 var nextUnitOfWork = null;
 var nextRoot = null;
+
 // 正在渲染阶段的过期时间，初始化值是最低的优先级，目的干嘛？？在renderRoot里面被赋值
 // root.nextExpirationTimeToWorkOn等于这个全局值
+// 在completeUnitOfWork里面被赋予给下一个孩子
 var nextRenderExpirationTime = NoWork;
 
 var lowestPriorityPendingInteractiveExpirationTime = NoWork;
@@ -232,7 +234,7 @@ var stashedWorkInProgressProperties = void 0;
 var mayReplayFailedUnitOfWork = void 0;
 var isReplayingFailedUnitOfWork = void 0;
 
-// 这是干嘛？？
+// 调用保护性的回调函数，来“重放”失败的工作单元
 var replayFailedUnitOfWorkWithInvokeGuardedCallback = true;
 
 // 8. beginWork阶段
@@ -492,6 +494,30 @@ var HTML = '__html';
 
 
 
+var properties = {};
+
+
+var registrationNameModules = {};
+
+
+
+/* eslint-disable max-len */
+var ATTRIBUTE_NAME_START_CHAR = ':A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD';
+/* eslint-enable max-len */
+var ATTRIBUTE_NAME_CHAR = ATTRIBUTE_NAME_START_CHAR + '\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040';
+
+
+var ROOT_ATTRIBUTE_NAME = 'data-reactroot';
+var VALID_ATTRIBUTE_NAME_REGEX = new RegExp('^[' + ATTRIBUTE_NAME_START_CHAR + '][' + ATTRIBUTE_NAME_CHAR + ']*$');
+
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+var illegalAttributeNameCache = {};
+var validatedAttributeNameCache = {};
+
+
+
+
+
 // 14. 事件触发相关
 
 // 所有事件
@@ -595,6 +621,15 @@ var topLevelEventsToDispatchConfig = {};
 var plugins = [];
 
 var eventQueue = null;
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3585,8 +3620,10 @@ function pop(cursor, fiber) {
     }
   }
 
+  // 先把栈中的值预先存在valueCursor.current中
   cursor.current = valueStack[index];
 
+  // 然后再清空栈这个位置的值
   valueStack[index] = null;
 
   {
@@ -5691,6 +5728,7 @@ function updateContextProvider(current$$1, workInProgress, renderExpirationTime)
   }
 
   // 把Provider的value放到全局的context里面
+  // 消费者从哪里拿到，在useContext钩子那边
   pushProvider(workInProgress, newValue);
 
 
@@ -5731,7 +5769,7 @@ function pushProvider(providerFiber, nextValue) {
     // 把上下文里面的nextValue值保存在valueCursor的current属性里面
     push(valueCursor, context._currentValue, providerFiber);
 
-    // 把provider的数据放到这个属性里面
+    // 把provider的数据放到context._currentValue属性里面
     context._currentValue = nextValue;
 
     // 这个属性用来干嘛？？
@@ -6058,7 +6096,7 @@ function shouldDeprioritizeSubtree(type, props) {
 
 
 
-// REVIEW - 下面是当WIP的大儿子为null的时候，开始向右遍历从performUnitOfWork函数进来的
+// REVIEW - 下面是当WIP的大儿子为null的时候，开始向右遍历，进入completeUnitOfWork（从performUnitOfWork函数进来）
 // 里面的结构有点像performUnitOfWork里面有beginWork，分发之后最终去到reconcileChildren
 // 这里就是compeleteUnitOfWork里面有completeWork
 
@@ -6097,13 +6135,14 @@ function completeUnitOfWork(workInProgress) {
 
       nextUnitOfWork = workInProgress;
 
-      // 1.1开始向右向上遍历
+      // 1.1 在当前停下来的fiber处建立真实的DOM
       if (enableProfilerTimer) {
         // 时间暂停，表明从上往下遍历的阶段结束，开始向右向上遍历
         if (workInProgress.mode & ProfileMode) {
           startProfilerTimer(workInProgress);
         }
-        // 进入到completeWork
+        // 进入到completeWork，新建DOM，并为DOM赋予props属性和填充children的内容
+        // 最后肯定返回null
         nextUnitOfWork = completeWork(current$$1, workInProgress, nextRenderExpirationTime);
         
         if (workInProgress.mode & ProfileMode) {
@@ -6116,71 +6155,91 @@ function completeUnitOfWork(workInProgress) {
 
 
       if (true && replayFailedUnitOfWorkWithInvokeGuardedCallback) {
-        // We're out of completion phase so replaying is fine now.
+        // 因为已经走完了comleteWork，所以可以replay
         mayReplayFailedUnitOfWork = true;
       }
+
+      // 1.2 停止计算时间，
       stopWorkTimer(workInProgress);
+
+      // 1.3 更新WIP的孩子eT
       resetChildExpirationTime(workInProgress, nextRenderExpirationTime);
+
+
       {
         resetCurrentFiber();
       }
 
+      // 这个情况貌似不会走，因为completeWork返回的都是null
       if (nextUnitOfWork !== null) {
         // Completing this fiber spawned new work. Work on that next.
         return nextUnitOfWork;
       }
 
-      if (returnFiber !== null &&
-      // Do not append effects to parents if a sibling failed to complete
-      (returnFiber.effectTag & Incomplete) === NoEffect) {
-        // Append all the effects of the subtree and this fiber onto the effect
-        // list of the parent. The completion order of the children affects the
-        // side-effect order.
+      // 1.4 开始针对父亲fiber挂上effect的链条
+      // 当前保证父亲节点存在且未完成
+      if (returnFiber !== null && (returnFiber.effectTag & Incomplete) === NoEffect) {
+
+        // 把副作用挂到fiber的effect链条上面
+
+        // （一）先合并自己的孩子
+        // 1. 父亲无fE，说明他也没有lE，从上往下连接fE！
         if (returnFiber.firstEffect === null) {
           returnFiber.firstEffect = workInProgress.firstEffect;
         }
+        // 2. 孩子有lE，也肯定有fE
         if (workInProgress.lastEffect !== null) {
+          // 父亲有lE，连接父亲的最后一个和子的第一个
           if (returnFiber.lastEffect !== null) {
             returnFiber.lastEffect.nextEffect = workInProgress.firstEffect;
           }
+          // 父亲有无fE或lE都要连接lE
+          // 连接父亲的最后一个为子的最后一个
           returnFiber.lastEffect = workInProgress.lastEffect;
         }
 
-        // If this fiber had side-effects, we append it AFTER the children's
-        // side-effects. We can perform certain side-effects earlier if
-        // needed, by doing multiple passes over the effect list. We don't want
-        // to schedule our own side-effect on our own list because if end up
-        // reusing children we'll schedule this effect onto itself since we're
-        // at the end.
+        // （二）然后合并自己
         var effectTag = workInProgress.effectTag;
-        // Skip both NoWork and PerformedWork tags when creating the effect list.
-        // PerformedWork effect is read by React DevTools but shouldn't be committed.
+
+        // 这里通过 effectTag > PerformedWork 来过滤掉 NoWork 和 PerformedWork 类型的副作用。
+        // NoWork 代表没有工作需要做，PerformedWork 代表已经执行的工作，这两种副作用类型不需要加入副作用链表。
+        // 环形链条保存的是WIp本身
         if (effectTag > PerformedWork) {
+          // 1. 父亲有lE，也肯定有fE，连接孩子
           if (returnFiber.lastEffect !== null) {
             returnFiber.lastEffect.nextEffect = workInProgress;
           } else {
+            // 2. 父亲无fE，说明他也没有lE，从上往下连接fE！
             returnFiber.firstEffect = workInProgress;
           }
+          // 不管怎么样都要连接lE
           returnFiber.lastEffect = workInProgress;
         }
       }
+
 
       if (true && ReactFiberInstrumentation_1.debugTool) {
         ReactFiberInstrumentation_1.debugTool.onCompleteWork(workInProgress);
       }
 
+
+      // 1.5 开始向右遍历
       if (siblingFiber !== null) {
-        // If there is more work to do in this returnFiber, do that next.
         return siblingFiber;
+        // 没有兄弟姐妹就向上遍历
       } else if (returnFiber !== null) {
-        // If there's no more work in this returnFiber. Complete the returnFiber.
+        // 回到父亲节点，然后继续执行completeUnitOfWork
+        // （因为这个函数是一个while(true)的死循环函数）
         workInProgress = returnFiber;
         continue;
       } else {
         // We've reached the root.
         return null;
       }
+
     } else {
+
+      // 什么时候会走下面？？？？
       if (enableProfilerTimer && workInProgress.mode & ProfileMode) {
         // Record the render duration for the fiber that errored.
         stopProfilerTimerIfRunningAndRecordDelta(workInProgress, false);
@@ -6273,12 +6332,17 @@ function completeWork(current, workInProgress, renderExpirationTime) {
 
   // 如果首次进入这个函数，这个时候的WIP是最底层的fiber，不是单纯的文本，而是普通节点，其孩子是文本
   // 开始分发！！！
+
+  // 在每次渲染完成后，pop上下文的操作确保了当前组件的上下文不再影响其他组件或层次
+  // 从而避免上下文的“泄漏”或错误地传递给不需要的组件。
+
   switch (workInProgress.tag) {
     case IndeterminateComponent:
       break;
     case LazyComponent:
       break;
     case SimpleMemoComponent:
+    // 如果当前的fiber是一个函数组件，那么不用新建DOM
     case FunctionComponent:
       break;
     case ClassComponent:
@@ -6312,7 +6376,7 @@ function completeWork(current, workInProgress, renderExpirationTime) {
     case HostComponent:
       // 普通的节点（树的最底层）走这里
       {
-        // 首先弹出栈里面的上下文，为什么？？？
+        // 首先弹出栈里面的上下文，保证下一层不受干扰
         popHostContext(workInProgress);
 
         // 拿到根节点的root原生DOM节点
@@ -6361,13 +6425,15 @@ function completeWork(current, workInProgress, renderExpirationTime) {
 
             // 3. 为这个真实的DOM赋予属性和内容
             if (finalizeInitialChildren(instance, type, newProps, rootContainerInstance, currentHostContext)) {
+              // 然后标记此时的这个节点为更新的节点，一般情况下不走这个
               markUpdate(workInProgress);
             }
+            // 把这个真实的DOM放到stateNode属性上面
             workInProgress.stateNode = instance;
           }
 
           if (workInProgress.ref !== null) {
-            // If there is a ref on a host node we need to schedule a callback
+            // 标记WIP的effectTag为Ref
             markRef$1(workInProgress);
           }
         }
@@ -6452,7 +6518,7 @@ function completeWork(current, workInProgress, renderExpirationTime) {
       updateHostContainer(workInProgress);
       break;
     case ContextProvider:
-      // Pop provider fiber
+      // 如果是上下文的provider，
       popProvider(workInProgress);
       break;
     case ContextConsumer:
@@ -6819,11 +6885,183 @@ function appendInitialChild(parentInstance, child) {
 }
 
 
+
+
+
+function markUpdate(workInProgress) {
+  // Tag the fiber with an update effect. This turns a Placement into
+  // a PlacementAndUpdate.
+  workInProgress.effectTag |= Update;
+}
+
+
+function markRef$1(workInProgress) {
+  workInProgress.effectTag |= Ref;
+}
+
+
+
+function stopWorkTimer(fiber) {
+  if (enableUserTimingAPI) {
+    if (!supportsUserTiming || shouldIgnoreFiber(fiber)) {
+      return;
+    }
+    // If we pause, its parent is the fiber to unwind from.
+    currentFiber = fiber.return;
+    if (!fiber._debugIsCurrentlyTiming) {
+      return;
+    }
+    fiber._debugIsCurrentlyTiming = false;
+    endFiberMark(fiber, null, null);
+  }
+}
+
+
+var endFiberMark = function (fiber, phase, warning) {
+  var componentName = getComponentName(fiber.type) || 'Unknown';
+  var debugID = fiber._debugID;
+  var isMounted = fiber.alternate !== null;
+  var label = getFiberLabel(componentName, isMounted, phase);
+  var markName = getFiberMarkName(label, debugID);
+  endMark(label, markName, warning);
+};
+
+var endMark = function (label, markName, warning) {
+  var formattedMarkName = formatMarkName(markName);
+  var formattedLabel = formatLabel(label, warning);
+  try {
+    performance.measure(formattedLabel, formattedMarkName);
+  } catch (err) {}
+  // If previous mark was missing for some reason, this will throw.
+  // This could only happen if React crashed in an unexpected place earlier.
+  // Don't pile on with more errors.
+
+  // Clear marks immediately to avoid growing buffer.
+  performance.clearMarks(formattedMarkName);
+  performance.clearMeasures(formattedLabel);
+};
+
+
+
+
+
+function resetChildExpirationTime(workInProgress, renderTime) {
+  // renderTime就是root.nextExpirationTimeToWork
+
+  if (renderTime !== Never && workInProgress.childExpirationTime === Never) {
+    // The children of this component are hidden. Don't bubble their
+    // expiration times.
+    return;
+  }
+
+  // React 中表示没有工作的常量。
+  var newChildExpirationTime = NoWork;
+
+  // Bubble up the earliest expiration time.
+  if (enableProfilerTimer && workInProgress.mode & ProfileMode) {
+    // We're in profiling mode.
+    // Let's use this same traversal to update the render durations.
+    var actualDuration = workInProgress.actualDuration;
+    var treeBaseDuration = workInProgress.selfBaseDuration;
+
+    // 为什么比较 >：是因为我们想找到子组件的最晚过期时间，
+    // 以此来更新父组件的过期时间。【父组件需要等待所有子组件更新完毕才能更新】
+    // newChildExpirationTime 记录的是最晚的过期时间，
+    // 这样 React 调度系统可以确保在更新树时所有必要的组件都会被考虑到。
+
+    var shouldBubbleActualDurations = workInProgress.alternate === null || workInProgress.child !== workInProgress.alternate.child;
+
+    // 找到这个fiber的孩子
+    var child = workInProgress.child;
+    while (child !== null) {
+      // 这里是在看孩子的过期时间大还是孙子的过期时间大
+      var childUpdateExpirationTime = child.expirationTime;
+      var childChildExpirationTime = child.childExpirationTime;
+      if (childUpdateExpirationTime > newChildExpirationTime) {
+        newChildExpirationTime = childUpdateExpirationTime;
+      }
+      if (childChildExpirationTime > newChildExpirationTime) {
+        newChildExpirationTime = childChildExpirationTime;
+      }
+
+      // actualDuration：表示当前组件的实际渲染时间。
+      // treeBaseDuration：表示当前组件及其所有子组件的渲染时间（包括所有子树的基础渲染时间）。
+
+      // 如果是首次渲染阶段 或者 子树有变化
+      if (shouldBubbleActualDurations) {
+        actualDuration += child.actualDuration;
+      }
+      // 累加孩子的treeBaseDuration
+      treeBaseDuration += child.treeBaseDuration;
+      // 往孩子的右边找（孩子层的所有时间要经过对比）
+      child = child.sibling;
+    }
+    workInProgress.actualDuration = actualDuration;
+    workInProgress.treeBaseDuration = treeBaseDuration;
+  } else {
+    var _child = workInProgress.child;
+    while (_child !== null) {
+      var _childUpdateExpirationTime = _child.expirationTime;
+      var _childChildExpirationTime = _child.childExpirationTime;
+      if (_childUpdateExpirationTime > newChildExpirationTime) {
+        newChildExpirationTime = _childUpdateExpirationTime;
+      }
+      if (_childChildExpirationTime > newChildExpirationTime) {
+        newChildExpirationTime = _childChildExpirationTime;
+      }
+      _child = _child.sibling;
+    }
+  }
+
+  workInProgress.childExpirationTime = newChildExpirationTime;
+}
+
+
+
+
+
+
+
+function popProvider(providerFiber) {
+  // 把provider的上下文从栈里面弹出
+
+  // 这里currentValue是undefined
+  var currentValue = valueCursor.current;
+
+  // 弹出上下文的目的是：
+  // 当渲染完成后，确保栈的状态恢复到上一层，从而不会干扰其他组件的渲染。
+  pop(valueCursor, providerFiber);
+
+  // 然后存到上下文对象本身的属性里面
+  // （这个在pushProvider已经做过了）
+  // 但现在存的是undefined
+  var context = providerFiber.type._context;
+  if (isPrimaryRenderer) {
+    context._currentValue = currentValue;
+  } else {
+    context._currentValue2 = currentValue;
+  }
+}
+
+
+
+
+
+
+
+
+// REVIEW - 为真正的DOM赋予props属性和填充children的内容
+
+
+
+
+
+
 function finalizeInitialChildren(domElement, type, props, rootContainerInstance, hostContext) {
   // 为真实的DOM设置属性
   setInitialProperties(domElement, type, props, rootContainerInstance);
 
-
+  // 是否应该自动聚焦于原生节点，textarea标签有一个属性可以判断，其他都是false
   return shouldAutoFocusHostComponent(type, props);
 }
 
@@ -6920,14 +7158,18 @@ function setInitialProperties(domElement, tag, rawProps, rootContainerElement) {
   // 3. 再次检查props是否规范，给出警告
   assertValidProps(tag, props);
 
+  // 4. 为真实的DOM设置props
   setInitialDOMProperties(tag, domElement, rootContainerElement, props, isCustomComponentTag);
 
   switch (tag) {
     case 'input':
-      // Make sure we check if this is still unmounted or do any clean
-      // up necessary since we never stop tracking anymore.
+      // 建立跟踪器，保存到DOM的_valueTracker属性
+      // !跟踪的目的是什么？？
       track(domElement);
+
+      // 同步输入值
       postMountWrapper(domElement, rawProps, false);
+
       break;
     case 'textarea':
       // Make sure we check if this is still unmounted or do any clean
@@ -7002,24 +7244,21 @@ function setInitialDOMProperties(tag, domElement, rootContainerElement, nextProp
       // 冻结一下，不允许修改
       {
         if (nextProp) {
-          // Freeze the next style object so that we can assume it won't be
-          // mutated. We have already warned for this in the past.
           Object.freeze(nextProp);
         }
       }
-      // Relies on `updateStylesByID` not mutating `styleUpdates`.
       setValueForStyles(domElement, nextProp);
     } else if (propKey === DANGEROUSLY_SET_INNER_HTML) {
+
+      // 这是用来设置内部html的
       var nextHtml = nextProp ? nextProp[HTML] : undefined;
       if (nextHtml != null) {
         setInnerHTML(domElement, nextHtml);
       }
     } else if (propKey === CHILDREN) {
+      // 如果是children，开始填充内容
+      // 且children是单个文本，直接填充内容
       if (typeof nextProp === 'string') {
-        // Avoid setting initial textContent when the text is empty. In IE11 setting
-        // textContent on a <textarea> will cause the placeholder to not
-        // show within the <textarea> until it has been focused and blurred again.
-        // https://github.com/facebook/react/issues/6731#issuecomment-254874553
         var canSetTextContent = tag !== 'textarea' || nextProp !== '';
         if (canSetTextContent) {
           setTextContent(domElement, nextProp);
@@ -7027,21 +7266,23 @@ function setInitialDOMProperties(tag, domElement, rootContainerElement, nextProp
       } else if (typeof nextProp === 'number') {
         setTextContent(domElement, '' + nextProp);
       }
+
     } else if (propKey === SUPPRESS_CONTENT_EDITABLE_WARNING || propKey === SUPPRESS_HYDRATION_WARNING$1) {
       // Noop
     } else if (propKey === AUTOFOCUS) {
-      // We polyfill it separately on the client during commit.
-      // We could have excluded it in the property list instead of
-      // adding a special case here, but then it wouldn't be emitted
-      // on server rendering (but we *do* want to emit it in SSR).
+      // Noop
     } else if (registrationNameModules.hasOwnProperty(propKey)) {
+
       if (nextProp != null) {
         if (true && typeof nextProp !== 'function') {
           warnForInvalidEventListener(propKey, nextProp);
         }
+        // 这个时候propKey是一个函数
+        // 如果是一个事件，开启监听！
         ensureListeningTo(rootContainerElement, propKey);
       }
     } else if (nextProp != null) {
+      // 其他的属性
       setValueForProperty(domElement, propKey, nextProp, isCustomComponentTag);
     }
   }
@@ -7081,9 +7322,7 @@ function setValueForStyles(node, styles) {
 
 
 var setInnerHTML = createMicrosoftUnsafeLocalFunction(function (node, html) {
-  // IE does not have innerHTML for SVG nodes, so instead we inject the
-  // new markup in a temp node and then move the child nodes across into
-  // the target node
+  // 这是在一个标签里面加上innerHTML
 
   if (node.namespaceURI === Namespaces.svg && !('innerHTML' in node)) {
     reusableSVGContainer = reusableSVGContainer || document.createElement('div');
@@ -7099,6 +7338,372 @@ var setInnerHTML = createMicrosoftUnsafeLocalFunction(function (node, html) {
     node.innerHTML = html;
   }
 });
+
+
+
+var createMicrosoftUnsafeLocalFunction = function (func) {
+  if (typeof MSApp !== 'undefined' && MSApp.execUnsafeLocalFunction) {
+    return function (arg0, arg1, arg2, arg3) {
+      MSApp.execUnsafeLocalFunction(function () {
+        return func(arg0, arg1, arg2, arg3);
+      });
+    };
+  } else {
+    return func;
+  }
+};
+
+
+
+
+var setTextContent = function (node, text) {
+  if (text) {
+    // 如果这个不是一个最底层的节点，就在她的孩子那里把这个值加上
+    var firstChild = node.firstChild;
+
+    if (firstChild && firstChild === node.lastChild && firstChild.nodeType === TEXT_NODE) {
+      firstChild.nodeValue = text;
+      return;
+    }
+  }
+  node.textContent = text;
+};
+
+
+
+
+
+
+function setValueForProperty(node, name, value, isCustomComponentTag) {
+
+  // node是当前的DOM
+  // name是当前的props对象的key4
+  // value是key对应的值
+
+  // 从一个公共对象里面拿这个key对应的值
+  // 这个对象是什么？是一个specialList
+  var propertyInfo = getPropertyInfo(name);
+
+  // 把事件的prop处理掉（on开头的那些）
+  if (shouldIgnoreAttribute(name, propertyInfo, isCustomComponentTag)) {
+    return;
+  }
+
+  // 把空的props值处理掉
+  if (shouldRemoveAttribute(name, value, propertyInfo, isCustomComponentTag)) {
+    value = null;
+  }
+
+
+  // 开始处理，设置当前的props
+  // 1. 如果是一个自定义的tag或者就是普通的prop
+  if (isCustomComponentTag || propertyInfo === null) {
+
+    // 检测这个key是否是正确的
+    if (isAttributeNameSafe(name)) {
+      var _attributeName = name;
+      // 如果value是null（在前面判断过的空的value了），除掉这个属性
+      if (value === null) {
+        node.removeAttribute(_attributeName);
+      } else {
+        node.setAttribute(_attributeName, '' + value);
+      }
+    }
+    return;
+  }
+
+  // 接着开始处理必须要有的props，加到真实的DOM里面
+  var mustUseProperty = propertyInfo.mustUseProperty;
+
+  if (mustUseProperty) {
+    var propertyName = propertyInfo.propertyName;
+
+    if (value === null) {
+      var type = propertyInfo.type;
+      node[propertyName] = type === BOOLEAN ? false : '';
+
+    } else {
+
+      // 加上这个property的属性key和值
+      node[propertyName] = value;
+    }
+    return;
+  }
+
+
+  // 接下来这个属性是特殊的属性
+  // 处理这个属性
+  var attributeName = propertyInfo.attributeName,
+      attributeNamespace = propertyInfo.attributeNamespace;
+
+  if (value === null) {
+    node.removeAttribute(attributeName);
+  } else {
+    var _type = propertyInfo.type;
+
+    var attributeValue = void 0;
+    if (_type === BOOLEAN || _type === OVERLOADED_BOOLEAN && value === true) {
+      attributeValue = '';
+    } else {
+      // `setAttribute` with objects becomes only `[object]` in IE8/9,
+      // ('' + value) makes it output the correct toString()-value.
+      attributeValue = '' + value;
+    }
+    if (attributeNamespace) {
+      node.setAttributeNS(attributeNamespace, attributeName, attributeValue);
+    } else {
+      node.setAttribute(attributeName, attributeValue);
+    }
+  }
+
+}
+
+
+
+function getPropertyInfo(name) {
+  return properties.hasOwnProperty(name) ? properties[name] : null;
+}
+
+
+
+function shouldIgnoreAttribute(name, propertyInfo, isCustomComponentTag) {
+  if (propertyInfo !== null) {
+    return propertyInfo.type === RESERVED;
+  }
+  if (isCustomComponentTag) {
+    return false;
+  }
+  if (name.length > 2 && (name[0] === 'o' || name[0] === 'O') && (name[1] === 'n' || name[1] === 'N')) {
+    return true;
+  }
+  return false;
+}
+
+
+
+
+
+
+function shouldRemoveAttribute(name, value, propertyInfo, isCustomComponentTag) {
+  if (value === null || typeof value === 'undefined') {
+    return true;
+  }
+  if (shouldRemoveAttributeWithWarning(name, value, propertyInfo, isCustomComponentTag)) {
+    return true;
+  }
+  if (isCustomComponentTag) {
+    return false;
+  }
+  if (propertyInfo !== null) {
+    switch (propertyInfo.type) {
+      case BOOLEAN:
+        return !value;
+      case OVERLOADED_BOOLEAN:
+        return value === false;
+      case NUMERIC:
+        return isNaN(value);
+      case POSITIVE_NUMERIC:
+        return isNaN(value) || value < 1;
+    }
+  }
+  return false;
+}
+
+
+
+
+function isAttributeNameSafe(attributeName) {
+  if (hasOwnProperty.call(validatedAttributeNameCache, attributeName)) {
+    return true;
+  }
+  if (hasOwnProperty.call(illegalAttributeNameCache, attributeName)) {
+    return false;
+  }
+  if (VALID_ATTRIBUTE_NAME_REGEX.test(attributeName)) {
+    validatedAttributeNameCache[attributeName] = true;
+    return true;
+  }
+  illegalAttributeNameCache[attributeName] = true;
+  {
+    warning$1(false, 'Invalid attribute name: `%s`', attributeName);
+  }
+  return false;
+}
+
+
+
+function track(node) {
+  // 如果原生的DOM有这个属性，就说明已经在跟踪中了
+  if (getTracker(node)) {
+    return;
+  }
+  // 没有的话赋予一个属性
+  node._valueTracker = trackValueOnNode(node);
+}
+
+function getTracker(node) {
+  return node._valueTracker;
+}
+
+
+function trackValueOnNode(node) {
+  var valueField = isCheckable(node) ? 'checked' : 'value';
+  var descriptor = Object.getOwnPropertyDescriptor(node.constructor.prototype, valueField);
+
+  var currentValue = '' + node[valueField];
+
+  // if someone has already defined a value or Safari, then bail
+  // and don't track value will cause over reporting of changes,
+  // but it's better then a hard failure
+  // (needed for certain tests that spyOn input values and Safari)
+  if (node.hasOwnProperty(valueField) || typeof descriptor === 'undefined' || typeof descriptor.get !== 'function' || typeof descriptor.set !== 'function') {
+    return;
+  }
+  var get = descriptor.get,
+      set = descriptor.set;
+
+  // 对DOM节点本身赋予一些属性
+  Object.defineProperty(node, valueField, {
+    configurable: true,
+    get: function () {
+      return get.call(this);
+    },
+    set: function (value) {
+      currentValue = '' + value;
+      set.call(this, value);
+    }
+  });
+
+  Object.defineProperty(node, valueField, {
+    enumerable: descriptor.enumerable
+  });
+
+  // 返回一个跟踪器，可以跟踪到当前DOM上面的checked或value对应的信息
+  var tracker = {
+    getValue: function () {
+      return currentValue;
+    },
+    setValue: function (value) {
+      currentValue = '' + value;
+    },
+    stopTracking: function () {
+      detachTracker(node);
+      delete node[valueField];
+    }
+  };
+  return tracker;
+}
+
+
+
+
+function postMountWrapper(element, props, isHydrating) {
+  // element是原生的DOM
+  var node = element;
+
+  // 因为是input或textarea，所以需要同步输入值
+  if (props.hasOwnProperty('value') || props.hasOwnProperty('defaultValue')) {
+    var type = props.type;
+    var isButton = type === 'submit' || type === 'reset';
+
+    // <input type="submit">或者<input type="reset">就退出
+    if (isButton && (props.value === undefined || props.value === null)) {
+      return;
+    }
+
+    var _initialValue = toString(node._wrapperState.initialValue);
+
+    // 1. 更新value和defaultValue的值
+    // 非水化走下面
+    // 防止服务器渲染的初始值覆盖客户端用户输入
+    if (!isHydrating) {
+
+      // 在某些情况下，React 会选择不直接同步 value 或 checked 属性，而是依赖于初始值（比如 defaultValue 或 initialValue）来管理这些状态。
+      // 这通过 disableInputAttributeSyncing 标志来控制，目的是提高性能或者避免在某些特殊情况下重新渲染表单元素。
+      if (disableInputAttributeSyncing) {
+        // 手动同步走下面
+        var value = getToStringValue(props.value);
+
+        
+        if (value != null) {
+          // 更新value的值，如果现在的value经过用户的输入之后不一样了
+          if (isButton || value !== node.value) {
+            node.value = toString(value);
+          }
+        }
+      } else {
+        // 不直接同步 value 或 checked 属性，
+        // 而是依赖于初始值（比如 defaultValue 或 initialValue）来管理这些状态。
+        if (_initialValue !== node.value) {
+          node.value = _initialValue;
+        }
+      }
+    }
+
+    if (disableInputAttributeSyncing) {
+      // 手动同步走下面
+      var defaultValue = getToStringValue(props.defaultValue);
+      if (defaultValue != null) {
+        node.defaultValue = toString(defaultValue);
+      }
+    } else {
+      // 自动同步
+      node.defaultValue = _initialValue;
+    }
+  }
+
+  var name = node.name;
+  if (name !== '') {
+    node.name = '';
+  }
+
+
+
+  // 2. 更新checked的值
+  if (disableInputAttributeSyncing) {
+    // 手动同步走下面
+    if (!isHydrating) {
+
+      updateChecked(element, props);
+    }
+
+    if (props.hasOwnProperty('defaultChecked')) {
+      node.defaultChecked = !node.defaultChecked;
+      node.defaultChecked = !!props.defaultChecked;
+    }
+  } else {
+    // 自动同步
+    node.defaultChecked = !node.defaultChecked;
+    node.defaultChecked = !!node._wrapperState.initialChecked;
+  }
+
+  if (name !== '') {
+    node.name = name;
+  }
+}
+
+
+function updateChecked(element, props) {
+  var node = element;
+  var checked = props.checked;
+  if (checked != null) {
+    setValueForProperty(node, 'checked', checked, false);
+  }
+}
+
+
+
+function shouldAutoFocusHostComponent(type, props) {
+  switch (type) {
+    case 'button':
+    case 'input':
+    case 'select':
+    case 'textarea':
+      return !!props.autoFocus;
+  }
+  return false;
+}
+
 
 
 
@@ -7289,7 +7894,7 @@ function getEventTarget(nativeEvent) {
 
 
 function getClosestInstanceFromNode(node) {
-  // 根据原生DOM找fiber
+  // 根据原生DOM找最近的fiber
   // 拿到之前createInstance保存在原生节点里面的key，指向的是这个节点的fiber对象
   if (node[internalInstanceKey]) {
     return node[internalInstanceKey];
