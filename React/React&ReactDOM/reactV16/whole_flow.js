@@ -2,6 +2,23 @@
 // 上下文：【上下文】
 
 
+// 一些解释：
+// 过期时间和优先级之间是什么关系？？
+
+// 过期时间：
+// 在 React 中，任务的“过期时间”是基于调度队列的时间戳，表示一个任务在什么时候需要完成。
+// 过期时间越小，表示任务越接近超时，需要尽快执行。
+
+// 优先级：
+// 优先级高的任务意味着它应该尽快执行，而低优先级的任务可以延后执行。
+
+// 两者关系
+// 优先级越高，priorityLevel就越小，过期时间离当前时间就越近，也就是过期时间越小
+// 用户输入为高优先级任务（尽量快速响应用户的输入）。懒加载内容为低优先级任务
+
+
+
+
 // REVIEW - 全局变量
 // 1.createElement阶段
 var hasSymbol = typeof Symbol === "function" && Symbol.for;
@@ -39,6 +56,10 @@ var isBatchingUpdates = false;
 // 非批量更新模式，默认为批量更新
 var isUnbatchingUpdates = false;
 
+// 是否开启时间切片模式
+var didYield = false;
+
+
 // 4.正式的updateContainer阶段
 // 多个root（更新的，第二个的...）的链表头尾记录器
 // 第一个root指针，首次渲染阶段为null，后续在requestWork函数里面变为xxx
@@ -61,6 +82,7 @@ var LOW_PRIORITY_BATCH_SIZE = 250;
 var HIGH_PRIORITY_EXPIRATION = 500;
 var HIGH_PRIORITY_BATCH_SIZE = 100;
 
+var nextLatestAbsoluteTimeoutMs = -1;
 
 const hasNativePerformanceNow = typeof performance === "object" && typeof performance.now === "function";
 const now = hasNativePerformanceNow
@@ -80,6 +102,7 @@ var currentRendererTime = msToExpirationTime(originalStartTimeMs);
 var currentSchedulerTime = currentRendererTime;
 
 // !优先级（初始形态）定义
+// 数字越小，优先级越大
 var ImmediatePriority = 1;
 var UserBlockingPriority = 2;
 var NormalPriority = 3;
@@ -622,6 +645,13 @@ var plugins = [];
 
 var eventQueue = null;
 
+
+
+
+
+
+// 15. 提交阶段
+var completedBatches = null;
 
 
 
@@ -2103,7 +2133,8 @@ function recordScheduleUpdate() {
 }
 
 function markPendingPriorityLevel(root, expirationTime) {
-  // 保证root对象的didError是false，目的是？？？
+  // 保证root对象的didError是false
+  // 这个函数在render完之后的commit过程中也会执行，因此为了重新恢复中断的渲染过程，需要把这个错误的属性改为false
   root.didError = false;
 
   // 3. @@过期时间计算完之后，第三，存到root对象的earliestPendingTime和latestPendingTime，仅在最小或最大的时候
@@ -2132,26 +2163,30 @@ function markPendingPriorityLevel(root, expirationTime) {
 }
 
 function findNextExpirationTimeToWorkOn(completedExpirationTime, root) {
+  // 总而言之，过期时间的优先级由大到小排序是这样：
+  // 早suspended > 早pending > 新pinged > 新suspended
+  // （当前处理的）         （下一个要处理的）
+  // 头一个是当前处理的的逻辑，后面三个都是下一个要处理的任务的逻辑
   var earliestSuspendedTime = root.earliestSuspendedTime;
   var latestSuspendedTime = root.latestSuspendedTime;
   var earliestPendingTime = root.earliestPendingTime;
   var latestPingedTime = root.latestPingedTime;
 
   // 1. 改变nextExpirationTimeToWorkOn
-  // 如果优先级最大（最早）的时间不是0（也就是还比较重要），让下一个亟需操作的过期时间为他，即最早（优先级最大）的那个，不然就是最晚的那个
+  // 如果优先级最大（最早）待处理任务的时间不是0（也就是还比较重要），
+  // 让下一个亟需操作的过期时间为【最早待处理任务】，即最早（优先级最大）的那个，不然就是【最新的被激活的任务】
   // 首次渲染阶段，earliestPendingTime等于expirationTime
   var nextExpirationTimeToWorkOn = earliestPendingTime !== NoWork ? earliestPendingTime : latestPingedTime;
 
-  // 如果下一个亟需操作的过期时间为0，优先级最低（说明可能不是很重要），并且 当期的fiber的过期时间的优先级最低 或者 比最小优先级的时间要大，也就是latestSuspendedTime还是最小优先级的（没人比得过他）
+  // 如果下一个亟需操作的过期时间为0，优先级最低（说明可能不是很重要或者说明这个值是默认值或被恢复为默认值），
+  // 并且 当期的fiber的过期时间的优先级最低 或者 比最新的挂起任务（这个的优先级是最低）的过期时间要大，
+  // 即优先级比最低的还要低
   if (
     nextExpirationTimeToWorkOn === NoWork &&
-    (completedExpirationTime === NoWork ||
-      latestSuspendedTime < completedExpirationTime)
+    (completedExpirationTime === NoWork || latestSuspendedTime < completedExpirationTime)
   ) {
-    // 最新的最迟的也就是最小优先级的要成为下一个亟需操作的工作单元，
-    // The lowest priority suspended work is the work most likely to be
-    // committed next. Let's start rendering it again, so that if it times out,
-    // it's ready to commit.
+    // 最新的最迟的【挂起任务】优先级的要成为下一个亟需操作的工作单元，
+    // 优先级最低的暂停工作是下一个最有可能提交的工作。让我们再次开始渲染它，这样如果它超时，就可以提交了。
     nextExpirationTimeToWorkOn = latestSuspendedTime;
   }
 
@@ -2159,9 +2194,10 @@ function findNextExpirationTimeToWorkOn(completedExpirationTime, root) {
   // 然后让下一个亟需操作的工作单元的过期时间等于现在这个当前的expirationTime
   var expirationTime = nextExpirationTimeToWorkOn;
 
-  // 如果当前的root的优先级比最早的已经挂起的还要小，不及优先级最大的
+  // 如果当前的root的过期时间比最早的已经挂起的还要小，即优先级很大
   if (expirationTime !== NoWork && earliestSuspendedTime > expirationTime) {
     // 让优先级最大的，也就是最早触发的但是已经挂起的交互，覆盖掉expirationTime
+    // 成为当前的需要处理的任务
     expirationTime = earliestSuspendedTime;
   }
 
@@ -2392,10 +2428,11 @@ function performWorkOnRoot(root, expirationTime, isYieldy) {
     if (finishedWork !== null) {
       // 进入提交阶段
       completeRoot(root, finishedWork, expirationTime);
+
     } else {
       root.finishedWork = null;
 
-      // 这个timeoutHandle属性用来干嘛？？？？
+      // 这个timeoutHandle属性用来记录发生错误时的属性
       // 在首次渲染阶段，timeoutHandle属性为noTimeout
       var timeoutHandle = root.timeoutHandle;
       if (timeoutHandle !== noTimeout) {
@@ -2456,6 +2493,7 @@ function renderRoot(root, isYieldy) {
   // 首次渲染阶段：passiveEffectCallbackHandle和passiveEffectCallback都是null，这个函数不起作用
   flushPassiveEffects();
 
+  // 1. 定义一些初始变量
   // 开始render阶段，isWorking指示的仅仅是render阶段
   isWorking = true;
 
@@ -2467,6 +2505,8 @@ function renderRoot(root, isYieldy) {
   // 首次渲染阶段，这个等同于root的原本的expirationTime
   var expirationTime = root.nextExpirationTimeToWorkOn;
 
+
+  // 2. 创建或更新WIP
   // 首次渲染阶段，nextRenderExpirationTime相当于noWork，也就是0，nextRoot也是null，nextUnitOfWork也是null
   if (
     expirationTime !== nextRenderExpirationTime ||
@@ -2487,6 +2527,8 @@ function renderRoot(root, isYieldy) {
     );
     root.pendingCommitExpirationTime = NoWork;
 
+
+    // 3. 记录interactions，用来干嘛？？
     if (enableSchedulerTracing) {
       // 首次渲染阶段，pendingInteractionMap属性只是一个空的map
       var interactions = new Set();
@@ -2541,10 +2583,13 @@ function renderRoot(root, isYieldy) {
 
   var didFatal = false;
 
+
+  // 4. 记录时间
   // 更新一下当前的fiber和提交次数的全局变量
   startWorkLoopTimer(nextUnitOfWork);
 
-  // 开始正式进入循环
+
+  // 5. 开始正式进入循环
   do {
     try {
       workLoop(isYieldy);
@@ -2620,18 +2665,26 @@ function renderRoot(root, isYieldy) {
     break;
   } while (true);
 
+
+
+  // 6. 渲染完毕，相关标志变量更新一下
+  // 在首次渲染阶段，走到这里，说明整个树已经被构建完，包括原生DOM树，以及副作用链
+  // 能够走到下面，说明回到了root节点
+
   if (enableSchedulerTracing) {
     // Traced work is done for now; restore the previous interactions.
     tracing.__interactionsRef.current = prevInteractions;
   }
 
-  // We're done performing work. Time to clean up.
+  // isWorking的标志，hook工具箱，上下文，钩子
   isWorking = false;
   ReactCurrentDispatcher.current = previousDispatcher;
   resetContextDependences();
   resetHooks();
 
-  // Yield back to main thread.
+
+  // 7. 处理异常的结果（需要直接停止的）
+  // 7.1 在失败的时候，退回主线程
   if (didFatal) {
     var _didCompleteRoot = false;
     stopWorkLoopTimer(interruptedBy, _didCompleteRoot);
@@ -2644,23 +2697,29 @@ function renderRoot(root, isYieldy) {
     // that we're in the middle of an async render. Set it to null to indicate
     // there's no more work to be done in the current batch.
     nextRoot = null;
+
+    // 把root.finishedWork改为null
     onFatal(root);
     return;
   }
 
+
+  // 7.2 在下一个fiber还存在的时候，更新一下标志，停止记录时间，
   if (nextUnitOfWork !== null) {
-    // There's still remaining async work in this tree, but we ran out of time
-    // in the current frame. Yield back to the renderer. Unless we're
-    // interrupted by a higher priority update, we'll continue later from where
-    // we left off.
+    // 此树中仍有剩余的异步工作，但我们在当前帧中已用完时间。
+    // 退回渲染器。
+    // 除非我们被更高优先级的更新打断，否则我们稍后将从中断的地方继续。
     var _didCompleteRoot2 = false;
     stopWorkLoopTimer(interruptedBy, _didCompleteRoot2);
     interruptedBy = null;
+
+    // 把root.finishedWork改为null
     onYield(root);
     return;
   }
 
-  // We completed the whole tree.
+
+  // 6. 渲染完毕，相关标志变量继续更新一下
   var didCompleteRoot = true;
   stopWorkLoopTimer(interruptedBy, didCompleteRoot);
   var rootWorkInProgress = root.current.alternate;
@@ -2671,23 +2730,28 @@ function renderRoot(root, isYieldy) {
       )
     : void 0;
 
-  // `nextRoot` points to the in-progress root. A non-null value indicates
-  // that we're in the middle of an async render. Set it to null to indicate
-  // there's no more work to be done in the current batch.
+  // `nextRoot`指向正在进行的根。非空值表示我们正处于异步渲染中。
+  // 将其设置为null表示当前批次中没有更多工作要做。
   nextRoot = null;
   interruptedBy = null;
 
+
+  // 8. 处理异常的结果（需要挂起的）
+
+  // 8.1 （下一次任务）在下一次render存在错误的时候，
+  // 有高优先级工作，优先执行，挂起当前任务（root为整个树的代表）
+  // 没有高优先级工作，尝试重新执行当前任务
   if (nextRenderDidError) {
-    // There was an error
+    // hasLowerPriorityWork(root, expirationTime) 判断当前expirationTime是否存在高优先级的工作。
     if (hasLowerPriorityWork(root, expirationTime)) {
-      // There's lower priority work. If so, it may have the effect of fixing
-      // the exception that was just thrown. Exit without committing. This is
-      // similar to a suspend, but without a timeout because we're not waiting
-      // for a promise to resolve. React will restart at the lower
-      // priority level.
+      // 如果存在高优先级的工作，React 会选择跳过当前的渲染任务，执行这个高优先级任务
+      // 标记当前的渲染任务为挂起，表明它的优先级被降低，React 会在下次渲染时恢复该任务。
       markSuspendedPriorityLevel(root, expirationTime);
+
       var suspendedExpirationTime = expirationTime;
       var rootExpirationTime = root.expirationTime;
+
+      // onSuspend 会被调用，表示当前渲染已经挂起（没有提交）
       onSuspend(
         root,
         rootWorkInProgress,
@@ -2697,17 +2761,21 @@ function renderRoot(root, isYieldy) {
       );
       return;
     } else if (
-      // There's no lower priority work, but we're rendering asynchronously.
-      // Synchronously attempt to render the same level one more time. This is
-      // similar to a suspend, but without a timeout because we're not waiting
-      // for a promise to resolve.
+      // 没有低优先级的工作，但是正在进行异步渲染 (isYieldy 表示渲染过程是可以被暂停的)
       !root.didError &&
       isYieldy
     ) {
+      // React 会尝试同步渲染相同的级别，进行一次重试。
       root.didError = true;
+
+      // 将 root.nextExpirationTimeToWorkOn 设置为当前的 expirationTime，
+      // 并将 root.expirationTime 设置为 Sync（同步渲染）。
+      // 这意味着 React 将立即尝试同步渲染。
       var _suspendedExpirationTime = (root.nextExpirationTimeToWorkOn =
         expirationTime);
       var _rootExpirationTime = (root.expirationTime = Sync);
+
+      // 再次调用 onSuspend，通知渲染挂起，表示 React 会稍后再次尝试渲染
       onSuspend(
         root,
         rootWorkInProgress,
@@ -2719,32 +2787,45 @@ function renderRoot(root, isYieldy) {
     }
   }
 
+
+  // 8.2 （当前任务）当处于时间切片的状态下，挂起当前任务（root为整个树的代表）
+  // isYieldy：这是一个布尔值，表示渲染是否可以被暂停（即是否为异步渲染）。
+  // nextLatestAbsoluteTimeoutMs !== -1：这个条件表示是否有设定的绝对超时值。如果超时值不为 -1，表示渲染有时间限制。
   if (isYieldy && nextLatestAbsoluteTimeoutMs !== -1) {
-    // The tree was suspended.
+    // 标记挂起的任务
     var _suspendedExpirationTime2 = expirationTime;
     markSuspendedPriorityLevel(root, _suspendedExpirationTime2);
 
-    // Find the earliest uncommitted expiration time in the tree, including
-    // work that is suspended. The timeout threshold cannot be longer than
-    // the overall expiration.
+    // 查找树中查找最早的突出优先级（里面有不懂的知识）
     var earliestExpirationTime = findEarliestOutstandingPriorityLevel(
       root,
       expirationTime
     );
+
+    // 转换为毫秒数
     var earliestExpirationTimeMs = expirationTimeToMs(earliestExpirationTime);
+
+    // 如果找到的最早任务的过期时间比当前设置的绝对超时 (nextLatestAbsoluteTimeoutMs) 还要小，优先级要大
+    // 那么就更新这个超时值。
+    // 首次渲染的时候会更新，因为nextLatestAbsoluteTimeoutMs的初始值是-1;
     if (earliestExpirationTimeMs < nextLatestAbsoluteTimeoutMs) {
       nextLatestAbsoluteTimeoutMs = earliestExpirationTimeMs;
     }
 
-    // Subtract the current time from the absolute timeout to get the number
-    // of milliseconds until the timeout. In other words, convert an absolute
-    // timestamp to a relative time. This is the value that is passed
-    // to `setTimeout`.
+    // 计算距离超时的剩余时间
+    // 计算从当前时间到下一个超时的剩余时间。如果剩余时间小于零，设置为零。
     var currentTimeMs = expirationTimeToMs(requestCurrentTime());
     var msUntilTimeout = nextLatestAbsoluteTimeoutMs - currentTimeMs;
     msUntilTimeout = msUntilTimeout < 0 ? 0 : msUntilTimeout;
 
     var _rootExpirationTime2 = root.expirationTime;
+
+    // 通知外部 React 渲染已挂起。它传递了当前的渲染状态，包括：
+    // root：当前渲染树的根。
+    // rootWorkInProgress：当前正在进行的工作。
+    // _suspendedExpirationTime2：挂起的任务的过期时间。
+    // _rootExpirationTime2：根节点的过期时间。
+    // msUntilTimeout：距离超时的剩余时间。
     onSuspend(
       root,
       rootWorkInProgress,
@@ -2752,10 +2833,15 @@ function renderRoot(root, isYieldy) {
       _rootExpirationTime2,
       msUntilTimeout
     );
+    // 结束当前渲染过程，表明当前渲染被挂起，React 会在稍后继续处理。
     return;
   }
 
-  // Ready to commit.
+
+  // 9. 准备开始进入commit阶段了
+  // 把root的pendingCommitExpirationTime改为expirationTime
+  // 把root的finishedWork改为finishedWork，即当前的root的fiber
+  // 接着回到performWorkOnRoot
   onComplete(root, rootWorkInProgress, expirationTime);
 }
 
@@ -4485,18 +4571,19 @@ function ChildReconciler(shouldTrackSideEffects) {
       // since the rest will all be insertions.
       for (; newIdx < newChildren.length; newIdx++) {
 
-        // 首先新建孩子fiber，每个孩子都新建一个fiber。
+        // 2.1 首先新建孩子fiber，每个孩子都新建一个fiber。
         // 由此可见当遍历到一个节点的时候，他的所有孩子节点都会相应地建立起fiber
-        // 往右探索的时候，需要先判断这个fiber是否已经存在了
+        // 往右探索的时候，这个fiber已经存在了
         var _newFiber = createChild(returnFiber, newChildren[newIdx], expirationTime);
         if (!_newFiber) {
           continue;
         }
 
-        // 然后移动孩子的顺序，都是新增的节点，最后lastPlacedIndex不变，还是为0
+        // 2.2 然后移动孩子的顺序，都是新增的节点，最后lastPlacedIndex不变，还是为0
         // 这里给fiber加上index的属性，记录位置
         lastPlacedIndex = placeChild(_newFiber, lastPlacedIndex, newIdx);
 
+        // 2.3 赋予sibling的属性
         // 首次渲染且遍历第一遍这个为null
         if (previousNewFiber === null) {
           // 让大儿子变量为_newFiber
@@ -6204,6 +6291,10 @@ function completeUnitOfWork(workInProgress) {
         // 这里通过 effectTag > PerformedWork 来过滤掉 NoWork 和 PerformedWork 类型的副作用。
         // NoWork 代表没有工作需要做，PerformedWork 代表已经执行的工作，这两种副作用类型不需要加入副作用链表。
         // 环形链条保存的是WIp本身
+
+        // 等到遍历到root的下一个fiber（或是函数组件或是类组件）
+        // 这个fiber的workInProgress.effectTag就会大于1
+        // 相当于要把副作用链挂到这个节点身上，也就是root的firstEffect和lastEffect皆指向workInProgress
         if (effectTag > PerformedWork) {
           // 1. 父亲有lE，也肯定有fE，连接孩子
           if (returnFiber.lastEffect !== null) {
@@ -6354,22 +6445,32 @@ function completeWork(current, workInProgress, renderExpirationTime) {
         break;
       }
     case HostRoot:
+      // 如果是顶部的root节点
       {
+        // 把上下文从栈中弹出
         popHostContainer(workInProgress);
+
+        // 把最顶层的上下文也弹出
+        // 弹出的是didPerformWorkStackCursor和contextStackCursor
         popTopLevelContextObject(workInProgress);
+
         var fiberRoot = workInProgress.stateNode;
+        // 把rootfiber的当前上下文属性置为null
         if (fiberRoot.pendingContext) {
           fiberRoot.context = fiberRoot.pendingContext;
           fiberRoot.pendingContext = null;
         }
+
         if (current === null || current.child === null) {
           // If we hydrated, pop so that we can delete any remaining children
           // that weren't hydrated.
           popHydrationState(workInProgress);
-          // This resets the hacky state to fix isMounted before committing.
-          // Delete this when we delete isMounted and findDOMNode.
+
+          // 首次渲染进入这里，目的是？？？
           workInProgress.effectTag &= ~Placement;
         }
+
+        // 下面是一个空函数
         updateHostContainer(workInProgress);
         break;
       }
@@ -6423,7 +6524,7 @@ function completeWork(current, workInProgress, renderExpirationTime) {
             // 2. 把这个节点的孩子真实DOM附上去到这个真实DOM
             appendAllChildren(instance, workInProgress, false, false);
 
-            // 3. 为这个真实的DOM赋予属性和内容
+            // 3. 为这个真实的DOM赋予属性和内容（仅在最底层，内容为文字的时候才加上，其他节点在上面的函数加）
             if (finalizeInitialChildren(instance, type, newProps, rootContainerInstance, currentHostContext)) {
               // 然后标记此时的这个节点为更新的节点，一般情况下不走这个
               markUpdate(workInProgress);
@@ -6854,7 +6955,8 @@ appendAllChildren = function (parent, workInProgress, needsVisibilityToggle, isH
     } else if (node.tag === HostPortal) {
 
     } else if (node.child !== null) {
-      // 如果这个时候还不是底层的节点，继续往底层走
+      // 如果这个孩子节点不是一个原生的节点，而是一个函数组件或类组件或provider
+      // 继续往下找，直到是一个原生节点为止
       node.child.return = node;
       node = node.child;
       continue;
@@ -6865,9 +6967,13 @@ appendAllChildren = function (parent, workInProgress, needsVisibilityToggle, isH
       return;
     }
 
+    // 下面的目的是找到最近的所有孩子，把他加到自己的原生DOM的下面
+    // （为什么要这样， 因为有些provider或者func组件的节点）
+
     // 向上遍历，直到node.sibling有值
     // 然后处理他的sibling，跳出第一个while，然后再往下探查
     while (node.sibling === null) {
+      // 如果找完了兄弟姐妹，发现下一个为null，如果这个时候的return为workInProgress，说明到底了，可以return了
       if (node.return === null || node.return === workInProgress) {
         return;
       }
@@ -7045,6 +7151,27 @@ function popProvider(providerFiber) {
 
 
 
+
+
+function popHostContainer(fiber) {
+  pop(contextStackCursor$1, fiber);
+  pop(contextFiberStackCursor, fiber);
+  pop(rootInstanceStackCursor, fiber);
+}
+
+
+
+
+function popTopLevelContextObject(fiber) {
+  pop(didPerformWorkStackCursor, fiber);
+  pop(contextStackCursor, fiber);
+}
+
+
+var updateHostContainer = void 0;
+updateHostContainer = function (workInProgress) {
+  // Noop
+};
 
 
 
@@ -8353,3 +8480,829 @@ function unsafeCastDOMTopLevelTypeToString(topLevelType) {
 
 
 
+// REVIEW - renderRoot里面的workLoop完成之后，开始准备进入commit阶段了
+
+
+
+
+function resetContextDependences() {
+  currentlyRenderingFiber = null;
+  lastContextDependency = null;
+  lastContextWithAllBitsObserved = null;
+  {
+    isDisallowedContextReadInDEV = false;
+  }
+}
+
+
+
+function resetHooks() {
+  // hook工具箱
+  ReactCurrentDispatcher$1.current = ContextOnlyDispatcher;
+
+  // 当前过期时间，fiber恢复为默认
+  renderExpirationTime = NoWork;
+  currentlyRenderingFiber$1 = null;
+
+  // 当前的hook
+  currentHook = null;
+  nextCurrentHook = null;
+  firstWorkInProgressHook = null;
+  workInProgressHook = null;
+  nextWorkInProgressHook = null;
+
+  // 开发阶段的一些变量
+  {
+    hookTypesDev = null;
+    hookTypesUpdateIndexDev = -1;
+
+    currentHookNameInDev = null;
+  }
+
+  // 剩下的过期时间、更新队列、副作用tag
+  remainingExpirationTime = NoWork;
+  componentUpdateQueue = null;
+  sideEffectTag = 0;
+
+  didScheduleRenderPhaseUpdate = false;
+  renderPhaseUpdates = null;
+  numberOfReRenders = 0;
+}
+
+
+
+
+// 停止记录时间
+function stopWorkLoopTimer(interruptedBy, didCompleteRoot) {
+  if (enableUserTimingAPI) {
+    if (!supportsUserTiming) {
+      return;
+    }
+    var warning = null;
+    if (interruptedBy !== null) {
+      if (interruptedBy.tag === HostRoot) {
+        warning = 'A top-level update interrupted the previous render';
+      } else {
+        var componentName = getComponentName(interruptedBy.type) || 'Unknown';
+        warning = 'An update to ' + componentName + ' interrupted the previous render';
+      }
+    } else if (commitCountInCurrentWorkLoop > 1) {
+      warning = 'There were cascading updates';
+    }
+    commitCountInCurrentWorkLoop = 0;
+    var label = didCompleteRoot ? '(React Tree Reconciliation: Completed Root)' : '(React Tree Reconciliation: Yielded)';
+    
+    // 对每一个fiber的时间相关属性都停止一下
+    pauseTimers();
+    endMark(label, '(React Tree Reconciliation)', warning);
+  }
+}
+
+
+
+
+var pauseTimers = function () {
+  // Stops all currently active measurements so that they can be resumed
+  // if we continue in a later deferred loop from the same unit of work.
+  var fiber = currentFiber;
+  while (fiber) {
+    if (fiber._debugIsCurrentlyTiming) {
+      endFiberMark(fiber, null, null);
+    }
+    fiber = fiber.return;
+  }
+};
+
+
+
+var endFiberMark = function (fiber, phase, warning) {
+  var componentName = getComponentName(fiber.type) || 'Unknown';
+  var debugID = fiber._debugID;
+  var isMounted = fiber.alternate !== null;
+  // 拿到自定义的标识
+  var label = getFiberLabel(componentName, isMounted, phase);
+  var markName = getFiberMarkName(label, debugID);
+  // 停止
+  endMark(label, markName, warning);
+};
+
+
+
+function getComponentName(type) {
+  if (type == null) {
+    // Host root, text node or just invalid type.
+    return null;
+  }
+  {
+    if (typeof type.tag === 'number') {
+      warningWithoutStack$1(false, 'Received an unexpected object in getComponentName(). ' + 'This is likely a bug in React. Please file an issue.');
+    }
+  }
+  if (typeof type === 'function') {
+    return type.displayName || type.name || null;
+  }
+  if (typeof type === 'string') {
+    return type;
+  }
+  switch (type) {
+    case REACT_CONCURRENT_MODE_TYPE:
+      return 'ConcurrentMode';
+    case REACT_FRAGMENT_TYPE:
+      return 'Fragment';
+    case REACT_PORTAL_TYPE:
+      return 'Portal';
+    case REACT_PROFILER_TYPE:
+      return 'Profiler';
+    case REACT_STRICT_MODE_TYPE:
+      return 'StrictMode';
+    case REACT_SUSPENSE_TYPE:
+      return 'Suspense';
+  }
+  if (typeof type === 'object') {
+    switch (type.$$typeof) {
+      case REACT_CONTEXT_TYPE:
+        return 'Context.Consumer';
+      case REACT_PROVIDER_TYPE:
+        return 'Context.Provider';
+      case REACT_FORWARD_REF_TYPE:
+        return getWrappedName(type, type.render, 'ForwardRef');
+      case REACT_MEMO_TYPE:
+        return getComponentName(type.type);
+      case REACT_LAZY_TYPE:
+        {
+          var thenable = type;
+          var resolvedThenable = refineResolvedLazyComponent(thenable);
+          if (resolvedThenable) {
+            return getComponentName(resolvedThenable);
+          }
+        }
+    }
+  }
+  return null;
+}
+
+
+
+var getFiberLabel = function (componentName, isMounted, phase) {
+  if (phase === null) {
+    // These are composite component total time measurements.
+    return componentName + ' [' + (isMounted ? 'update' : 'mount') + ']';
+  } else {
+    // Composite component methods.
+    return componentName + '.' + phase;
+  }
+};
+
+
+var getFiberMarkName = function (label, debugID) {
+  return label + ' (#' + debugID + ')';
+};
+
+
+
+
+var endMark = function (label, markName, warning) {
+  var formattedMarkName = formatMarkName(markName);
+  var formattedLabel = formatLabel(label, warning);
+  try {
+    performance.measure(formattedLabel, formattedMarkName);
+  } catch (err) {}
+  // If previous mark was missing for some reason, this will throw.
+  // This could only happen if React crashed in an unexpected place earlier.
+  // Don't pile on with more errors.
+
+  // Clear marks immediately to avoid growing buffer.
+  performance.clearMarks(formattedMarkName);
+  performance.clearMeasures(formattedLabel);
+};
+
+
+
+var formatMarkName = function (markName) {
+  return reactEmoji + ' ' + markName;
+};
+
+var formatLabel = function (label, warning) {
+  var prefix = warning ? warningEmoji + ' ' : reactEmoji + ' ';
+  var suffix = warning ? ' Warning: ' + warning : '';
+  return '' + prefix + label + suffix;
+};
+
+
+function onFatal(root) {
+  root.finishedWork = null;
+}
+
+function onYield(root) {
+  root.finishedWork = null;
+}
+
+
+
+function hasLowerPriorityWork(root, erroredExpirationTime) {
+  // latestPendingTime：表示最新待处理的任务的过期时间。
+  // latestSuspendedTime：表示最新挂起任务的过期时间。
+  // latestPingedTime：表示最新“被重新唤醒”任务的过期时间。
+  var latestPendingTime = root.latestPendingTime;
+  var latestSuspendedTime = root.latestSuspendedTime;
+  var latestPingedTime = root.latestPingedTime;
+  // 如果某个任务（待处理、挂起、被唤醒的任务）的过期时间小于 erroredExpirationTime 
+  // 且该任务的过期时间不等于 NoWork，
+  // 则说明该任务是待处理的高优先级任务。（也就是Priority的数字很小）
+  return latestPendingTime !== NoWork && latestPendingTime < erroredExpirationTime || latestSuspendedTime !== NoWork && latestSuspendedTime < erroredExpirationTime || latestPingedTime !== NoWork && latestPingedTime < erroredExpirationTime;
+}
+
+
+
+
+function markSuspendedPriorityLevel(root, suspendedTime) {
+  root.didError = false;
+  // 首先处理的是pinged的变量，主要是lastest那个 
+  clearPing(root, suspendedTime);
+
+  // 1. 更新一下最早和最晚【待处理】任务的过期时间
+  var earliestPendingTime = root.earliestPendingTime;
+  var latestPendingTime = root.latestPendingTime;
+
+  if (earliestPendingTime === suspendedTime) {
+    if (latestPendingTime === suspendedTime) {
+      // 表示挂起的任务是唯一一个待处理任务，需要清除这两个标记
+      root.earliestPendingTime = root.latestPendingTime = NoWork;
+    } else {
+      // 否则，suspendedTime仅仅和earliestPendingTime相等，
+      // 使得root的latestPendingTime和earliestPendingTime相等（让这个挂起任务成为唯一一个待处理的任务）
+      root.earliestPendingTime = root.latestPendingTime;
+    }
+  } else if (latestPendingTime === suspendedTime) {
+    // suspendedTime仅仅和latestPendingTime相等，
+    // 使得root的latestPendingTime和earliestPendingTime相等（让这个挂起任务成为唯一一个待处理的任务）
+    root.latestPendingTime = earliestPendingTime;
+  }
+
+
+  // 2. 更新一下最早和最晚【挂起】任务的过期时间
+  var earliestSuspendedTime = root.earliestSuspendedTime;
+  var latestSuspendedTime = root.latestSuspendedTime;
+  if (earliestSuspendedTime === NoWork) {
+    // 还没有任何任务挂起
+    // 把当前的挂起任务变为earliestSuspendedTime和latestSuspendedTime
+    // 两者相等是为了表示这里只有同一个挂起任务
+    root.earliestSuspendedTime = root.latestSuspendedTime = suspendedTime;
+  } else {
+    // 有任务挂起中（且是最早挂起的任务，优先级是最大的）
+    // 此时suspendedTime比最早的挂起任务的过期时间还要大
+    if (earliestSuspendedTime < suspendedTime) {
+      // TODO-
+      // !当前的任务大于最早挂起任务的过期时间，
+      // !那说明这个任务比较晚，优先级比较低，为什么更新的是earliestSuspendedTime
+      // 有没可能是这个挂起任务要成为下一次的执行对象，因此把他变为earliestSuspendedTime
+      root.earliestSuspendedTime = suspendedTime;
+    } else if (latestSuspendedTime > suspendedTime) {
+      // 同理？？
+      root.latestSuspendedTime = suspendedTime;
+    }
+  }
+  // 更新一下当前的全局的过期时间变量（保存到root）
+  findNextExpirationTimeToWorkOn(suspendedTime, root);
+}
+
+
+function clearPing(root, completedTime) {
+  // 如果现在的eT比最新“被重新唤醒”任务latestPingedTime还要小，
+  // 也就是优先级要大，把root.latestPingedTime更新一下
+  var latestPingedTime = root.latestPingedTime;
+  if (latestPingedTime >= completedTime) {
+    root.latestPingedTime = NoWork;
+  }
+}
+
+
+// 查找最早的突出优先级
+function findEarliestOutstandingPriorityLevel(root, renderExpirationTime) {
+  var earliestExpirationTime = renderExpirationTime;
+  var earliestPendingTime = root.earliestPendingTime;
+  var earliestSuspendedTime = root.earliestSuspendedTime;
+
+  // TODO-
+  // 当前的时间小于最早待处理任务的时间，说明当前的时间优先级高，
+  // !为什么把earliestExpirationTime变为没有自己优先级高的root.earliestPendingTime？？？
+  if (earliestPendingTime > earliestExpirationTime) {
+    earliestExpirationTime = earliestPendingTime;
+  }
+
+  // 当前的时间小于最早挂起任务的时间，说明当前的时间优先级高，
+  // !为什么把earliestExpirationTime变为没有自己优先级高的root.earliestSuspendedTime？？？
+  if (earliestSuspendedTime > earliestExpirationTime) {
+    earliestExpirationTime = earliestSuspendedTime;
+  }
+  return earliestExpirationTime;
+}
+
+
+function expirationTimeToMs(expirationTime) {
+  return (MAGIC_NUMBER_OFFSET - expirationTime) * UNIT_SIZE;
+}
+
+
+
+
+function onSuspend(root, finishedWork, suspendedExpirationTime, rootExpirationTime, msUntilTimeout) {
+  // root是根对象
+  // finishedWork是当前的顶层的fiber，一般是root的fiber
+  // suspendedExpirationTime是当前挂起任务的过期时间
+  // rootExpirationTime是root对象的eT过期时间
+  // msUntilTimeout是还剩下多少时间，如果他是-1说明没有剩下时间
+
+  root.expirationTime = rootExpirationTime;
+  // 如果没有剩下时间了，且不是时间切片模式，而是同步渲染的模式
+  if (msUntilTimeout === 0 && !shouldYieldToRenderer()) {
+    // 立刻开始进入提commit提交状态
+    root.pendingCommitExpirationTime = suspendedExpirationTime;
+    root.finishedWork = finishedWork;
+  } else if (msUntilTimeout > 0) {
+    // 还剩时间的话
+    // scheduleTimeout就是setTimeout
+    // 相当于回到主线程，等到msUntilTimeout时间之后，才进入提交阶段
+    root.timeoutHandle = scheduleTimeout(onTimeout.bind(null, root, finishedWork, suspendedExpirationTime), msUntilTimeout);
+  }
+}
+
+
+function shouldYieldToRenderer() {
+  if (didYield) {
+    return true;
+  }
+  if (scheduler.unstable_shouldYield()) {
+    didYield = true;
+    return true;
+  }
+  return false;
+}
+
+
+
+
+var scheduleTimeout = typeof setTimeout === 'function' ? setTimeout : undefined;
+
+
+function onTimeout(root, finishedWork, suspendedExpirationTime) {
+  // root是根对象
+  // finishedWork是当前的顶层的fiber，一般是root的fiber
+  // suspendedExpirationTime是当前挂起任务的过期时间
+
+  // 执行到这个函数的时候，已经到了要哦提交的时候
+  root.pendingCommitExpirationTime = suspendedExpirationTime;
+  root.finishedWork = finishedWork;
+
+  // 重新计算一下目前的时间
+  recomputeCurrentRendererTime();
+
+  // 把render的时间变为调度的时间
+  currentSchedulerTime = currentRendererTime;
+
+  flushRoot(root, suspendedExpirationTime);
+}
+
+
+
+function flushRoot(root, expirationTime) {
+  !!isRendering ? invariant(false, 'work.commit(): Cannot commit while already rendering. This likely means you attempted to commit from inside a lifecycle method.') : void 0;
+  
+  // 把这种经过等待而来的提交工作，放到flushed相关的变量里面
+  nextFlushedRoot = root;
+  nextFlushedExpirationTime = expirationTime;
+
+  // 这里为什么要从两个入口分别进入performWorkOnRoot呢，一个是直接进入，一个经过封装的函数进入
+  // 1. 异步任务——处理异步或延迟的任务，确保任务按优先级顺序执行
+  // 从根开始执行，进入completeWork阶段
+  performWorkOnRoot(root, expirationTime, false);
+
+  // 2. 触发额外的同步工作——所有挂起的同步任务都能够被及时处理和执行。
+  // 必须立刻开展perform工作，不开启时间切片，且同步执行
+  performSyncWork();
+}
+
+
+
+function onComplete(root, finishedWork, expirationTime) {
+  root.pendingCommitExpirationTime = expirationTime;
+  root.finishedWork = finishedWork;
+}
+
+
+
+
+
+
+// REVIEW - 开始进入commit阶段，进入completeRoot的函数
+
+
+
+function completeRoot(root, finishedWork, expirationTime) {
+  // 1. 检查是否存在与 expirationTime 匹配的批次
+  // firstBatch 是当前 root 上第一个与该 root 关联的批次。批次通常代表一系列待处理的更新工作。
+  var firstBatch = root.firstBatch;
+  // 如果这个eT是符合当前的批次的
+  if (firstBatch !== null && firstBatch._expirationTime >= expirationTime) {
+    // 把批次存入一个全局数组（用二维数组的形式）
+    if (completedBatches === null) {
+      completedBatches = [firstBatch];
+    } else {
+      completedBatches.push(firstBatch);
+    }
+
+    // 批次需要延迟
+    if (firstBatch._defer) {
+      // 这个 root 更新将被暂时挂起，直到下次有新的更新。
+      // 此时将 root.finishedWork 保存，表示当前的工作尚未完成，
+      // root.expirationTime 被设置为 NoWork（表示没有待处理的工作）。
+      root.finishedWork = finishedWork;
+      root.expirationTime = NoWork;
+      return;
+    }
+  }
+
+  // Commit the root.
+  root.finishedWork = null;
+
+  // 2. 处理批次里面的root的相关变量
+  // lastCommittedRootDuringThisBatch 记录了上一个已经提交的 root。
+  // 如果当前 root 与它相同，说明这次更新是在嵌套更新中发生的
+  if (root === lastCommittedRootDuringThisBatch) {
+    // 为了避免无限递归，nestedUpdateCount 会被递增
+    nestedUpdateCount++;
+  } else {
+    // 如果不相同
+    // 开始处理一个新的 root，此时会重置 nestedUpdateCount 为 0
+    lastCommittedRootDuringThisBatch = root;
+    nestedUpdateCount = 0;
+  }
+
+  // 3. 开始进入commit
+  // 这个方法是在scheduler里面的函数
+  unstable_runWithPriority(ImmediatePriority, function () {
+    commitRoot(root, finishedWork);
+  });
+
+}
+
+
+
+
+function unstable_runWithPriority(priorityLevel, eventHandler) {
+  switch (priorityLevel) {
+    case ImmediatePriority:
+    case UserBlockingPriority:
+    case NormalPriority:
+    case LowPriority:
+    case IdlePriority:
+      break;
+    default:
+      priorityLevel = NormalPriority;
+  }
+
+  // 更新一些全局变量
+  // 从completeRoot进来的priorityLevel是优先级最高的ImmediatePriority
+  var previousPriorityLevel = currentPriorityLevel;
+  var previousEventStartTime = currentEventStartTime;
+  currentPriorityLevel = priorityLevel;
+  currentEventStartTime = now();
+
+  // 开始执行commit函数
+  try {
+    return eventHandler();
+  } finally {
+    currentPriorityLevel = previousPriorityLevel;
+    currentEventStartTime = previousEventStartTime;
+
+    // Before exiting, flush all the immediate work that was scheduled.
+    flushImmediateWork();
+  }
+}
+
+
+
+
+
+function commitRoot(root, finishedWork) {
+  // 进入commit阶段
+
+  // 1. 更新一些全局变量，并记录时间
+  isWorking = true;
+  isCommitting$1 = true;
+  startCommitTimer();
+
+  // 拿出pendingCommitExpirationTime也就是之前renderRoot函数内流传的eT
+  // 把pendingCommitExpirationTime改回默认值
+  var committedExpirationTime = root.pendingCommitExpirationTime;
+  root.pendingCommitExpirationTime = NoWork;
+
+  // 这需要在调用生命周期之前发生，因为它们可能会安排额外的更新。
+  // 如果孩子的eT比root本身的eT还要大，将这个过期时间改为孩子的过期时间
+  var updateExpirationTimeBeforeCommit = finishedWork.expirationTime;
+  var childExpirationTimeBeforeCommit = finishedWork.childExpirationTime;
+  var earliestRemainingTimeBeforeCommit = childExpirationTimeBeforeCommit > updateExpirationTimeBeforeCommit ? childExpirationTimeBeforeCommit : updateExpirationTimeBeforeCommit;
+  markCommittedPriorityLevels(root, earliestRemainingTimeBeforeCommit);
+
+  var prevInteractions = null;
+  if (enableSchedulerTracing) {
+    // Restore any pending interactions at this point,
+    // So that cascading work triggered during the render phase will be accounted for.
+    prevInteractions = tracing.__interactionsRef.current;
+    tracing.__interactionsRef.current = root.memoizedInteractions;
+  }
+
+  // Reset this to null before calling lifecycles
+  ReactCurrentOwner$2.current = null;
+
+  var firstEffect = void 0;
+  if (finishedWork.effectTag > PerformedWork) {
+    // A fiber's effect list consists only of its children, not itself. So if
+    // the root has an effect, we need to add it to the end of the list. The
+    // resulting list is the set that would belong to the root's parent, if
+    // it had one; that is, all the effects in the tree including the root.
+    if (finishedWork.lastEffect !== null) {
+      finishedWork.lastEffect.nextEffect = finishedWork;
+      firstEffect = finishedWork.firstEffect;
+    } else {
+      firstEffect = finishedWork;
+    }
+  } else {
+    // There is no effect on the root.
+    firstEffect = finishedWork.firstEffect;
+  }
+
+  prepareForCommit(root.containerInfo);
+
+  // Invoke instances of getSnapshotBeforeUpdate before mutation.
+  nextEffect = firstEffect;
+  startCommitSnapshotEffectsTimer();
+  while (nextEffect !== null) {
+    var didError = false;
+    var error = void 0;
+    {
+      invokeGuardedCallback(null, commitBeforeMutationLifecycles, null);
+      if (hasCaughtError()) {
+        didError = true;
+        error = clearCaughtError();
+      }
+    }
+    if (didError) {
+      !(nextEffect !== null) ? invariant(false, 'Should have next effect. This error is likely caused by a bug in React. Please file an issue.') : void 0;
+      captureCommitPhaseError(nextEffect, error);
+      // Clean-up
+      if (nextEffect !== null) {
+        nextEffect = nextEffect.nextEffect;
+      }
+    }
+  }
+  stopCommitSnapshotEffectsTimer();
+
+  if (enableProfilerTimer) {
+    // Mark the current commit time to be shared by all Profilers in this batch.
+    // This enables them to be grouped later.
+    recordCommitTime();
+  }
+
+  // Commit all the side-effects within a tree. We'll do this in two passes.
+  // The first pass performs all the host insertions, updates, deletions and
+  // ref unmounts.
+  nextEffect = firstEffect;
+  startCommitHostEffectsTimer();
+  while (nextEffect !== null) {
+    var _didError = false;
+    var _error = void 0;
+    {
+      invokeGuardedCallback(null, commitAllHostEffects, null);
+      if (hasCaughtError()) {
+        _didError = true;
+        _error = clearCaughtError();
+      }
+    }
+    if (_didError) {
+      !(nextEffect !== null) ? invariant(false, 'Should have next effect. This error is likely caused by a bug in React. Please file an issue.') : void 0;
+      captureCommitPhaseError(nextEffect, _error);
+      // Clean-up
+      if (nextEffect !== null) {
+        nextEffect = nextEffect.nextEffect;
+      }
+    }
+  }
+  stopCommitHostEffectsTimer();
+
+  resetAfterCommit(root.containerInfo);
+
+  // The work-in-progress tree is now the current tree. This must come after
+  // the first pass of the commit phase, so that the previous tree is still
+  // current during componentWillUnmount, but before the second pass, so that
+  // the finished work is current during componentDidMount/Update.
+  root.current = finishedWork;
+
+  // In the second pass we'll perform all life-cycles and ref callbacks.
+  // Life-cycles happen as a separate pass so that all placements, updates,
+  // and deletions in the entire tree have already been invoked.
+  // This pass also triggers any renderer-specific initial effects.
+  nextEffect = firstEffect;
+  startCommitLifeCyclesTimer();
+  while (nextEffect !== null) {
+    var _didError2 = false;
+    var _error2 = void 0;
+    {
+      invokeGuardedCallback(null, commitAllLifeCycles, null, root, committedExpirationTime);
+      if (hasCaughtError()) {
+        _didError2 = true;
+        _error2 = clearCaughtError();
+      }
+    }
+    if (_didError2) {
+      !(nextEffect !== null) ? invariant(false, 'Should have next effect. This error is likely caused by a bug in React. Please file an issue.') : void 0;
+      captureCommitPhaseError(nextEffect, _error2);
+      if (nextEffect !== null) {
+        nextEffect = nextEffect.nextEffect;
+      }
+    }
+  }
+
+  if (firstEffect !== null && rootWithPendingPassiveEffects !== null) {
+    // This commit included a passive effect. These do not need to fire until
+    // after the next paint. Schedule an callback to fire them in an async
+    // event. To ensure serial execution, the callback will be flushed early if
+    // we enter rootWithPendingPassiveEffects commit phase before then.
+    var callback = commitPassiveEffects.bind(null, root, firstEffect);
+    if (enableSchedulerTracing) {
+      // Avoid this extra callback by mutating the tracing ref directly,
+      // like we do at the beginning of commitRoot. I've opted not to do that
+      // here because that code is still in flux.
+      callback = tracing.unstable_wrap(callback);
+    }
+    passiveEffectCallbackHandle = scheduler.unstable_runWithPriority(scheduler.unstable_NormalPriority, function () {
+      return schedulePassiveEffects(callback);
+    });
+    passiveEffectCallback = callback;
+  }
+
+  isCommitting$1 = false;
+  isWorking = false;
+  stopCommitLifeCyclesTimer();
+  stopCommitTimer();
+  onCommitRoot(finishedWork.stateNode);
+  if (true && ReactFiberInstrumentation_1.debugTool) {
+    ReactFiberInstrumentation_1.debugTool.onCommitWork(finishedWork);
+  }
+
+  var updateExpirationTimeAfterCommit = finishedWork.expirationTime;
+  var childExpirationTimeAfterCommit = finishedWork.childExpirationTime;
+  var earliestRemainingTimeAfterCommit = childExpirationTimeAfterCommit > updateExpirationTimeAfterCommit ? childExpirationTimeAfterCommit : updateExpirationTimeAfterCommit;
+  if (earliestRemainingTimeAfterCommit === NoWork) {
+    // If there's no remaining work, we can clear the set of already failed
+    // error boundaries.
+    legacyErrorBoundariesThatAlreadyFailed = null;
+  }
+  onCommit(root, earliestRemainingTimeAfterCommit);
+
+  if (enableSchedulerTracing) {
+    tracing.__interactionsRef.current = prevInteractions;
+
+    var subscriber = void 0;
+
+    try {
+      subscriber = tracing.__subscriberRef.current;
+      if (subscriber !== null && root.memoizedInteractions.size > 0) {
+        var threadID = computeThreadID(committedExpirationTime, root.interactionThreadID);
+        subscriber.onWorkStopped(root.memoizedInteractions, threadID);
+      }
+    } catch (error) {
+      // It's not safe for commitRoot() to throw.
+      // Store the error for now and we'll re-throw in finishRendering().
+      if (!hasUnhandledError) {
+        hasUnhandledError = true;
+        unhandledError = error;
+      }
+    } finally {
+      // Clear completed interactions from the pending Map.
+      // Unless the render was suspended or cascading work was scheduled,
+      // In which case– leave pending interactions until the subsequent render.
+      var pendingInteractionMap = root.pendingInteractionMap;
+      pendingInteractionMap.forEach(function (scheduledInteractions, scheduledExpirationTime) {
+        // Only decrement the pending interaction count if we're done.
+        // If there's still work at the current priority,
+        // That indicates that we are waiting for suspense data.
+        if (scheduledExpirationTime > earliestRemainingTimeAfterCommit) {
+          pendingInteractionMap.delete(scheduledExpirationTime);
+
+          scheduledInteractions.forEach(function (interaction) {
+            interaction.__count--;
+
+            if (subscriber !== null && interaction.__count === 0) {
+              try {
+                subscriber.onInteractionScheduledWorkCompleted(interaction);
+              } catch (error) {
+                // It's not safe for commitRoot() to throw.
+                // Store the error for now and we'll re-throw in finishRendering().
+                if (!hasUnhandledError) {
+                  hasUnhandledError = true;
+                  unhandledError = error;
+                }
+              }
+            }
+          });
+        }
+      });
+    }
+  }
+}
+
+
+
+function startCommitTimer() {
+  if (enableUserTimingAPI) {
+    if (!supportsUserTiming) {
+      return;
+    }
+    isCommitting = true;
+    hasScheduledUpdateInCurrentCommit = false;
+    labelsInCurrentCommit.clear();
+    beginMark('(Committing Changes)');
+  }
+}
+
+var beginMark = function (markName) {
+  performance.mark(formatMarkName(markName));
+};
+
+
+
+
+
+function markCommittedPriorityLevels(root, earliestRemainingTime) {
+  root.didError = false;
+
+  // earliestRemainingTime要么是root的eT，要么是root的child的eT
+
+  // 1. 没有优先级，全部变量恢复为nowork
+  if (earliestRemainingTime === NoWork) {
+    root.earliestPendingTime = NoWork;
+    root.latestPendingTime = NoWork;
+    root.earliestSuspendedTime = NoWork;
+    root.latestSuspendedTime = NoWork;
+    root.latestPingedTime = NoWork;
+    findNextExpirationTimeToWorkOn(NoWork, root);
+    return;
+  }
+
+  // 2. 更新新的【被激活】的任务的时间，当前的时间小，优先级大，更新原本的新激活任务时间为0
+  if (earliestRemainingTime < root.latestPingedTime) {
+    root.latestPingedTime = NoWork;
+  }
+
+  // 3. 处理【待处理任务】
+  var latestPendingTime = root.latestPendingTime;
+  if (latestPendingTime !== NoWork) {
+    if (latestPendingTime > earliestRemainingTime) {
+      // 意味着所有已知的待处理任务都已经被处理完(最大的时间都比当前大，所有待处理任务在后面)
+      // 目前的优先级大，消除标记
+      root.earliestPendingTime = root.latestPendingTime = NoWork;
+    } else {
+      // 目前的过期时间大，优先级小
+      var earliestPendingTime = root.earliestPendingTime;
+      if (earliestPendingTime > earliestRemainingTime) {
+        // 如果目前的优先级比【早待处理任务】大，而目前的优先级比【晚待处理任务】小，
+        // 就更新【早待处理任务】为【晚待处理任务】
+        root.earliestPendingTime = root.latestPendingTime;
+      }
+    }
+  }
+
+  // 4. 处理【挂起任务】
+  var earliestSuspendedTime = root.earliestSuspendedTime;
+  if (earliestSuspendedTime === NoWork) {
+    // 没有早挂起任务，直接改为处理Pending任务
+    markPendingPriorityLevel(root, earliestRemainingTime);
+    findNextExpirationTimeToWorkOn(NoWork, root);
+    return;
+  }
+  var latestSuspendedTime = root.latestSuspendedTime;
+  if (earliestRemainingTime < latestSuspendedTime) {
+    // 有早挂起任务，且当前的优先级高于晚挂起任务，执行当前的，降低挂起任务和被激活
+    root.earliestSuspendedTime = NoWork;
+    root.latestSuspendedTime = NoWork;
+    root.latestPingedTime = NoWork;
+
+    // 挂起任务恢复为默认
+    // 改为处理pending任务
+    markPendingPriorityLevel(root, earliestRemainingTime);
+    findNextExpirationTimeToWorkOn(NoWork, root);
+    return;
+  }
+
+  // 有早挂起任务，且当前的优先级低于晚挂起任务
+  if (earliestRemainingTime > earliestSuspendedTime) {
+    // 改为处理pending任务
+    markPendingPriorityLevel(root, earliestRemainingTime);
+    findNextExpirationTimeToWorkOn(NoWork, root);
+    return;
+  }
+
+  // 最后再找一遍最优先的下一个任务
+  findNextExpirationTimeToWorkOn(NoWork, root);
+}

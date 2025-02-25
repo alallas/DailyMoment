@@ -5861,6 +5861,47 @@
     
 
 
+
+
+
+    function solution(s) {
+        let map = {}
+        for (let i = 0; i < s.length; i++) {
+            let curString = s[i]
+            if (map[curString]) {
+                map[curString] += 1
+            } else {
+                map[curString] = 1
+            }
+        }
+        let num = Object.values(map).sort((a, b) => b - a)[0]
+        console.log(num)
+        if (num <= 1 ) return 'NO'
+        if (num === 2) return 'YES'
+        if (num % 2 === 0) return 'NO'
+        for (let i = 3; i <= Math.sqrt(num); i += 2) {
+            if (num % i === 0) return 'NO'
+        }
+        return 'YES'
+    }
+
+    function main() {
+        console.log(solution("abccckjskw") === "YES");
+        console.log(solution("qwqwtttqqttttt") === "NO");
+        console.log(solution("aabbbccddd") === "YES");
+        console.log(solution("xyzzzz") === "NO");
+        console.log(solution("mmnnooo") === "YES");
+    }
+
+    main();
+
+
+
+
+
+
+
+
   </script>
 </body>
 
