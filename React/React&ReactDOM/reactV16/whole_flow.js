@@ -3,7 +3,7 @@
 
 
 // 一些解释：
-// 过期时间和优先级之间是什么关系？？
+// 1. 过期时间和优先级之间是什么关系？？
 
 // 过期时间：
 // 在 React 中，任务的“过期时间”是基于调度队列的时间戳，表示一个任务在什么时候需要完成。
@@ -12,9 +12,174 @@
 // 优先级：
 // 优先级高的任务意味着它应该尽快执行，而低优先级的任务可以延后执行。
 
-// 两者关系
+// 两者关系（负相关）
 // 优先级越高，priorityLevel就越小，过期时间离当前时间就越近，也就是过期时间越小
 // 用户输入为高优先级任务（尽量快速响应用户的输入）。懒加载内容为低优先级任务
+
+
+
+// 2. 各个类型的过期时间及相应的mark函数是什么意思？？
+// 一句话：新和早是针对优先级定义的新和早，而非过期时间，也就是说earliest表示晚一点执行的任务（优先级低）
+
+// （一）
+// pending任务是一个新创建的任务，没有经过任何的更新，没有经过像 suspend 这样的流程
+// 对于调用 scheduleWork 进来的任务，都认为它是 pending 的任务
+// earliestPendingTime表示最早的等待更新时间，取最大值，优先级最小
+// latestPendingTime 表示最晚的等待更新时间，取最小值, 优先级最大
+
+// function markPendingPriorityLevel(root, expirationTime) {
+//   root.didError = false;
+//   var earliestPendingTime = root.earliestPendingTime;
+//   if (earliestPendingTime === NoWork) {
+// 1.处理没有pending任务的情况
+//     root.earliestPendingTime = root.latestPendingTime = expirationTime;
+//   } else {
+// 2.处理有pending任务的情况
+//     if (earliestPendingTime < expirationTime) {
+// 2.1当前任务的时间比早待处理任务时间更大，优先级更低：更新earliestPendingTime
+//       root.earliestPendingTime = expirationTime;
+//     } else {
+// 2.2当前任务的比早待处理任务时间更小，优先级更高
+//       var latestPendingTime = root.latestPendingTime;
+//       if (latestPendingTime > expirationTime) {
+// 2.2.1当前任务比晚处理任务时间更小，优先级更高：更新latestPendingTime
+//         root.latestPendingTime = expirationTime;
+//       }
+//     }
+//   }
+//   findNextExpirationTimeToWorkOn(expirationTime, root);
+// }
+
+
+// （二）
+// suspend任务是一个经过更新的任务，在commit阶段经过suspend这样的流程
+
+
+// function markSuspendedPriorityLevel(root, suspendedTime) {
+//   root.didError = false;
+//   clearPing(root, suspendedTime);
+//   var earliestPendingTime = root.earliestPendingTime;
+//   var latestPendingTime = root.latestPendingTime;
+// 1.挂起任务就是即将要处理的任务
+//   if (earliestPendingTime === suspendedTime) {
+//     if (latestPendingTime === suspendedTime) {
+// 1.1挂起任务等于所有待处理任务：重置（本次处理的是两者同一个，相当于把过去的属性值更新为0）
+//       root.earliestPendingTime = root.latestPendingTime = NoWork;
+//     } else {
+// 1.2挂起任务不是新待处理任务，是早待处理任务：用晚待处理任务覆盖早待处理任务（本次处理的是早待处理，相当于把下一个批次要处理的任务覆盖掉早待处理任务）
+//       root.earliestPendingTime = root.latestPendingTime;
+//     }
+//   } else if (latestPendingTime === suspendedTime) {
+// 1.3挂起任务不是早待处理任务，而是晚待处理任务：用早待处理任务覆盖晚待处理任务（本次处理的是晚待处理，相当于把下一个批次要处理的任务覆盖掉晚待处理任务）
+//     root.latestPendingTime = earliestPendingTime;
+//   }
+// 2.挂起任务不是即将要处理的任务
+//   var earliestSuspendedTime = root.earliestSuspendedTime;
+//   var latestSuspendedTime = root.latestSuspendedTime;
+//   if (earliestSuspendedTime === NoWork) {
+// 2.1处理没有suspended任务的情况
+//     root.earliestSuspendedTime = root.latestSuspendedTime = suspendedTime;
+//   } else {
+// 2.2处理有suspended任务的情况
+//     if (earliestSuspendedTime < suspendedTime) {
+// 2.2.1当前任务的时间比早挂起任务时间更大，优先级更低：更新earliestSuspendedTime
+//       root.earliestSuspendedTime = suspendedTime;
+//     } else if (latestSuspendedTime > suspendedTime) {
+// 2.2.2当前任务的时间比晚挂起任务时间更小，优先级更高：更新latestSuspendedTime
+//       root.latestSuspendedTime = suspendedTime;
+//     }
+//   }
+//   findNextExpirationTimeToWorkOn(suspendedTime, root);
+// }
+
+
+// （三）
+// pinged任务是一个被激活的任务，只有latestPingedTime，没有earliestPingedTime
+
+
+
+// （四）
+// renderRoot在执行完workLoop之后，如果开启了时间切片，需要找到优先级最低的任务，用来计算剩下的时间，为什么？？？
+
+// function findEarliestOutstandingPriorityLevel(root, renderExpirationTime) {
+//   var earliestExpirationTime = renderExpirationTime;
+//   var earliestPendingTime = root.earliestPendingTime;
+//   var earliestSuspendedTime = root.earliestSuspendedTime;
+// 1.如果当前任务的时间小于早待处理任务的时间，当前任务的优先级大：把当前任务的时间改为早待处理任务的时间
+//   if (earliestPendingTime > earliestExpirationTime) {
+//     earliestExpirationTime = earliestPendingTime;
+//   }
+// 2.如果当前任务的时间小于早挂起任务的时间，当前任务的优先级大：把当前任务的时间改为早挂起任务的时间
+//   if (earliestSuspendedTime > earliestExpirationTime) {
+//     earliestExpirationTime = earliestSuspendedTime;
+//   }
+//   return earliestExpirationTime;
+// }
+
+
+
+
+// （五）
+// 提交阶段的根据优先级决定下一个执行的root
+
+// function markCommittedPriorityLevels(root, earliestRemainingTime) {
+//   root.didError = false;
+// 1.处理当前任务为空的情况：清空所有属性
+//   if (earliestRemainingTime === NoWork) {
+//     root.earliestPendingTime = NoWork;
+//     root.latestPendingTime = NoWork;
+//     root.earliestSuspendedTime = NoWork;
+//     root.latestSuspendedTime = NoWork;
+//     root.latestPingedTime = NoWork;
+//     findNextExpirationTimeToWorkOn(NoWork, root);
+//     return;
+//   }
+// 2.处理被激活的任务————当前任务时间小于被激活任务的时间，当前任务优先级大：把下一批次的新被激活时间恢复为0
+//   if (earliestRemainingTime < root.latestPingedTime) {
+//     root.latestPingedTime = NoWork;
+//   }
+// 3.处理待处理任务
+//   var latestPendingTime = root.latestPendingTime;
+//   if (latestPendingTime !== NoWork) {
+// 确保不为空
+//     if (latestPendingTime > earliestRemainingTime) {
+// 3.1当前任务时间小于晚待处理任务时间，优先级大：把下一批次的早/晚待处理时间恢复为0，确保findhighest函数中当前任务为优先级最高的
+//       root.earliestPendingTime = root.latestPendingTime = NoWork;
+//     } else {
+//       var earliestPendingTime = root.earliestPendingTime;
+//       if (earliestPendingTime > earliestRemainingTime) {
+// 3.2当前任务时间大于晚待处理任务时间，且当前任务时间小于早待处理时间（优先级即晚>当前>早）：当前处理的应该是晚待处理时间，把早待处理时间改为晚待处理时间
+//         root.earliestPendingTime = root.latestPendingTime;
+//       }
+//     }
+//   }
+// 4.处理挂起任务
+//   var earliestSuspendedTime = root.earliestSuspendedTime;
+// 4.1处理没有suspended任务的情况：直接处理pending任务
+//   if (earliestSuspendedTime === NoWork) {
+//     markPendingPriorityLevel(root, earliestRemainingTime);
+//     findNextExpirationTimeToWorkOn(NoWork, root);
+//     return;
+//   }
+// 4.2处理有suspended任务的情况
+//   var latestSuspendedTime = root.latestSuspendedTime;
+//   if (earliestRemainingTime < latestSuspendedTime) {
+// 4.2.1当前任务时间小于晚挂起任务时间，优先级大：把下一批次的早/晚挂起时间和待激活时间恢复为0，且直接处理pending任务
+//     root.earliestSuspendedTime = NoWork;
+//     root.latestSuspendedTime = NoWork;
+//     root.latestPingedTime = NoWork;
+//     markPendingPriorityLevel(root, earliestRemainingTime);
+//     findNextExpirationTimeToWorkOn(NoWork, root);
+//     return;
+//   }
+// 4.2.2当前任务时间大于早挂起任务时间，优先级小：直接处理pending任务
+//   if (earliestRemainingTime > earliestSuspendedTime) {
+//     markPendingPriorityLevel(root, earliestRemainingTime);
+//     findNextExpirationTimeToWorkOn(NoWork, root);
+//     return;
+//   }
+//   findNextExpirationTimeToWorkOn(NoWork, root);
+// }
 
 
 
@@ -646,18 +811,21 @@ var plugins = [];
 var eventQueue = null;
 
 
-
-
+// 唯一一个承担全局事件处理的元素
+var fakeNode = document.createElement('react');
 
 
 // 15. 提交阶段
 var completedBatches = null;
 
+var _enabled = true;
 
+// commit前的准备，记录文本选中范围
+var eventsEnabled = null;
+var selectionInformation = null;
 
-
-
-
+// 
+var nextEffect = null;
 
 
 
@@ -2791,12 +2959,13 @@ function renderRoot(root, isYieldy) {
   // 8.2 （当前任务）当处于时间切片的状态下，挂起当前任务（root为整个树的代表）
   // isYieldy：这是一个布尔值，表示渲染是否可以被暂停（即是否为异步渲染）。
   // nextLatestAbsoluteTimeoutMs !== -1：这个条件表示是否有设定的绝对超时值。如果超时值不为 -1，表示渲染有时间限制。
+  // 首次渲染不走下面，因为nextLatestAbsoluteTimeoutMs的初始值是-1;
   if (isYieldy && nextLatestAbsoluteTimeoutMs !== -1) {
     // 标记挂起的任务
     var _suspendedExpirationTime2 = expirationTime;
     markSuspendedPriorityLevel(root, _suspendedExpirationTime2);
 
-    // 查找树中查找最早的突出优先级（里面有不懂的知识）
+    // 寻找优先级最小的时间，为什么？？？？
     var earliestExpirationTime = findEarliestOutstandingPriorityLevel(
       root,
       expirationTime
@@ -2807,7 +2976,6 @@ function renderRoot(root, isYieldy) {
 
     // 如果找到的最早任务的过期时间比当前设置的绝对超时 (nextLatestAbsoluteTimeoutMs) 还要小，优先级要大
     // 那么就更新这个超时值。
-    // 首次渲染的时候会更新，因为nextLatestAbsoluteTimeoutMs的初始值是-1;
     if (earliestExpirationTimeMs < nextLatestAbsoluteTimeoutMs) {
       nextLatestAbsoluteTimeoutMs = earliestExpirationTimeMs;
     }
@@ -8344,111 +8512,89 @@ function invokeGuardedCallback(name, func, context, a, b, c, d, e, f) {
 
 
 var invokeGuardedCallbackDev = function (name, func, context, a, b, c, d, e, f) {
-  // 这是单个事件的执行函数，冒泡不在这里
 
-  // If document doesn't exist we know for sure we will crash in this method
-  // when we call document.createEvent(). However this can cause confusing
-  // errors: https://github.com/facebookincubator/create-react-app/issues/3482
-  // So we preemptively throw with a better message instead.
+  // 检查document是否存在
   !(typeof document !== 'undefined') ? invariant(false, 'The `document` global was defined when React was initialized, but is not defined anymore. This can happen in a test environment if a component schedules an update from an asynchronous callback, but the test has already finished running. To solve this, you can either unmount the component at the end of your test (and ensure that any asynchronous operations get canceled in `componentWillUnmount`), or you can change the test itself to be asynchronous.') : void 0;
+  
+
+  // 1. 创建自定义事件
   var evt = document.createEvent('Event');
 
-  // Keeps track of whether the user-provided callback threw an error. We
-  // set this to true at the beginning, then set it to false right after
-  // calling the function. If the function errors, `didError` will never be
-  // set to false. This strategy works even if the browser is flaky and
-  // fails to call our global error handler, because it doesn't rely on
-  // the error event at all.
+
+  // 2. 定义或保存一些变量（错误追踪变量）
   var didError = true;
-
-  // Keeps track of the value of window.event so that we can reset it
-  // during the callback to let user code access window.event in the
-  // browsers that support it.
+  // 保存当前 window.event（某些浏览器依赖该值）
   var windowEvent = window.event;
-
-  // Keeps track of the descriptor of window.event to restore it after event
-  // dispatching: https://github.com/facebook/react/issues/13688
+  // 保存 window.event 的属性描述符（用于恢复浏览器原始行为）
   var windowEventDescriptor = Object.getOwnPropertyDescriptor(window, 'event');
 
-  // Create an event handler for our fake event. We will synchronously
-  // dispatch our fake event using `dispatchEvent`. Inside the handler, we
-  // call the user-provided callback.
+
+  // 3. 包装一下回调函数
+  // 拿到函数的参数
   var funcArgs = Array.prototype.slice.call(arguments, 3);
   function callCallback() {
-    // We immediately remove the callback from event listeners so that
-    // nested `invokeGuardedCallback` calls do not clash. Otherwise, a
-    // nested call would trigger the fake event handlers of any call higher
-    // in the stack.
+    // 移除事件监听：防止嵌套调用冲突
     fakeNode.removeEventListener(evtType, callCallback, false);
-
-    // We check for window.hasOwnProperty('event') to prevent the
-    // window.event assignment in both IE <= 10 as they throw an error
-    // "Member not found" in strict mode, and in Firefox which does not
-    // support window.event.
+    // 确保回调中能访问原始的 window.event 
     if (typeof window.event !== 'undefined' && window.hasOwnProperty('event')) {
       window.event = windowEvent;
     }
-
+    // 执行回调
     func.apply(context, funcArgs);
     didError = false;
   }
 
-  // Create a global error event handler. We use this to capture the value
-  // that was thrown. It's possible that this error handler will fire more
-  // than once; for example, if non-React code also calls `dispatchEvent`
-  // and a handler for that event throws. We should be resilient to most of
-  // those cases. Even if our error event handler fires more than once, the
-  // last error event is always used. If the callback actually does error,
-  // we know that the last error event is the correct one, because it's not
-  // possible for anything else to have happened in between our callback
-  // erroring and the code that follows the `dispatchEvent` call below. If
-  // the callback doesn't error, but the error event was fired, we know to
-  // ignore it because `didError` will be false, as described above.
+  
+  // 4. 定义错误处理函数
   var error = void 0;
-  // Use this to track whether the error event is ever called.
   var didSetError = false;
   var isCrossOriginError = false;
 
   function handleWindowError(event) {
     error = event.error;
     didSetError = true;
+    // 跨域错误检测：通过 colno 和 lineno 为 0 判断跨域脚本错误。
     if (error === null && event.colno === 0 && event.lineno === 0) {
       isCrossOriginError = true;
     }
     if (event.defaultPrevented) {
-      // Some other error handler has prevented default.
-      // Browsers silence the error report if this happens.
-      // We'll remember this to later decide whether to log it or not.
       if (error != null && typeof error === 'object') {
         try {
           error._suppressLogging = true;
         } catch (inner) {
-          // Ignore.
         }
       }
     }
   }
 
 
-  // Create a fake event type.
+  // 5. 同步事件触发
+  // 5.1 生成唯一的事件类型名
   var evtType = 'react-' + (name ? name : 'invokeguardedcallback');
 
-  // Attach our event handlers
+  // window 监听全局错误，fakeNode 监听自定义事件
   window.addEventListener('error', handleWindowError);
   fakeNode.addEventListener(evtType, callCallback, false);
 
-  // Synchronously dispatch our fake event. If the user-provided function
-  // errors, it will trigger our global error handler.
+  // 触发回调（同步的）
+  // 首先初始化一个全新的事件对象，下面是给他设置一些属性：
+  // initEvent 是事件对象的一个方法，用于设置事件的类型、是否可以冒泡以及是否可以取消默认行为。它接受三个参数：
+  // evtType：事件的类型，通常是一个字符串。例如 'click'、'keydown' 或者在这个代码中可能是一个自定义的事件类型。
+  // false：第二个参数表示事件是否能冒泡，false 表示事件不能冒泡。如果设置为 true，事件就可以冒泡到父级元素。
+  // false：第三个参数表示事件的默认行为是否可以被取消。false 表示不可以取消默认行为。如果是 true，那么可以在事件处理程序中调用 event.preventDefault() 来阻止事件的默认行为。
   evt.initEvent(evtType, false, false);
+  // 用来将事件对象evt对象（一个事件就是一个对象）派发到fakeNode上，相当于模拟这个node产生了click的交互，然后执行callCallback
   fakeNode.dispatchEvent(evt);
+  // 接着开始执行callCallback函数
 
+  // 6. 事件触发后的处理
+  // 6.1 恢复浏览器状态
   if (windowEventDescriptor) {
     Object.defineProperty(window, 'event', windowEventDescriptor);
   }
-
+  // 6.2 错误处理
   if (didError) {
     if (!didSetError) {
-      // The callback errored, but the error event never fired.
       error = new Error('An error was thrown inside one of your components, but React ' + "doesn't know what it was. This is likely due to browser " + 'flakiness. React does its best to preserve the "Pause on ' + 'exceptions" behavior of the DevTools, which requires some ' + "DEV-mode only tricks. It's possible that these don't work in " + 'your browser. Try triggering the error in production mode, ' + 'or switching to a modern browser. If you suspect that this is ' + 'actually an issue with React, please file an issue.');
     } else if (isCrossOriginError) {
       error = new Error("A cross-origin error was thrown. React doesn't have access to " + 'the actual error object in development. ' + 'See https://fb.me/react-crossorigin-error for more information.');
@@ -8456,7 +8602,7 @@ var invokeGuardedCallbackDev = function (name, func, context, a, b, c, d, e, f) 
     this.onError(error);
   }
 
-  // Remove our event listeners
+  // 移除全局错误监听
   window.removeEventListener('error', handleWindowError);
 };
 
@@ -8752,7 +8898,6 @@ function markSuspendedPriorityLevel(root, suspendedTime) {
     // 有任务挂起中（且是最早挂起的任务，优先级是最大的）
     // 此时suspendedTime比最早的挂起任务的过期时间还要大
     if (earliestSuspendedTime < suspendedTime) {
-      // TODO-
       // !当前的任务大于最早挂起任务的过期时间，
       // !那说明这个任务比较晚，优先级比较低，为什么更新的是earliestSuspendedTime
       // 有没可能是这个挂起任务要成为下一次的执行对象，因此把他变为earliestSuspendedTime
@@ -8895,6 +9040,7 @@ function onComplete(root, finishedWork, expirationTime) {
 
 
 // REVIEW - 开始进入commit阶段，进入completeRoot的函数
+// 就像renderRoot里面有workLoop，而completeRoot里面有commitRoot
 
 
 
@@ -8997,13 +9143,19 @@ function commitRoot(root, finishedWork) {
   var committedExpirationTime = root.pendingCommitExpirationTime;
   root.pendingCommitExpirationTime = NoWork;
 
+
+  // 2. 找到下一个需要更新的任务的时间
   // 这需要在调用生命周期之前发生，因为它们可能会安排额外的更新。
   // 如果孩子的eT比root本身的eT还要大，将这个过期时间改为孩子的过期时间
+  // 然后找出下一个需要更新的任务的过期时间
+  // TODO- 首次渲染的时候孩子的eT和root的eT是一样的，都是0，什么时候重设的？
   var updateExpirationTimeBeforeCommit = finishedWork.expirationTime;
   var childExpirationTimeBeforeCommit = finishedWork.childExpirationTime;
   var earliestRemainingTimeBeforeCommit = childExpirationTimeBeforeCommit > updateExpirationTimeBeforeCommit ? childExpirationTimeBeforeCommit : updateExpirationTimeBeforeCommit;
   markCommittedPriorityLevels(root, earliestRemainingTimeBeforeCommit);
 
+
+  // 1. 更新一些全局变量
   var prevInteractions = null;
   if (enableSchedulerTracing) {
     // Restore any pending interactions at this point,
@@ -9015,32 +9167,41 @@ function commitRoot(root, finishedWork) {
   // Reset this to null before calling lifecycles
   ReactCurrentOwner$2.current = null;
 
+
+  // 3. 为root附上副作用链，拿到副作用链的第一个副作用
   var firstEffect = void 0;
   if (finishedWork.effectTag > PerformedWork) {
-    // A fiber's effect list consists only of its children, not itself. So if
-    // the root has an effect, we need to add it to the end of the list. The
-    // resulting list is the set that would belong to the root's parent, if
-    // it had one; that is, all the effects in the tree including the root.
+    // 3.1 如果这个root节点存在副作用链
+    // 3.1.1生成一个环形的链条
     if (finishedWork.lastEffect !== null) {
       finishedWork.lastEffect.nextEffect = finishedWork;
       firstEffect = finishedWork.firstEffect;
     } else {
+      // 3.1.2没有链条，只有他自己有副作用
       firstEffect = finishedWork;
     }
   } else {
-    // There is no effect on the root.
+    // 3.2 如果这个root节点不存在副作用链
     firstEffect = finishedWork.firstEffect;
   }
 
+
+  // 4. 开始准备提交
+  // 记录下事件启用状态（某些事件或操作是否被启用）和
+  // 选区信息（例如文本框的文本选中范围），保存在全局变量
   prepareForCommit(root.containerInfo);
 
-  // Invoke instances of getSnapshotBeforeUpdate before mutation.
+
+  // 5.提交
+  // 5.1 执行副作用的回调（执行生命周期钩子）
+  // 这些副作用函数会在 DOM 更新完成后、浏览器绘制之前被调用
   nextEffect = firstEffect;
   startCommitSnapshotEffectsTimer();
   while (nextEffect !== null) {
     var didError = false;
     var error = void 0;
     {
+      // 以下函数将会进入commitBeforeMutationLifecycles
       invokeGuardedCallback(null, commitBeforeMutationLifecycles, null);
       if (hasCaughtError()) {
         didError = true;
@@ -9058,15 +9219,17 @@ function commitRoot(root, finishedWork) {
   }
   stopCommitSnapshotEffectsTimer();
 
+
+  // 记录当前的时间，存到commitTime
   if (enableProfilerTimer) {
     // Mark the current commit time to be shared by all Profilers in this batch.
     // This enables them to be grouped later.
     recordCommitTime();
   }
 
-  // Commit all the side-effects within a tree. We'll do this in two passes.
-  // The first pass performs all the host insertions, updates, deletions and
-  // ref unmounts.
+
+  // 5.2 对页面 DOM 树的直接修改
+  // 包括：节点本身插入、删除或更新；节点的属性；修改事件监听器
   nextEffect = firstEffect;
   startCommitHostEffectsTimer();
   while (nextEffect !== null) {
@@ -9256,10 +9419,15 @@ function markCommittedPriorityLevels(root, earliestRemainingTime) {
   }
 
   // 3. 处理【待处理任务】
+  // !为什么当前任务的时间小（优先级高）就把earliestPendingTime和latestPendingTime变为0？之前记录的任务的时间不就被覆盖了吗？
+  // 相当于清除待处理任务的状态，换成处理更高优先级的新任务。
+  // 虽然会丢失这些信息，但它是基于新的任务激活的优先级来重新进行任务调度的。
+  // 如果这些待处理任务的优先级仍然需要被处理，那么它们会被重新标记为待处理任务。
+  // !反正每一次都需要重新评估任务的优先级
   var latestPendingTime = root.latestPendingTime;
   if (latestPendingTime !== NoWork) {
     if (latestPendingTime > earliestRemainingTime) {
-      // 意味着所有已知的待处理任务都已经被处理完(最大的时间都比当前大，所有待处理任务在后面)
+      // 目前的任务大于晚待处理任务，但是大于早待处理任务吗
       // 目前的优先级大，消除标记
       root.earliestPendingTime = root.latestPendingTime = NoWork;
     } else {
@@ -9267,7 +9435,7 @@ function markCommittedPriorityLevels(root, earliestRemainingTime) {
       var earliestPendingTime = root.earliestPendingTime;
       if (earliestPendingTime > earliestRemainingTime) {
         // 如果目前的优先级比【早待处理任务】大，而目前的优先级比【晚待处理任务】小，
-        // 就更新【早待处理任务】为【晚待处理任务】
+        // 就把【新待处理任务】赋予【早待处理任务】
         root.earliestPendingTime = root.latestPendingTime;
       }
     }
@@ -9295,7 +9463,7 @@ function markCommittedPriorityLevels(root, earliestRemainingTime) {
     return;
   }
 
-  // 有早挂起任务，且当前的优先级低于晚挂起任务
+  // 有早挂起任务，且当前的优先级低于早挂起任务
   if (earliestRemainingTime > earliestSuspendedTime) {
     // 改为处理pending任务
     markPendingPriorityLevel(root, earliestRemainingTime);
@@ -9306,3 +9474,374 @@ function markCommittedPriorityLevels(root, earliestRemainingTime) {
   // 最后再找一遍最优先的下一个任务
   findNextExpirationTimeToWorkOn(NoWork, root);
 }
+
+
+
+function prepareForCommit(containerInfo) {
+  eventsEnabled = isEnabled();
+  selectionInformation = getSelectionInformation();
+  setEnabled(false);
+}
+
+
+function setEnabled(enabled) {
+  _enabled = !!enabled;
+}
+
+function isEnabled() {
+  return _enabled;
+}
+
+
+
+function getSelectionInformation() {
+  var focusedElem = getActiveElementDeep();
+  // 拿到body
+  return {
+    focusedElem: focusedElem,
+    selectionRange: hasSelectionCapabilities(focusedElem) ? getSelection$1(focusedElem) : null
+  };
+}
+
+
+function getActiveElementDeep() {
+  var win = window;
+  // 拿到document的获得输入焦点的元素，比如文本框、按钮、输入框等。
+  // 没有的话拿到body
+  var element = getActiveElement();
+  // 看他是否嵌套的iframe元素
+  while (element instanceof win.HTMLIFrameElement) {
+    // 如果href有效，就拿到他
+    if (isSameOriginFrame(element)) {
+      win = element.contentWindow;
+    } else {
+      return element;
+    }
+    element = getActiveElement(win.document);
+  }
+  // 非iframe就使用body
+  return element;
+}
+
+
+function getActiveElement(doc) {
+  doc = doc || (typeof document !== 'undefined' ? document : undefined);
+  if (typeof doc === 'undefined') {
+    return null;
+  }
+  try {
+    return doc.activeElement || doc.body;
+  } catch (e) {
+    return doc.body;
+  }
+}
+
+function isSameOriginFrame(iframe) {
+  try {
+    // Accessing the contentDocument of a HTMLIframeElement can cause the browser
+    // to throw, e.g. if it has a cross-origin src attribute.
+    // Safari will show an error in the console when the access results in "Blocked a frame with origin". e.g:
+    // iframe.contentDocument.defaultView;
+    // A safety way is to access one of the cross origin properties: Window or Location
+    // Which might result in "SecurityError" DOM Exception and it is compatible to Safari.
+    // https://html.spec.whatwg.org/multipage/browsers.html#integration-with-idl
+
+    return typeof iframe.contentWindow.location.href === 'string';
+  } catch (err) {
+    return false;
+  }
+}
+
+
+function hasSelectionCapabilities(elem) {
+  var nodeName = elem && elem.nodeName && elem.nodeName.toLowerCase();
+  return nodeName && (nodeName === 'input' && (elem.type === 'text' || elem.type === 'search' || elem.type === 'tel' || elem.type === 'url' || elem.type === 'password') || nodeName === 'textarea' || elem.contentEditable === 'true');
+}
+
+
+function getSelection$1(input) {
+  var selection = void 0;
+
+  if ('selectionStart' in input) {
+    // Modern browser with input or textarea.
+    selection = {
+      start: input.selectionStart,
+      end: input.selectionEnd
+    };
+  } else {
+    // Content editable or old IE textarea.
+    selection = getOffsets(input);
+  }
+
+  return selection || { start: 0, end: 0 };
+}
+
+
+
+function getOffsets(outerNode) {
+  var ownerDocument = outerNode.ownerDocument;
+
+  var win = ownerDocument && ownerDocument.defaultView || window;
+  var selection = win.getSelection && win.getSelection();
+
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  var anchorNode = selection.anchorNode,
+      anchorOffset = selection.anchorOffset,
+      focusNode = selection.focusNode,
+      focusOffset = selection.focusOffset;
+
+  // In Firefox, anchorNode and focusNode can be "anonymous divs", e.g. the
+  // up/down buttons on an <input type="number">. Anonymous divs do not seem to
+  // expose properties, triggering a "Permission denied error" if any of its
+  // properties are accessed. The only seemingly possible way to avoid erroring
+  // is to access a property that typically works for non-anonymous divs and
+  // catch any error that may otherwise arise. See
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=208427
+
+  try {
+    /* eslint-disable no-unused-expressions */
+    anchorNode.nodeType;
+    focusNode.nodeType;
+    /* eslint-enable no-unused-expressions */
+  } catch (e) {
+    return null;
+  }
+
+  return getModernOffsetsFromPoints(outerNode, anchorNode, anchorOffset, focusNode, focusOffset);
+}
+
+
+
+function getModernOffsetsFromPoints(outerNode, anchorNode, anchorOffset, focusNode, focusOffset) {
+  var length = 0;
+  var start = -1;
+  var end = -1;
+  var indexWithinAnchor = 0;
+  var indexWithinFocus = 0;
+  var node = outerNode;
+  var parentNode = null;
+
+  outer: while (true) {
+    var next = null;
+
+    while (true) {
+      if (node === anchorNode && (anchorOffset === 0 || node.nodeType === TEXT_NODE)) {
+        start = length + anchorOffset;
+      }
+      if (node === focusNode && (focusOffset === 0 || node.nodeType === TEXT_NODE)) {
+        end = length + focusOffset;
+      }
+
+      if (node.nodeType === TEXT_NODE) {
+        length += node.nodeValue.length;
+      }
+
+      if ((next = node.firstChild) === null) {
+        break;
+      }
+      // Moving from `node` to its first child `next`.
+      parentNode = node;
+      node = next;
+    }
+
+    while (true) {
+      if (node === outerNode) {
+        // If `outerNode` has children, this is always the second time visiting
+        // it. If it has no children, this is still the first loop, and the only
+        // valid selection is anchorNode and focusNode both equal to this node
+        // and both offsets 0, in which case we will have handled above.
+        break outer;
+      }
+      if (parentNode === anchorNode && ++indexWithinAnchor === anchorOffset) {
+        start = length;
+      }
+      if (parentNode === focusNode && ++indexWithinFocus === focusOffset) {
+        end = length;
+      }
+      if ((next = node.nextSibling) !== null) {
+        break;
+      }
+      node = parentNode;
+      parentNode = node.parentNode;
+    }
+
+    // Moving from `node` to its next sibling `next`.
+    node = next;
+  }
+
+  if (start === -1 || end === -1) {
+    // This should never happen. (Would happen if the anchor/focus nodes aren't
+    // actually inside the passed-in node.)
+    return null;
+  }
+
+  return {
+    start: start,
+    end: end
+  };
+}
+
+
+
+function startCommitSnapshotEffectsTimer() {
+  if (enableUserTimingAPI) {
+    if (!supportsUserTiming) {
+      return;
+    }
+    effectCountInCurrentCommit = 0;
+    beginMark('(Committing Snapshot Effects)');
+  }
+}
+
+
+
+function stopCommitSnapshotEffectsTimer() {
+  if (enableUserTimingAPI) {
+    if (!supportsUserTiming) {
+      return;
+    }
+    var count = effectCountInCurrentCommit;
+    effectCountInCurrentCommit = 0;
+    endMark('(Committing Snapshot Effects: ' + count + ' Total)', '(Committing Snapshot Effects)', null);
+  }
+}
+
+
+function recordCommitTime() {
+  if (!enableProfilerTimer) {
+    return;
+  }
+  commitTime = now();
+}
+
+
+
+function startCommitHostEffectsTimer() {
+  if (enableUserTimingAPI) {
+    if (!supportsUserTiming) {
+      return;
+    }
+    effectCountInCurrentCommit = 0;
+    beginMark('(Committing Host Effects)');
+  }
+}
+
+
+
+function commitBeforeMutationLifecycles() {
+  while (nextEffect !== null) {
+    // 更新一下全局变量
+    {
+      setCurrentFiber(nextEffect);
+    }
+
+    var effectTag = nextEffect.effectTag;
+    if (effectTag & Snapshot) {
+      recordEffect();
+      var current$$1 = nextEffect.alternate;
+      commitBeforeMutationLifeCycles(current$$1, nextEffect);
+    }
+
+    nextEffect = nextEffect.nextEffect;
+  }
+
+  {
+    resetCurrentFiber();
+  }
+}
+
+
+function setCurrentFiber(fiber) {
+  {
+    ReactDebugCurrentFrame.getCurrentStack = getCurrentFiberStackInDev;
+    current = fiber;
+    phase = null;
+  }
+}
+
+
+
+
+function commitAllHostEffects() {
+  while (nextEffect !== null) {
+    {
+      setCurrentFiber(nextEffect);
+    }
+    recordEffect();
+
+    var effectTag = nextEffect.effectTag;
+
+    if (effectTag & ContentReset) {
+      commitResetTextContent(nextEffect);
+    }
+
+    if (effectTag & Ref) {
+      var current$$1 = nextEffect.alternate;
+      if (current$$1 !== null) {
+        commitDetachRef(current$$1);
+      }
+    }
+
+    // The following switch statement is only concerned about placement,
+    // updates, and deletions. To avoid needing to add a case for every
+    // possible bitmap value, we remove the secondary effects from the
+    // effect tag and switch on that value.
+    var primaryEffectTag = effectTag & (Placement | Update | Deletion);
+    switch (primaryEffectTag) {
+      case Placement:
+        {
+          commitPlacement(nextEffect);
+          // Clear the "placement" from effect tag so that we know that this is inserted, before
+          // any life-cycles like componentDidMount gets called.
+          // TODO: findDOMNode doesn't rely on this any more but isMounted
+          // does and isMounted is deprecated anyway so we should be able
+          // to kill this.
+          nextEffect.effectTag &= ~Placement;
+          break;
+        }
+      case PlacementAndUpdate:
+        {
+          // Placement
+          commitPlacement(nextEffect);
+          // Clear the "placement" from effect tag so that we know that this is inserted, before
+          // any life-cycles like componentDidMount gets called.
+          nextEffect.effectTag &= ~Placement;
+
+          // Update
+          var _current = nextEffect.alternate;
+          commitWork(_current, nextEffect);
+          break;
+        }
+      case Update:
+        {
+          var _current2 = nextEffect.alternate;
+          commitWork(_current2, nextEffect);
+          break;
+        }
+      case Deletion:
+        {
+          commitDeletion(nextEffect);
+          break;
+        }
+    }
+    nextEffect = nextEffect.nextEffect;
+  }
+
+  {
+    resetCurrentFiber();
+  }
+}
+
+
+
+function resetAfterCommit(containerInfo) {
+  restoreSelection(selectionInformation);
+  selectionInformation = null;
+  setEnabled(eventsEnabled);
+  eventsEnabled = null;
+}
+
+

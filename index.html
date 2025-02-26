@@ -5885,12 +5885,64 @@
         return 'YES'
     }
 
+    // function main() {
+    //     console.log(solution("abccckjskw") === "YES");
+    //     console.log(solution("qwqwtttqqttttt") === "NO");
+    //     console.log(solution("aabbbccddd") === "YES");
+    //     console.log(solution("xyzzzz") === "NO");
+    //     console.log(solution("mmnnooo") === "YES");
+    // }
+
+    // main();
+
+
+    function solution(arr1, arr2) {
+        function cal(arr) {
+            let res = 0
+            for (let i = 0; i < arr.length; i++) {
+                if (arr[i] === 1) {
+                    res += Math.pow(-2, arr.length - 1 - i)
+                }
+            }
+            return res
+        }
+        let sum1 = cal(arr1)
+        let sum2 = cal(arr2)
+        let sum = sum1 + sum2
+        console.log(sum)
+        debugger
+        function reverseCal(num) {
+            let res = []
+            while(num !== 0) {
+                // 分别计算出商和余数
+                // 商是说明这个数由多少个基数相加构成的
+                // 余数是查看这个数是否为基数的倍数，以此说明当前的遍历次数是否需要对-2进行幂然后累加
+                let shan = Math.floor(num / -2)
+                let yushu = num % -2
+                if (yushu < 0) {
+                    // 余数为负数，一般出现在num为负数，且其是-2的奇数次幂
+                    // 给余数加上余数原本应在的范围的(-2, 0)和(0, 2)的最大值2（基数的最大值绝对值），
+                    // 使得任意负数的余数总归会回到正数
+                    yushu += 2
+
+                    // 余数增加了，那么相应的商也要变化，因为num = (-2) * 商 + 余数
+                    // 重新计算一下商
+                    shan = (num - yushu) / (-2)
+                }
+                res.unshift(yushu)
+                num = shan
+            }
+            console.log(res)
+            return res
+        }
+
+        // return reverseCal(sum);
+    }
+
     function main() {
-        console.log(solution("abccckjskw") === "YES");
-        console.log(solution("qwqwtttqqttttt") === "NO");
-        console.log(solution("aabbbccddd") === "YES");
-        console.log(solution("xyzzzz") === "NO");
-        console.log(solution("mmnnooo") === "YES");
+        // console.log(JSON.stringify(solution([1, 1, 1, 1, 1], [1, 0, 1])) === JSON.stringify([1, 0, 0, 0, 0]));
+        console.log(JSON.stringify(solution([1, 0, 0], [1, 1, 1])) === JSON.stringify([1, 1, 0, 1, 1]));
+        // console.log(JSON.stringify(solution([0], [0])) === JSON.stringify([0]));
     }
 
     main();
