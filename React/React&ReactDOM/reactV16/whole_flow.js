@@ -185,6 +185,8 @@
 
 
 // REVIEW - 全局变量
+
+
 // 1.createElement阶段
 var hasSymbol = typeof Symbol === "function" && Symbol.for;
 var REACT_ELEMENT_TYPE = hasSymbol ? Symbol.for("react.element") : 0xeac7;
@@ -827,6 +829,13 @@ var selectionInformation = null;
 // 
 var nextEffect = null;
 
+var firstCallbackNode = null;
+
+var isExecutingCallback = false;
+
+var isHostCallbackScheduled = false;
+
+var isAnimationFrameScheduled = false;
 
 
 
@@ -9160,17 +9169,18 @@ function commitRoot(root, finishedWork) {
   // 3. 为root附上副作用链，拿到副作用链的第一个副作用
   var firstEffect = void 0;
   if (finishedWork.effectTag > PerformedWork) {
-    // 3.1 如果这个root节点存在副作用链
-    // 3.1.1生成一个环形的链条
+    // 3.1 如果这个root节点存在副作用
     if (finishedWork.lastEffect !== null) {
+      // 3.1.1 这个root节点已经在副作用链里面，把自己加上，
+      // 现在链条变成：最底层的需要更新的节点——在他之上的节点——root下面一层的函数/类组件节点——root本身
       finishedWork.lastEffect.nextEffect = finishedWork;
       firstEffect = finishedWork.firstEffect;
     } else {
-      // 3.1.2没有链条，只有他自己有副作用
+      // 3.1.2 这个root节点没有副作用链，只有他自己有副作用
       firstEffect = finishedWork;
     }
   } else {
-    // 3.2 如果这个root节点不存在副作用链
+    // 3.2 如果这个root节点不存在副作用
     firstEffect = finishedWork.firstEffect;
   }
 
@@ -9183,7 +9193,7 @@ function commitRoot(root, finishedWork) {
 
 
   // 5.提交
-  // （下面的提交从root下面的大组件开始，firstEffect是root的下一个fiber）
+  // （下面的提交从【最底层的需要更新的节点】开始，firstEffect是【最底层的需要更新的节点】）
   // 5.1 执行前期生命函数（Snapshot生命周期函数）
   // 这些副作用函数会在 DOM 更新完成后、浏览器绘制之前被调用
   nextEffect = firstEffect;
@@ -9253,7 +9263,7 @@ function commitRoot(root, finishedWork) {
 
 
   // 5.3 执行生命周期函数
-  // 包括：
+  // 包括：componentDidMount/Update
   nextEffect = firstEffect;
   startCommitLifeCyclesTimer();
   while (nextEffect !== null) {
@@ -9277,20 +9287,26 @@ function commitRoot(root, finishedWork) {
   }
 
 
+  // 6. 
+  // 在执行生命周期函数内：
+  // if (effectTag & Passive) {
+  //   rootWithPendingPassiveEffects = finishedRoot;
+  // }
+  // 执行了这样一个逻辑：用来标识root对象是否存在被动副作用
+  // 如果存在的话，就xxxx
+  // 首次渲染会走下面的逻辑
   if (firstEffect !== null && rootWithPendingPassiveEffects !== null) {
-    // This commit included a passive effect. These do not need to fire until
-    // after the next paint. Schedule an callback to fire them in an async
-    // event. To ensure serial execution, the callback will be flushed early if
-    // we enter rootWithPendingPassiveEffects commit phase before then.
+
     var callback = commitPassiveEffects.bind(null, root, firstEffect);
     if (enableSchedulerTracing) {
-      // Avoid this extra callback by mutating the tracing ref directly,
-      // like we do at the beginning of commitRoot. I've opted not to do that
-      // here because that code is still in flux.
-      callback = tracing.unstable_wrap(callback);
+      callback = unstable_wrap(callback);
     }
-    passiveEffectCallbackHandle = scheduler.unstable_runWithPriority(scheduler.unstable_NormalPriority, function () {
-      return schedulePassiveEffects(callback);
+
+    // 6.1 先执行runWithPriority函数，更新优先级全局变量，
+    // 然后执行unstable_scheduleCallback函数
+    // commitPassiveEffects函数放到newNode里面的callback了
+    passiveEffectCallbackHandle = unstable_runWithPriority(NormalPriority, function () {
+      return unstable_scheduleCallback(callback);
     });
     passiveEffectCallback = callback;
   }
@@ -9962,9 +9978,9 @@ function commitAllHostEffects() {
 
     // 3. 副作用是三个中的一个，操作原生DOM
     // !可是之前在commitRoot那里不是已经把原生的DOM设置好内容和属性放到父亲的DOM上面了吗
-    // 在首次渲染阶段，rootfiber的primaryEffectTag为0，不走下面
+    // 在首次渲染阶段，最底层节点的primaryEffectTag为0，不走下面
     // （首次渲染，函数/类组件下面的原生标签的stateNode已经有完整内容了，只是root对象的containerInfo只有root自己的原生DOM）
-    // 而root下面的函数组件走的是PlacementAndUpdate
+    // 而root下面的函数/类组件走的是PlacementAndUpdate
     var primaryEffectTag = effectTag & (Placement | Update | Deletion);
     switch (primaryEffectTag) {
       case Placement:
@@ -10361,7 +10377,7 @@ function commitWork(current$$1, finishedWork) {
             // Memoize using the boundary fiber to prevent redundant listeners.
             var retry = retryTimedOutBoundary.bind(null, finishedWork, thenable);
             if (enableSchedulerTracing) {
-              retry = tracing.unstable_wrap(retry);
+              retry = unstable_wrap(retry);
             }
             if (!retryCache.has(thenable)) {
               retryCache.add(thenable);
@@ -10625,6 +10641,8 @@ function commitLifeCycles(finishedRoot, current$$1, finishedWork, committedExpir
       {
         var _updateQueue = finishedWork.updateQueue;
         if (_updateQueue !== null) {
+
+          // 1. 如果root下面是原生节点或者是类组件，就更新一下_instance的值
           var _instance = null;
           if (finishedWork.child !== null) {
             switch (finishedWork.child.tag) {
@@ -10636,6 +10654,8 @@ function commitLifeCycles(finishedRoot, current$$1, finishedWork, committedExpir
                 break;
             }
           }
+
+          // 2. 把更新提交一下
           commitUpdateQueue(finishedWork, _updateQueue, _instance, committedExpirationTime);
         }
         return;
@@ -10767,3 +10787,296 @@ function commitAttachRef(finishedWork) {
   }
 }
 
+
+
+
+
+
+
+
+
+
+
+function commitPassiveEffects(root, firstEffect) {
+  rootWithPendingPassiveEffects = null;
+  passiveEffectCallbackHandle = null;
+  passiveEffectCallback = null;
+
+  // Set this to true to prevent re-entrancy
+  var previousIsRendering = isRendering;
+  isRendering = true;
+
+  var effect = firstEffect;
+  do {
+    {
+      setCurrentFiber(effect);
+    }
+
+    if (effect.effectTag & Passive) {
+      var didError = false;
+      var error = void 0;
+      {
+        invokeGuardedCallback(null, commitPassiveHookEffects, null, effect);
+        if (hasCaughtError()) {
+          didError = true;
+          error = clearCaughtError();
+        }
+      }
+      if (didError) {
+        captureCommitPhaseError(effect, error);
+      }
+    }
+    effect = effect.nextEffect;
+  } while (effect !== null);
+  {
+    resetCurrentFiber();
+  }
+
+  isRendering = previousIsRendering;
+
+  // Check if work was scheduled by one of the effects
+  var rootExpirationTime = root.expirationTime;
+  if (rootExpirationTime !== NoWork) {
+    requestWork(root, rootExpirationTime);
+  }
+  // Flush any sync work that was scheduled by effects
+  if (!isBatchingUpdates && !isRendering) {
+    performSyncWork();
+  }
+}
+
+
+function commitPassiveHookEffects(finishedWork) {
+  commitHookEffectList(UnmountPassive, NoEffect$1, finishedWork);
+  commitHookEffectList(NoEffect$1, MountPassive, finishedWork);
+}
+
+
+function unstable_wrap(a) {
+  return a
+}
+
+
+
+
+function unstable_scheduleCallback(callback, deprecated_options) {
+  // 将回调任务调度到一个任务队列，并根据优先级和过期时间对任务进行排序
+  var startTime = currentEventStartTime !== -1 ? currentEventStartTime : now();
+  var expirationTime;
+
+  // 1. 根据当前任务的优先级 (currentPriorityLevel) 来确定 expirationTime。
+  // 不同优先级的任务有不同的过期时间
+  if (typeof deprecated_options === 'object' && deprecated_options !== null && typeof deprecated_options.timeout === 'number') {
+    expirationTime = startTime + deprecated_options.timeout;
+  } else {
+    // 首次渲染没有输入deprecated_options参数
+    switch (currentPriorityLevel) {
+      case ImmediatePriority:
+        expirationTime = startTime + IMMEDIATE_PRIORITY_TIMEOUT;
+        break;
+      case UserBlockingPriority:
+        expirationTime = startTime + USER_BLOCKING_PRIORITY;
+        break;
+      case IdlePriority:
+        expirationTime = startTime + IDLE_PRIORITY;
+        break;
+      case LowPriority:
+        expirationTime = startTime + LOW_PRIORITY_TIMEOUT;
+        break;
+      case NormalPriority:
+      default:
+        expirationTime = startTime + NORMAL_PRIORITY_TIMEOUT;
+    }
+  }
+
+  // 2. 创建一个新的回调节点
+  // 这里的callback是commitPassiveEffects.bind(null, root, firstEffect)函数
+  var newNode = {
+    callback: callback,
+    priorityLevel: currentPriorityLevel,
+    expirationTime: expirationTime,
+    next: null,
+    previous: null
+  };
+
+  // 3.将新节点插入到任务队列
+  // 首次渲染为null
+  if (firstCallbackNode === null) {
+    // 建立环形链表
+    firstCallbackNode = newNode.next = newNode.previous = newNode;
+    // 确保宿主函数正在调用中（后台）
+    ensureHostCallbackIsScheduled();
+  } else {
+    // 二更
+    var next = null;
+    var node = firstCallbackNode;
+    do {
+      if (node.expirationTime > expirationTime) {
+        // 当前时间小，优先级大
+        next = node;
+        break;
+      }
+      node = node.next;
+    } while (node !== firstCallbackNode);
+
+    if (next === null) {
+      // No callback with a later expiration was found, which means the new
+      // callback has the latest expiration in the list.
+      next = firstCallbackNode;
+    } else if (next === firstCallbackNode) {
+      // The new callback has the earliest expiration in the entire list.
+      firstCallbackNode = newNode;
+      ensureHostCallbackIsScheduled();
+    }
+
+    var previous = next.previous;
+    previous.next = next.previous = newNode;
+    newNode.next = next;
+    newNode.previous = previous;
+  }
+
+  return newNode;
+}
+
+
+function ensureHostCallbackIsScheduled() {
+  if (isExecutingCallback) {
+    // 如果当前正在执行回调，说明此时不应该再调度新的回调工作，避免递归或重复工作，
+    // 所以直接返回，等待下次的工作处理。
+    return;
+  }
+  // 拿到最新构建的eT
+  var expirationTime = firstCallbackNode.expirationTime;
+
+  // 表示是否已经调度了宿主回调。如果没有调度过，就将其标记为已调度。
+  // 如果已经调度了回调（即存在一个待处理的回调），先取消已有的回调。
+  // 一开始为false
+  if (!isHostCallbackScheduled) {
+    isHostCallbackScheduled = true;
+  } else {
+    // Cancel the existing host callback.
+    cancelHostCallback();
+  }
+
+  // 调用 requestHostCallback 来调度一个新的宿主回调
+  // 并传入 flushWork（回调任务）以及 expirationTime（任务的过期时间）作为参数。
+  requestHostCallback(flushWork, expirationTime);
+}
+
+
+function cancelHostCallback () {
+  _callback = null;
+};
+
+
+function requestHostCallback(callback, absoluteTimeout) {
+  scheduledHostCallback = callback;
+  timeoutTime = absoluteTimeout;
+  if (isFlushingHostCallback || absoluteTimeout < 0) {
+    // 如果正在执行宿主回调（flushing），则直接执行回调，无需等待下一帧。
+    // 如果需要立即执行任务，会通过 postMessage 向主线程发送消息，确保回调尽快执行。
+    port.postMessage(undefined);
+  } else if (!isAnimationFrameScheduled) {
+    // 如果当前没有动画帧（rAF）调度，我们需要手动调度一个新的动画帧。
+    isAnimationFrameScheduled = true;
+    // 调度一个新的动画帧，这个动画帧会触发 animationTick，在下一帧执行。
+    requestAnimationFrameWithTimeout(animationTick);
+  }
+};
+
+
+
+var animationTick = function (rafTime) {
+  if (scheduledHostCallback !== null) {
+    // Eagerly schedule the next animation callback at the beginning of the
+    // frame. If the scheduler queue is not empty at the end of the frame, it
+    // will continue flushing inside that callback. If the queue *is* empty,
+    // then it will exit immediately. Posting the callback at the start of the
+    // frame ensures it's fired within the earliest possible frame. If we
+    // waited until the end of the frame to post the callback, we risk the
+    // browser skipping a frame and not firing the callback until the frame
+    // after that.
+    requestAnimationFrameWithTimeout(animationTick);
+  } else {
+    // No pending work. Exit.
+    isAnimationFrameScheduled = false;
+    return;
+  }
+
+  var nextFrameTime = rafTime - frameDeadline + activeFrameTime;
+  if (nextFrameTime < activeFrameTime && previousFrameTime < activeFrameTime) {
+    if (nextFrameTime < 8) {
+      // Defensive coding. We don't support higher frame rates than 120hz.
+      // If the calculated frame time gets lower than 8, it is probably a bug.
+      nextFrameTime = 8;
+    }
+    // If one frame goes long, then the next one can be short to catch up.
+    // If two frames are short in a row, then that's an indication that we
+    // actually have a higher frame rate than what we're currently optimizing.
+    // We adjust our heuristic dynamically accordingly. For example, if we're
+    // running on 120hz display or 90hz VR display.
+    // Take the max of the two in case one of them was an anomaly due to
+    // missed frame deadlines.
+    activeFrameTime = nextFrameTime < previousFrameTime ? previousFrameTime : nextFrameTime;
+  } else {
+    previousFrameTime = nextFrameTime;
+  }
+  frameDeadline = rafTime + activeFrameTime;
+  if (!isMessageEventScheduled) {
+    isMessageEventScheduled = true;
+    port.postMessage(undefined);
+  }
+};
+
+
+function flushWork(didTimeout) {
+  // Exit right away if we're currently paused
+
+  if (enableSchedulerDebugging && isSchedulerPaused) {
+    return;
+  }
+
+  isExecutingCallback = true;
+  var previousDidTimeout = currentDidTimeout;
+  currentDidTimeout = didTimeout;
+  try {
+    if (didTimeout) {
+      // Flush all the expired callbacks without yielding.
+      while (firstCallbackNode !== null && !(enableSchedulerDebugging && isSchedulerPaused)) {
+        // TODO Wrap in feature flag
+        // Read the current time. Flush all the callbacks that expire at or
+        // earlier than that time. Then read the current time again and repeat.
+        // This optimizes for as few performance.now calls as possible.
+        var currentTime = exports.unstable_now();
+        if (firstCallbackNode.expirationTime <= currentTime) {
+          do {
+            flushFirstCallback();
+          } while (firstCallbackNode !== null && firstCallbackNode.expirationTime <= currentTime && !(enableSchedulerDebugging && isSchedulerPaused));
+          continue;
+        }
+        break;
+      }
+    } else {
+      // Keep flushing callbacks until we run out of time in the frame.
+      if (firstCallbackNode !== null) {
+        do {
+          if (enableSchedulerDebugging && isSchedulerPaused) {
+            break;
+          }
+          flushFirstCallback();
+        } while (firstCallbackNode !== null && !shouldYieldToHost());
+      }
+    }
+  } finally {
+    isExecutingCallback = false;
+    currentDidTimeout = previousDidTimeout;
+    if (firstCallbackNode !== null) {
+      // There's still work remaining. Request another callback.
+      ensureHostCallbackIsScheduled();
+    } else {
+      isHostCallbackScheduled = false;
+    }
+    // Before exiting, flush all the immediate work that was scheduled.
+    flushImmediateWork();
+  }
+}

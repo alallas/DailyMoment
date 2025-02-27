@@ -5938,16 +5938,65 @@
         return sum === 0 ? [0] : reverseCal(sum);
     }
 
+    // function main() {
+    //     console.log(JSON.stringify(solution([1, 1, 1, 1, 1], [1, 0, 1])) === JSON.stringify([1, 0, 0, 0, 0]));
+    //     // console.log(JSON.stringify(solution([1, 0, 0], [1, 1, 1])) === JSON.stringify([1, 1, 0, 1, 1]));
+    //     // console.log(JSON.stringify(solution([0], [0])) === JSON.stringify([0]));
+    // }
+
+    // main();
+
+
+    function solution(N, K, A) {
+        let map = {}
+        A.forEach((item, index) => {
+            if (map[item]) {
+                map[item] += 1
+            } else {
+                map[item] = 1
+            }
+        })
+        let VArr = Object.keys(map).sort((a, b) => b - a)
+        let res = 0
+        let find = 0
+        let index = 0
+        // debugger
+        while (index < VArr.length) {
+            let curV = VArr[index]
+            console.log('curV', curV)
+            if (map[curV] >= K) {
+                find += 1
+                res += find * curV
+
+                map[curV] -= K
+                if (map[curV] === 0) {
+                    VArr.splice(index, 1)
+                }
+                index = 0
+                console.log('VArr', VArr)
+                console.log('map', map)
+            } else {
+                let value = Object.values(map).reduce((prev, item) => prev + item, 0)
+                if (VArr.length === 0 && value === 0) {
+                    break
+                }
+                index++
+            }
+        }
+        if (VArr.length > 0) {
+            return -1
+        }
+        console.log(res)
+        return res;
+    }
+
     function main() {
-        console.log(JSON.stringify(solution([1, 1, 1, 1, 1], [1, 0, 1])) === JSON.stringify([1, 0, 0, 0, 0]));
-        // console.log(JSON.stringify(solution([1, 0, 0], [1, 1, 1])) === JSON.stringify([1, 1, 0, 1, 1]));
-        // console.log(JSON.stringify(solution([0], [0])) === JSON.stringify([0]));
+        console.log(solution(6, 2, [6, 6, 1, 1, 1, 1]) === 11);
+        console.log(solution(4, 2, [5, 5, 5, 5]) === 15);
+        console.log(solution(5, 3, [2, 2, 2, 2, 2]) === -1);
     }
 
     main();
-
-
-
 
 
 
