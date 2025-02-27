@@ -5910,7 +5910,7 @@
         let sum2 = cal(arr2)
         let sum = sum1 + sum2
         console.log(sum)
-        debugger
+        // debugger
         function reverseCal(num) {
             let res = []
             while(num !== 0) {
@@ -5924,24 +5924,23 @@
                     // 给余数加上余数原本应在的范围的(-2, 0)和(0, 2)的最大值2（基数的最大值绝对值），
                     // 使得任意负数的余数总归会回到正数
                     yushu += 2
-
-                    // 余数增加了，那么相应的商也要变化，因为num = (-2) * 商 + 余数
-                    // 重新计算一下商
-                    shan = (num - yushu) / (-2)
                 }
-                res.unshift(yushu)
+                // 余数增加了，那么相应的商也要变化，因为num = (-2) * 商 + 余数
+                // 重新计算一下商
+                shan = (num - yushu) / (-2)
+                res.unshift(yushu === -0 ? 0 : yushu)
                 num = shan
             }
             console.log(res)
             return res
         }
 
-        // return reverseCal(sum);
+        return sum === 0 ? [0] : reverseCal(sum);
     }
 
     function main() {
-        // console.log(JSON.stringify(solution([1, 1, 1, 1, 1], [1, 0, 1])) === JSON.stringify([1, 0, 0, 0, 0]));
-        console.log(JSON.stringify(solution([1, 0, 0], [1, 1, 1])) === JSON.stringify([1, 1, 0, 1, 1]));
+        console.log(JSON.stringify(solution([1, 1, 1, 1, 1], [1, 0, 1])) === JSON.stringify([1, 0, 0, 0, 0]));
+        // console.log(JSON.stringify(solution([1, 0, 0], [1, 1, 1])) === JSON.stringify([1, 1, 0, 1, 1]));
         // console.log(JSON.stringify(solution([0], [0])) === JSON.stringify([0]));
     }
 
