@@ -5990,13 +5990,39 @@
         return res;
     }
 
-    function main() {
-        console.log(solution(6, 2, [6, 6, 1, 1, 1, 1]) === 11);
-        console.log(solution(4, 2, [5, 5, 5, 5]) === 15);
-        console.log(solution(5, 3, [2, 2, 2, 2, 2]) === -1);
-    }
+    // function main() {
+    //     console.log(solution(6, 2, [6, 6, 1, 1, 1, 1]) === 11);
+    //     console.log(solution(4, 2, [5, 5, 5, 5]) === 15);
+    //     console.log(solution(5, 3, [2, 2, 2, 2, 2]) === -1);
+    // }
 
-    main();
+    // main();
+
+
+
+    let n = 0
+    let prev = 0
+    function frameTest(rafTime) {
+        // console.log('rafTime', rafTime)
+        console.log('jiange', rafTime - prev)
+        prev = rafTime
+        if (n <= 100) {
+            requestAnimationFrame(frameTest)
+        } else {
+
+        }
+        n++
+    }
+    requestAnimationFrame(frameTest)
+
+
+
+
+
+
+
+
+
 
 
 
