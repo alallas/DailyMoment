@@ -1,5 +1,6 @@
 // 一些专题类的查找关键字：
 // 上下文：【上下文】
+// eT改为0：【eT改为0】
 
 
 // 一些解释：
@@ -3656,6 +3657,9 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
 
     if (oldProps !== newProps || hasContextChanged()) {
       // 新旧的props不一样，需要更新
+
+      // 如果props是[{}, {}, {}...]这样的，props肯定都不一样，
+      // 因为每次在执行函数组件的时候，相当于重新执行了创建虚拟DOM的函数，props重新指向一个新的内存地址
       didReceiveUpdate = true;
     } else if (updateExpirationTime < renderExpirationTime) {
       // 新旧的props一样，但是fiber本身的优先级，小于链表里面的亟需更新的优先级，不用更新
@@ -3749,7 +3753,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       }
 
 
-      // 注意！！！看这里，二更时，执行这个函数就好了，就直接return了，不走下面的分发
+      // 注意！！！看这里，二更且WIP为root时，执行这个函数就好了，就直接return了，不走下面的分发
       return bailoutOnAlreadyFinishedWork(
         current$$1,
         workInProgress,
@@ -3762,6 +3766,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
     didReceiveUpdate = false;
   }
 
+  // 【eT改为0】
   // 因为当前的fiber正在处理中
   // 把fiber本身的优先级改回为NoWork，最低的
   workInProgress.expirationTime = NoWork;
@@ -4517,6 +4522,28 @@ function reconcileChildren(
   }
 }
 
+
+
+// ChildReconciler里面的子函数目录：
+// reconcileChildFibers
+// reconcileSingleElement
+// reconcileChildrenArray
+
+// createChild
+// placeChild
+// placeSingleChild
+
+// deleteRemainingChildren
+// deleteChild
+
+// useFiber
+// createFiberFromElement
+// createFiberFromTypeAndProps
+
+// shouldConstruct
+// coerceRef
+
+
 function ChildReconciler(shouldTrackSideEffects) {
   function reconcileChildFibers(
     returnFiber,
@@ -4530,11 +4557,7 @@ function ChildReconciler(shouldTrackSideEffects) {
 
     // 1. 用来处理这种情况 <>{[...]}</> 和 <>...</>
     // 在这种情况下，保证newChild除去了空的标签符号，剩下里面的所有孩子
-    var isUnkeyedTopLevelFragment =
-      typeof newChild === "object" &&
-      newChild !== null &&
-      newChild.type === REACT_FRAGMENT_TYPE &&
-      newChild.key === null;
+    var isUnkeyedTopLevelFragment = typeof newChild === 'object' && newChild !== null && newChild.type === REACT_FRAGMENT_TYPE && newChild.key === null;
     if (isUnkeyedTopLevelFragment) {
       newChild = newChild.props.children;
     }
@@ -4643,17 +4666,12 @@ function ChildReconciler(shouldTrackSideEffects) {
     return deleteRemainingChildren(returnFiber, currentFirstChild);
   }
 
-  function reconcileSingleElement(
-    returnFiber,
-    currentFirstChild,
-    element,
-    expirationTime
-  ) {
+  function reconcileSingleElement(returnFiber, currentFirstChild, element, expirationTime) {
     // 这个函数是孩子fiber建设的分发器
 
     // returnFiber是父亲fiber节点
     // currentFirstChild就是父亲fiber节点的替身的大儿子fiber，也就是当前在页面显示出来的还没有更新的节点！！
-    // element就是父亲fiber节点的大儿子fiber，也就是接下来要处理的节点！！
+    // element就是父亲节点的大儿子，是最新的虚拟DOM，也就是接下来要处理的节点！！
     // expirationTime就是全局的nextRenderET（就是root的nextETToWork）
 
     var key = element.key;
@@ -4662,33 +4680,35 @@ function ChildReconciler(shouldTrackSideEffects) {
     // 在首次渲染的时候，currentFirstChild是null，因为替身没有child属性
     // 如果有替身，就用替身，不用再新建一个fiber
     while (child !== null) {
-      // the first item in the list.
+      // 1. 如果key是一样的，那继续操作（目的是拿到孩子们的fiber）
       if (child.key === key) {
-        if (
-          child.tag === Fragment
-            ? element.type === REACT_FRAGMENT_TYPE
-            : child.elementType === element.type
-        ) {
+        if (child.tag === Fragment ? element.type === REACT_FRAGMENT_TYPE : child.elementType === element.type) {
+          // 1.1 如果类型是一样的，继续操作
+
+          // 把其他兄弟姐妹的节点删掉
           deleteRemainingChildren(returnFiber, child.sibling);
-          var existing = useFiber(
-            child,
-            element.type === REACT_FRAGMENT_TYPE
-              ? element.props.children
-              : element.props,
-            expirationTime
-          );
+          
+          // 给当前节点的孩子们创造替身
+          var existing = useFiber(child, element.type === REACT_FRAGMENT_TYPE ? element.props.children : element.props, expirationTime);
+          
+          // 更新亲子关系的指针
           existing.ref = coerceRef(returnFiber, child, element);
           existing.return = returnFiber;
           {
             existing._debugSource = element._source;
             existing._debugOwner = element._owner;
           }
+
+          // 这个existing就是大儿子
           return existing;
+
         } else {
+          // 1.2 如果连类型都不一样，那直接删掉剩下的所有吧（注意，这里只是做个标记而已！）
           deleteRemainingChildren(returnFiber, child);
           break;
         }
       } else {
+        // 2. 如果连key都不一样，那就把本次这个节点直接删掉好了
         deleteChild(returnFiber, child);
       }
       child = child.sibling;
@@ -4967,12 +4987,14 @@ function ChildReconciler(shouldTrackSideEffects) {
     return mixedRef;
   }
 
+  // 给单个孩子节点赋予place（新增）的副作用标识
   function placeSingleChild(newFiber) {
     // placement的标识说明这是一个新建的fiber
     // shouldTrackSideEffects肯定是true
     if (shouldTrackSideEffects && newFiber.alternate === null) {
       newFiber.effectTag = Placement;
     }
+    // 如果是更新，直接return，不走上面的逻辑
     return newFiber;
   }
 
@@ -5131,10 +5153,6 @@ function ChildReconciler(shouldTrackSideEffects) {
     return resultingFirstChild;
   }
 
-
-
-
-
   function createChild(returnFiber, newChild, expirationTime) {
     // newChildren是单个虚拟DOM
 
@@ -5185,8 +5203,6 @@ function ChildReconciler(shouldTrackSideEffects) {
 
     return null;
   }
-
-
 
   // 类似于V15的diff算法！！！
   // 跟fiber在数组中的位置是相关的，这里没有处理删除！！
@@ -5252,16 +5268,13 @@ function ChildReconciler(shouldTrackSideEffects) {
 
   }
 
-
-
-
   function deleteRemainingChildren(returnFiber, currentFirstChild) {
 
     // 从reconcileChildFibers过来的
     // returnFiber是父亲fiber
     // currentFirstChild是父亲fiber的替身的大儿子（应该也是一个fiber），也就是当前页面显示的对应的节点
 
-    // shouldTrackSideEffects为true的话，就不用删掉，因为只是标记
+    // shouldTrackSideEffects为true的话（从更新过来的），就不用删掉，因为只是标记
     // 而这个函数的逻辑是要删掉
     if (!shouldTrackSideEffects) {
       // Noop.
@@ -5276,7 +5289,6 @@ function ChildReconciler(shouldTrackSideEffects) {
     }
     return null;
   }
-
 
   function deleteChild(returnFiber, childToDelete) {
     if (!shouldTrackSideEffects) {
@@ -5304,6 +5316,17 @@ function ChildReconciler(shouldTrackSideEffects) {
 
   }
 
+  function useFiber(fiber, pendingProps, expirationTime) {
+    // 拿到当前的更新过的WIP（拿的是替身的）
+    // 更新阶段，相当于在这里给当前节点的孩子们创造替身
+    var clone = createWorkInProgress(fiber, pendingProps, expirationTime);
+
+    // 我们目前在这里将兄弟设置为null，索引设置为0，因为在返回它之前很容易忘记这样做。
+    // 例如，对于独生子女的情况。
+    clone.index = 0;
+    clone.sibling = null;
+    return clone;
+  }
 
   return reconcileChildFibers;
 }
@@ -5733,8 +5756,6 @@ function renderWithHooks(
   // 4. 函数组件执行完之后，对一些全局变量进行覆盖更新
 
 
-  // We can assume the previous dispatcher is always this one, since we set it
-  // at the beginning of the render phase and there's no re-entrancy.
   ReactCurrentDispatcher$1.current = ContextOnlyDispatcher;
 
 
@@ -5746,7 +5767,7 @@ function renderWithHooks(
   renderedWork.memoizedState = firstWorkInProgressHook;
 
   // （2）首次渲染的时候，WIP的eT改为了NoWork
-  // !在这里把eT改为0，说明已经执行过了
+  // !在这里把【eT改为0】，说明已经执行过了
   renderedWork.expirationTime = remainingExpirationTime;
 
 
@@ -5771,6 +5792,8 @@ function renderWithHooks(
 
 
   // 5. 重置所有的hook相关的全局变量
+  // 把renderExpirationTime也变为0，为什么？？？
+  // 这个renderExpirationTime什么时候会用到
   renderExpirationTime = NoWork;
   currentlyRenderingFiber$1 = null;
 
@@ -5786,6 +5809,7 @@ function renderWithHooks(
     hookTypesUpdateIndexDev = -1;
   }
 
+  // 剩余时间也改为0？？？
   remainingExpirationTime = NoWork;
   componentUpdateQueue = null;
   sideEffectTag = 0;
@@ -5795,12 +5819,6 @@ function renderWithHooks(
   // renderPhaseUpdates = null;
   // numberOfReRenders = 0;
 
-  !!didRenderTooFewHooks
-    ? invariant(
-        false,
-        "Rendered fewer hooks than expected. This may be caused by an accidental early return statement."
-      )
-    : void 0;
 
   // 6. 返回孩子树，函数组件的返回值
   return children;
@@ -5877,9 +5895,7 @@ function mountReducer(reducer, initialArg, init) {
   // 3. 返回一个dispatch函数，
   // 其中的currentlyRenderingFiber$1在执行函数组件之前已经被赋值了currentlyRenderingFiber$1 = workInProgress;
   // 这里为什么不是一个新的state作为第一个参数，setxxx不是都是以一个新的state对象为参数的吗？？？
-  var dispatch = queue.dispatch = dispatchAction.bind(null,
-  // Flow doesn't know this is non-null, but we do.
-  currentlyRenderingFiber$1, queue);
+  var dispatch = queue.dispatch = dispatchAction.bind(null, currentlyRenderingFiber$1, queue);
   return [hook.memoizedState, dispatch];
 }
 
@@ -5908,9 +5924,7 @@ function mountState(initialState) {
 
   // 3. 返回一个dispatch函数，用于到时候改变state
   // 与reducer一模一样
-  var dispatch = queue.dispatch = dispatchAction.bind(null,
-  // Flow doesn't know this is non-null, but we do.
-  currentlyRenderingFiber$1, queue);
+  var dispatch = queue.dispatch = dispatchAction.bind(null, currentlyRenderingFiber$1, queue);
   return [hook.memoizedState, dispatch];
 }
 
@@ -6004,7 +6018,7 @@ function dispatchAction(fiber, queue, action) {
     };
 
 
-    // 4. 把这个新建的对象放到fiber的updateQueue链表里面
+    // 4. 把这个新建的对象放到hook.queue的last属性里面，也就是说last属性是update对象链表
     var _last = queue.last;
     if (_last === null) {
       // 链表里面有无东西，创造环形链表
@@ -6013,11 +6027,11 @@ function dispatchAction(fiber, queue, action) {
       // 判断是否存在环形链表
       var first = _last.next;
       if (first !== null) {
-        // Still circular.
         _update2.next = first;
       }
       _last.next = _update2;
     }
+    // hook的queue的last属性存的是update链表（且是最后一个update）
     queue.last = _update2;
 
 
@@ -13409,7 +13423,7 @@ function updateFunctionComponent(current$$1, workInProgress, Component, nextProp
     }
   }
 
-  // 拿到上下文
+  // 1. 拿到上下文
   var unmaskedContext = getUnmaskedContext(workInProgress, Component, true);
   var context = getMaskedContext(workInProgress, unmaskedContext);
 
@@ -13418,12 +13432,12 @@ function updateFunctionComponent(current$$1, workInProgress, Component, nextProp
   prepareToReadContext(workInProgress, renderExpirationTime);
 
 
-  // 处理这个函数组件本身
+  // 2. 处理这个函数组件本身（renderWithHooks函数）
   {
     ReactCurrentOwner$3.current = workInProgress;
     setCurrentPhase('render');
 
-    // 处理这个函数组件本身
+    // 进入renderWithHooks函数
     nextChildren = renderWithHooks(current$$1, workInProgress, Component, nextProps, context, renderExpirationTime);
     
     
@@ -13436,7 +13450,10 @@ function updateFunctionComponent(current$$1, workInProgress, Component, nextProp
     setCurrentPhase(null);
   }
 
+  // 判断是否需要更新？？？是否需要截止！！
+  // 如果没有收到更新，就直接截止了
   // 在beginWork分发到这里之前，已经给didReceiveUpdate赋值为false
+  // 但是在renderWithHooks过程中，didReceiveUpdate有可能在某个钩子函数中被赋值为true（说明此时的state有变化）
   if (current$$1 !== null && !didReceiveUpdate) {
     bailoutHooks(current$$1, workInProgress, renderExpirationTime);
     return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
@@ -13456,4 +13473,486 @@ function setCurrentPhase(lifeCyclePhase) {
     phase = lifeCyclePhase;
   }
 }
+
+
+
+
+
+// 下面是更新阶段，使用到的钩子
+
+// 首先是一些公用的函数！
+
+function updateHookTypesDev() {
+  {
+    var hookName = currentHookNameInDev;
+
+    if (hookTypesDev !== null) {
+      hookTypesUpdateIndexDev++;
+      if (hookTypesDev[hookTypesUpdateIndexDev] !== hookName) {
+        warnOnHookMismatchInDev(hookName);
+      }
+    }
+  }
+}
+
+
+
+function updateWorkInProgressHook() {
+  // 判断是否有工作中的 hook
+  if (nextWorkInProgressHook !== null) {
+    // ?!什么时候这个有值？？？
+    // 有的话直接用，并提前更新下一个，防止忘记了
+    workInProgressHook = nextWorkInProgressHook;
+    nextWorkInProgressHook = workInProgressHook.next;
+
+    currentHook = nextCurrentHook;
+    nextCurrentHook = currentHook !== null ? currentHook.next : null;
+  } else {
+    // 没有的话，
+    // （在renderWithHooks函数最后，nextWorkInProgressHook被恢复为null）
+
+    // nextCurrentHook在renderWithHooks函数一开始被设置为本函数组件FIber的第一个hook对象
+    // 之后在本函数末尾进行了更新
+    // 因此currentHook每次都被更新为当前的hook
+    currentHook = nextCurrentHook;
+
+    // 重新新建一个hook对象，这个对象只是为了更新阶段使用
+    var newHook = {
+      memoizedState: currentHook.memoizedState,
+
+      baseState: currentHook.baseState,
+      queue: currentHook.queue,
+      baseUpdate: currentHook.baseUpdate,
+
+      next: null
+    };
+
+    // workInProgressHook没有链条的话，说明只有一个链条
+    // 并覆盖一下之前在mount阶段保存的hook链条的第一个hook，也就是firstWorkInProgressHook变量
+    if (workInProgressHook === null) {
+      workInProgressHook = firstWorkInProgressHook = newHook;
+    } else {
+      // 加到链表的最后（线性链表）
+      workInProgressHook = workInProgressHook.next = newHook;
+    }
+
+    // 更新下一个hook
+    nextCurrentHook = currentHook.next;
+  }
+  return workInProgressHook;
+}
+
+
+
+
+// （一）useReducer
+
+function updateReducer(reducer, initialArg, init) {
+
+  // 拿到当前的一个更新类的hook（没有的话就新建，一个钩子一个更新hook）
+  var hook = updateWorkInProgressHook();
+  var queue = hook.queue;
+
+  // 把reducer函数更新一下
+  queue.lastRenderedReducer = reducer;
+
+
+  if (numberOfReRenders > 0) {
+    // ?!什么时候走这里？
+    // 如果当前的hook链条指针有指向某个位置
+    // 这是说明正在处于渲染阶段
+
+    var _dispatch = queue.dispatch;
+
+    // 处理渲染阶段更新
+    if (renderPhaseUpdates !== null) {
+      //renderPhaseUpdates映射表将 queue 与渲染阶段的更新队列联系起来
+      var firstRenderPhaseUpdate = renderPhaseUpdates.get(queue);
+      if (firstRenderPhaseUpdate !== undefined) {
+        renderPhaseUpdates.delete(queue);
+
+        // 拿到以前的state，准备更新覆盖
+        var newState = hook.memoizedState;
+        var update = firstRenderPhaseUpdate;
+        do {
+          // 拿到新的state，如果有多个更新，就一直更新覆盖
+          var _action = update.action;
+          newState = reducer(newState, _action);
+          update = update.next;
+        } while (update !== null);
+
+        // 如果两者不相同，标记一下更新
+        if (!is(newState, hook.memoizedState)) {
+          markWorkInProgressReceivedUpdate();
+        }
+
+        // 更新一下hook.memoizedState的值
+        hook.memoizedState = newState;
+
+        // 如果队列中的最后一个更新就是 baseUpdate，那么将 baseState 设置为新的状态
+        if (hook.baseUpdate === queue.last) {
+          hook.baseState = newState;
+        }
+
+        queue.lastRenderedState = newState;
+
+        return [newState, _dispatch];
+      }
+    }
+
+    return [hook.memoizedState, _dispatch];
+  }
+
+
+  // 能走下面说明：当前的hook链条是第一个（非渲染阶段）
+  // 开始处理update队列，更新state的值
+
+  // 拿到一些属性
+  var last = queue.last;
+  var baseUpdate = hook.baseUpdate;
+  var baseState = hook.baseState;
+
+
+  // 找到第一个update对象（从hook.queue里面的last属性）
+  var first = void 0;
+  if (baseUpdate !== null) {
+    // 说明有未处理的更新。需要处理这些更新。
+    if (last !== null) {
+      // 在dispatchAction里面，hook的queue的last属性存的是update链表（且是最后一个update）
+      // update对象长这样：
+      // var update = {
+      //   expirationTime: renderExpirationTime,
+      //   action: action,
+      //   eagerReducer: null,
+      //   eagerState: null,
+      //   next: null
+      // };
+      last.next = null;
+    }
+    // 先处理baseUpdate链表的第一个update对象
+    first = baseUpdate.next;
+  } else {
+    // 通过最后一个update对象找到第一个update对象
+    first = last !== null ? last.next : null;
+  }
+
+
+  // 找到了第一个update对象，走下面开始处理
+  if (first !== null) {
+    var _newState = baseState;
+    var newBaseState = null;
+    var newBaseUpdate = null;
+    var prevUpdate = baseUpdate;
+    var _update = first;
+    var didSkip = false;
+
+    // 更新队列里面的所有state
+    do {
+      var updateExpirationTime = _update.expirationTime;
+      if (updateExpirationTime < renderExpirationTime) {
+        // 这个更新过期了，直接跳过
+        // 如果是同步更新，那么上面两个时间都是一样的，都是Sync，则不走下面
+        if (!didSkip) {
+          didSkip = true;
+          newBaseUpdate = prevUpdate;
+          newBaseState = _newState;
+        }
+        // 更新剩下的时间（如果更新的时间比较大）
+        if (updateExpirationTime > remainingExpirationTime) {
+          remainingExpirationTime = updateExpirationTime;
+        }
+      } else {
+        // 开始更新
+        if (_update.eagerReducer === reducer) {
+          // 一样的reducer，直接拿到最新的结果
+          _newState = _update.eagerState;
+        } else {
+          var _action2 = _update.action;
+          _newState = reducer(_newState, _action2);
+        }
+      }
+      prevUpdate = _update;
+      _update = _update.next;
+    } while (_update !== null && _update !== first);
+
+    // 不跳过的话都要更新一下两个变量
+    if (!didSkip) {
+      newBaseUpdate = prevUpdate;
+      newBaseState = _newState;
+    }
+
+    // 两者不一样，标记一下didReceiveUpdate，为true
+    if (!is(_newState, hook.memoizedState)) {
+      markWorkInProgressReceivedUpdate();
+    }
+
+    // 更新数据
+    hook.memoizedState = _newState;
+    hook.baseUpdate = newBaseUpdate;
+    hook.baseState = newBaseState;
+
+    queue.lastRenderedState = _newState;
+  }
+
+  // 返回新数据
+  // 然后到时候在页面上（函数组件的最后return那里）拿的是hook.memoizedState的值，
+  // 这个时候的值就已经变化了，他的children就变了，后面在commit阶段会改一下
+  var dispatch = queue.dispatch;
+  return [hook.memoizedState, dispatch];
+}
+
+
+function markWorkInProgressReceivedUpdate() {
+  didReceiveUpdate = true;
+}
+
+
+// （二）useState
+
+function updateState(initialState) {
+  return updateReducer(basicStateReducer, initialState);
+}
+
+
+
+// （三）useEffect
+
+function updateEffect(create, deps) {
+  return updateEffectImpl(Update | Passive, UnmountPassive | MountPassive, create, deps);
+}
+
+
+function updateEffectImpl(fiberEffectTag, hookEffectTag, create, deps) {
+
+  // 从全局拿到当前的一个更新类的hook（没有的话就新建，一个钩子一个更新hook）
+  var hook = updateWorkInProgressHook();
+
+  var nextDeps = deps === undefined ? null : deps;
+
+  var destroy = undefined;
+
+  // 如果当前是更新阶段
+  if (currentHook !== null) {
+
+    // 拿到最新的一个state
+    // （注意：在useEffect专属的hook里面，hook的memoizedState保存的是effect对象链表的最后一个！）
+    var prevEffect = currentHook.memoizedState;
+    destroy = prevEffect.destroy;
+
+    // 如果依赖数组有东西
+    if (nextDeps !== null) {
+      var prevDeps = prevEffect.deps;
+
+      // 看过去的依赖数组和现在的依赖数组有啥变化
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        // 如果相同的话（浅层相同）
+        // 给effect链条加一个无副作用的effect对象，然后直接退出，不改变hook.memoizedState
+        // 进去之后componentUpdateQueue是null
+        pushEffect(NoEffect$1, create, destroy, nextDeps);
+        return;
+      }
+    }
+  }
+
+  // 走到这说明两个依赖之间有不同，需要给hook.memoizedState的链条加上一个有副作用的effect对象
+  sideEffectTag |= fiberEffectTag;
+  hook.memoizedState = pushEffect(hookEffectTag, create, destroy, nextDeps);
+}
+
+
+
+function areHookInputsEqual(nextDeps, prevDeps) {
+  if (prevDeps === null) {
+    return false;
+  }
+
+  // 遍历数组（相当于遍历两个数组）
+  // 但是这里不是深度对比！！！！
+  for (var i = 0; i < prevDeps.length && i < nextDeps.length; i++) {
+    // 逐一比较两个数组的值，如果有一个不同就返回false
+    if (is(nextDeps[i], prevDeps[i])) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+
+
+// ！提问如果想要写一个包装React的useEffect的钩子，是深度对比的，怎么写？
+function deepEffect(fn, deps) {
+  let prevDeps = null
+  let sign = 0
+  return function () {
+    function isObject(obj) {
+      return typeof obj === 'object' && obj !== null
+    }
+    function isDeepEqual(arr1, arr2) {
+      if (!isObject(arr1) || !isObject(arr2)) {
+        if (!isObject(arr1) && !isObject(arr2)) {
+          if (arr1 === arr2) {
+            return true
+          } else {
+            return false
+          }
+        }
+        return false
+      }
+      let valueArr1 = Object.values(arr1)
+      let valueArr2 = Object.values(arr2)
+      let layerIsEqual = true
+      for (let i = 0; i < valueArr1.length && i < valueArr2.length; i++) {
+        let curValue1 = valueArr1[i]
+        let curValue2 = valueArr2[i]
+        let res = isDeepEqual(curValue1, curValue2)
+        if (!res) {
+          layerIsEqual = false
+          break
+        }
+      }
+      return layerIsEqual
+    }
+    if (!isDeepEqual(prevDeps, deps)) {
+      React.useEffect(fn, [sign++])
+    }
+    prevDeps = deps
+  }
+}
+
+// 改进一：
+// 使用useRef(arr)来记录东西，每次这个东西都是放在一个空间，而不是每次都重新新建一个空间
+function useDeepEffect(callback, arr) {
+  if (!Array.isArray(arr)) return new Error('not arr')
+  const pre = useRef(arr)
+  const init = useRef(false)
+  if (!init.current) {
+    callback.apply(this, arguments)
+    init.current = true
+  } else {
+    const isSame = deepDiff(arr, pre.current)
+    if (!isSame) {
+      callback.apply(this, arguments)
+      pre.current = arr
+    }
+  }
+}
+
+
+// 改进二：
+function useDeepEffect(fn, deps) {
+  const prevDeps = useRef(deps);
+  const signRef = useRef(0);
+
+  // 执行深度比较
+  if (!isEqual(deps, prevDeps.current)) {
+    signRef.current += 1;    // 依赖变化时更新签名
+    prevDeps.current = deps; // 保存新依赖
+  }
+
+  useEffect(fn, [signRef.current]); // 依赖项为签名
+}
+
+// 自定义深度比较函数 (备用方案)
+function deepEqual(a, b) {
+  if (a === b) return true;
+
+  if (typeof a !== 'object' || a === null || 
+      typeof b !== 'object' || b === null) {
+    return false;
+  }
+
+  if (Array.isArray(a)) {
+    return Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((val, i) => deepEqual(val, b[i]));
+  }
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+
+  return (
+    keysA.length === keysB.length &&
+    keysA.every(key => 
+      Object.prototype.hasOwnProperty.call(b, key) &&
+      deepEqual(a[key], b[key])
+    )
+  );
+}
+
+
+
+
+
+
+// （四）useMemo
+
+function updateMemo(nextCreate, deps) {
+
+  // 从全局拿到hook，
+  var hook = updateWorkInProgressHook();
+
+  var nextDeps = deps === undefined ? null : deps;
+  var prevState = hook.memoizedState;
+
+  // 拿到过去的值
+  if (prevState !== null) {
+    if (nextDeps !== null) {
+
+      // 之前的hook的MState存的是hook.memoizedState = [nextValue, nextDeps]
+      var prevDeps = prevState[1];
+      // 如果两者完全相同，那就返回原来的值，不执行memo里面的函数（因为这个函数要计算的话非常麻烦）
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        return prevState[0];
+      }
+
+    }
+  }
+  // 不相同的话，执行函数
+  var nextValue = nextCreate();
+  // 保存一个新数组
+  hook.memoizedState = [nextValue, nextDeps];
+  return nextValue;
+}
+
+
+
+
+
+
+// （五）useCallback
+
+
+function updateCallback(callback, deps) {
+
+  // 从全局拿到hook，
+  var hook = updateWorkInProgressHook();
+  var nextDeps = deps === undefined ? null : deps;
+  var prevState = hook.memoizedState;
+
+  // 拿到过去的依赖项和新的依赖项
+  if (prevState !== null) {
+    if (nextDeps !== null) {
+      // 之前保存的是hook.memoizedState = [callback, nextDeps];
+      var prevDeps = prevState[1];
+      // 依赖项相同就复用之前的
+      if (areHookInputsEqual(nextDeps, prevDeps)) {
+        return prevState[0];
+      }
+    }
+  }
+  hook.memoizedState = [callback, nextDeps];
+  return callback;
+}
+
+
+
+// （六）useRef
+
+function updateRef(initialValue) {
+  var hook = updateWorkInProgressHook();
+  // 用回之前的那个对象里面存的东西！
+  return hook.memoizedState;
+}
+
 
