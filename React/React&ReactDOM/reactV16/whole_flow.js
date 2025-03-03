@@ -572,6 +572,7 @@ var UnmountPassive = /*       */ 128; // 组件卸载时执行
 var ReactCurrentDispatcher$1 = ReactSharedInternals.ReactCurrentDispatcher;
 
 // hooks的工具箱！！
+// 首渲阶段的工具箱
 HooksDispatcherOnMountInDEV = {
   readContext: function (context, observedBits) {
     return readContext(context, observedBits);
@@ -645,6 +646,83 @@ HooksDispatcherOnMountInDEV = {
     return mountDebugValue(value, formatterFn);
   },
 };
+
+// 二更阶段的工具箱
+HooksDispatcherOnUpdateInDEV = {
+  readContext: function (context, observedBits) {
+    return readContext(context, observedBits);
+  },
+  useCallback: function (callback, deps) {
+    currentHookNameInDev = 'useCallback';
+    updateHookTypesDev();
+    return updateCallback(callback, deps);
+  },
+  useContext: function (context, observedBits) {
+    currentHookNameInDev = 'useContext';
+    updateHookTypesDev();
+    return readContext(context, observedBits);
+  },
+  useEffect: function (create, deps) {
+    currentHookNameInDev = 'useEffect';
+    updateHookTypesDev();
+    return updateEffect(create, deps);
+  },
+  useImperativeHandle: function (ref, create, deps) {
+    currentHookNameInDev = 'useImperativeHandle';
+    updateHookTypesDev();
+    return updateImperativeHandle(ref, create, deps);
+  },
+  useLayoutEffect: function (create, deps) {
+    currentHookNameInDev = 'useLayoutEffect';
+    updateHookTypesDev();
+    return updateLayoutEffect(create, deps);
+  },
+  useMemo: function (create, deps) {
+    currentHookNameInDev = 'useMemo';
+    updateHookTypesDev();
+    var prevDispatcher = ReactCurrentDispatcher$1.current;
+    ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnUpdateInDEV;
+    try {
+      return updateMemo(create, deps);
+    } finally {
+      ReactCurrentDispatcher$1.current = prevDispatcher;
+    }
+  },
+  useReducer: function (reducer, initialArg, init) {
+    currentHookNameInDev = 'useReducer';
+    updateHookTypesDev();
+    var prevDispatcher = ReactCurrentDispatcher$1.current;
+    ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnUpdateInDEV;
+    try {
+      return updateReducer(reducer, initialArg, init);
+    } finally {
+      ReactCurrentDispatcher$1.current = prevDispatcher;
+    }
+  },
+  useRef: function (initialValue) {
+    currentHookNameInDev = 'useRef';
+    updateHookTypesDev();
+    return updateRef(initialValue);
+  },
+  useState: function (initialState) {
+    currentHookNameInDev = 'useState';
+    updateHookTypesDev();
+    var prevDispatcher = ReactCurrentDispatcher$1.current;
+    ReactCurrentDispatcher$1.current = InvalidNestedHooksDispatcherOnUpdateInDEV;
+    try {
+      return updateState(initialState);
+    } finally {
+      ReactCurrentDispatcher$1.current = prevDispatcher;
+    }
+  },
+  useDebugValue: function (value, formatterFn) {
+    currentHookNameInDev = 'useDebugValue';
+    updateHookTypesDev();
+    return updateDebugValue(value, formatterFn);
+  }
+};
+
+
 
 
 // ？？？？？？？？用来？？
@@ -983,6 +1061,10 @@ var eventQueue = null;
 var fakeNode = document.createElement('react');
 
 
+// 合成事件池子的容量
+var EVENT_POOL_SIZE = 10;
+// 外层事件池子容量
+var CALLBACK_BOOKKEEPING_POOL_SIZE = 10;
 
 
 
@@ -1055,6 +1137,19 @@ var failedRoots = new Set(); // In environments that support WeakMap, we also re
 // It needs to be weak because we do this even for roots that failed to mount.
 // If there is no WeakMap, we won't attempt to do retrying.
 // $FlowIssue
+
+
+
+
+
+
+// 16. 二次更新
+
+var ReactCurrentOwner$3 = ReactSharedInternals.ReactCurrentOwner;
+
+
+
+
 
 
 
@@ -3552,7 +3647,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
   var updateExpirationTime = workInProgress.expirationTime;
 
   // 1. 查看新旧props是否一样，标记是否需要update
-  // current$$1是workInProgress的替身
+  // current$$1是workInProgress的替身，首渲染只有root有替身
   if (current$$1 !== null) {
     // 在首次渲染阶段（首次进入这个函数），props没有值
     // memo是被存起来的上一次的props，pending是新的
@@ -3563,8 +3658,12 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       // 新旧的props不一样，需要更新
       didReceiveUpdate = true;
     } else if (updateExpirationTime < renderExpirationTime) {
-      // ?这里为什么要自己和自己比呢，和之前有一个地方一样，fiber的eT和入参的eT对比，不是一样的么？？？？
       // 新旧的props一样，但是fiber本身的优先级，小于链表里面的亟需更新的优先级，不用更新
+
+      // 首次渲染时，fiber的eT和入参的eT对比，是一样的，不进入这里
+      // 二更且WIP为root时，根节点的workInProgress.expirationTime被恢复为0，
+      // renderExpirationTime是nextRenderExpirationTime，为Sync的值
+
       didReceiveUpdate = false;
 
       switch (workInProgress.tag) {
@@ -3648,24 +3747,29 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
           }
         }
       }
+
+
+      // 注意！！！看这里，二更时，执行这个函数就好了，就直接return了，不走下面的分发
       return bailoutOnAlreadyFinishedWork(
         current$$1,
         workInProgress,
         renderExpirationTime
       );
+
     }
   } else {
-    // 【首次渲染】，新旧props都是null，且fiber本身的和亟需更新的优先级的时间一样
+    // 【首次渲染且非根节点】，新旧props都是null，且fiber本身的和亟需更新的优先级的时间一样
     didReceiveUpdate = false;
   }
 
-  // ?把fiber本身的优先级改回为NoWork，最低的，为什么？？？？？
+  // 因为当前的fiber正在处理中
+  // 把fiber本身的优先级改回为NoWork，最低的
   workInProgress.expirationTime = NoWork;
 
   // 2. 开始分发，哪种类型去哪里
   // 首次渲染是hostRoot类型，去updateHostRoot
   switch (workInProgress.tag) {
-    // 函数组件走这里
+    // 函数组件【首渲染】走这里
     case IndeterminateComponent: {
       var elementType = workInProgress.elementType;
       return mountIndeterminateComponent(
@@ -3685,13 +3789,13 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
         renderExpirationTime
       );
     }
+    // 【二更】时的函数组件走这里：
+    // mountIndeterminateComponent函数里面改了WIP的tag是函数组件还是类组件
     case FunctionComponent: {
       var _Component = workInProgress.type;
       var unresolvedProps = workInProgress.pendingProps;
-      var resolvedProps =
-        workInProgress.elementType === _Component
-          ? unresolvedProps
-          : resolveDefaultProps(_Component, unresolvedProps);
+      var resolvedProps = workInProgress.elementType === _Component ? unresolvedProps : resolveDefaultProps(_Component, unresolvedProps);
+      // renderExpirationTime是nextRenderExpirationTime，为Sync的值
       return updateFunctionComponent(
         current$$1,
         workInProgress,
@@ -4186,7 +4290,7 @@ function processUpdateQueue(
 
   // 首次渲染queue.firstCapturedUpdate为null，不走下面
   // 走到这里，最终resultState为最后的更新好之后的state
-  // 后面再次进入一个update对象的循环，为什么？
+  // ?!后面再次进入一个update对象的循环，为什么？
   // queue对象的firstCapturedUpdate和firstUpdate什么区别？？
   var newFirstCapturedUpdate = null;
   update = queue.firstCapturedUpdate;
@@ -5338,7 +5442,9 @@ function mountIndeterminateComponent(
     typeof value.render === "function" &&
     value.$$typeof === undefined
   ) {
-    // 但是这里为什么改的是父亲的WIP呢？？？？？不应该是孩子的吗
+    // 改的是父亲的WIP，为什么：
+    // 因为孩子树如果是一个对象，且这个对象里面有render函数，说明这个“孩子树”是一个类实例，
+    // 说明Component就是一个类组件，执行函数（初始化类）得到的是一个对象，而非函数
     workInProgress.tag = ClassComponent;
 
     // 重置一下全局变量，相当于任何组件（里面可能用了很多的hook），都用同一个内存的东西来作为全局变量
@@ -5361,6 +5467,7 @@ function mountIndeterminateComponent(
 
     // 4.2把state改变一下：
     workInProgress.memoizedState = value.state !== null && value.state !== undefined ? value.state : null;
+
 
     // 4.3 还没有执行类组件之前，执行getDerivedStateFromProps(nextProps, nextState)生命周期函数
     // 根据新的 props 来计算和更新组件的 state，在初次渲染和每次 props 或 state 变化时都会被调用。
@@ -5399,6 +5506,7 @@ function mountIndeterminateComponent(
       hasContext,
       renderExpirationTime
     );
+    
   } else {
 
     // 第二种情况不是一个类组件，其他任何类型只要不是类组件都归类于FunctionComponent
@@ -5541,6 +5649,9 @@ function renderWithHooks(
   // 1. 首先覆盖一些全局变量
   renderExpirationTime = nextRenderExpirationTime;
   currentlyRenderingFiber$1 = workInProgress;
+  // 使用此变量判断当前是处于渲染还是更新
+  // 第一次执行本函数的时候，在执行完component之后，就把hook链条的第一个hook对象赋予给WIP的memoizedState
+  // 因此这里是第一个hook
   nextCurrentHook = current !== null ? current.memoizedState : null;
 
   {
@@ -5567,16 +5678,13 @@ function renderWithHooks(
   // 也就是在首次渲染阶段，ReactCurrentDispatcher$1.current存的是响应的hooks的工具包
   {
     if (nextCurrentHook !== null) {
+      // 更新阶段，使用update的工具包
       ReactCurrentDispatcher$1.current = HooksDispatcherOnUpdateInDEV;
     } else if (hookTypesDev !== null) {
-      // This dispatcher handles an edge case where a component is updating,
-      // but no stateful hooks have been used.
-      // We want to match the production code behavior (which will use HooksDispatcherOnMount),
-      // but with the extra DEV validation to ensure hooks ordering hasn't changed.
-      // This dispatcher does that.
       ReactCurrentDispatcher$1.current =
         HooksDispatcherOnMountWithHookTypesInDEV;
     } else {
+      // 首次渲染阶段，使用mount的工具包
       ReactCurrentDispatcher$1.current = HooksDispatcherOnMountInDEV;
     }
   }
@@ -5633,17 +5741,24 @@ function renderWithHooks(
   // 拿到已经执行过函数的WIP
   var renderedWork = currentlyRenderingFiber$1;
 
-  // state保存一下hook链条的第一个hook对象
+  // （1）WIP的state保存一下hook链条的第一个hook对象
+  // 也就是说，凡是函数组件，他的state就是hook链条的第一个
   renderedWork.memoizedState = firstWorkInProgressHook;
-  // 首次渲染的时候，WIP的eT改为了NoWork
+
+  // （2）首次渲染的时候，WIP的eT改为了NoWork
+  // !在这里把eT改为0，说明已经执行过了
   renderedWork.expirationTime = remainingExpirationTime;
-  // WIP的更新队列变成了effect的链表
+
+
+  // （3）WIP的更新队列变成了effect的链表
 
   // 注意：函数类型的fiber的updateQueue不是update对象的链表，
   // 而是effect对象的链表componentUpdateQueue（准确来说是effect对象的环形链表的一个口子）
 
-  // 这个时候已经子啊useEffect那里保存好了，然后接下来会在提交阶段的commitPassive那边用到
+  // 这个时候已经在useEffect那里保存好了，然后接下来会在提交阶段的commitPassive那边用到
   renderedWork.updateQueue = componentUpdateQueue;
+
+  // （4）变成有副作用的effectTag，后续会在提交阶段执行副作用并调度
   renderedWork.effectTag |= sideEffectTag;
 
   {
@@ -5835,6 +5950,7 @@ function mountWorkInProgressHook() {
 
 
 function dispatchAction(fiber, queue, action) {
+  // 这个时候的fiber就是currentlyRenderingFiber$1，也就是挂上这个函数的时候（函数.bind）的时候的fiber，也就是当前的函数组件
   // 交互时触发这个函数，因为setXXX就是dispatchAction
 
   var alternate = fiber.alternate;
@@ -5888,7 +6004,7 @@ function dispatchAction(fiber, queue, action) {
     };
 
 
-    // 4. 把这个新建的对象放到链表里面
+    // 4. 把这个新建的对象放到fiber的updateQueue链表里面
     var _last = queue.last;
     if (_last === null) {
       // 链表里面有无东西，创造环形链表
@@ -5910,7 +6026,7 @@ function dispatchAction(fiber, queue, action) {
       // 如果当前 fiber 没有工作，并且它的 alternate（替身）也没有工作，那么可以提前计算状态。
       // 通过执行 reducer，如果新的状态与当前状态相同，就可以直接跳过渲染，避免不必要的渲染。
 
-      // _lastRenderedReducer就是state的新数据
+      // _lastRenderedReducer要么是state的新数据，要么是reducer的函数本身
       var _lastRenderedReducer = queue.lastRenderedReducer;
       if (_lastRenderedReducer !== null) {
         var prevDispatcher = void 0;
@@ -5948,6 +6064,16 @@ function dispatchAction(fiber, queue, action) {
         warnIfNotCurrentlyBatchingInDev(fiber);
       }
     }
+
+    // 重新进入sheduleWork，在requestWork那里因为isBatchingUpdates为true而进不去performWork
+    // if (isBatchingUpdates) {
+    //   if (isUnbatchingUpdates) {
+    //     nextFlushedRoot = root;
+    //     nextFlushedExpirationTime = Sync;
+    //     performWorkOnRoot(root, Sync, false);
+    //   }
+    //   return;
+    // }
     scheduleWork(fiber, _expirationTime);
   }
 }
@@ -6050,8 +6176,9 @@ function mountCallback(callback, deps) {
   var nextDeps = deps === undefined ? null : deps;
   hook.memoizedState = [callback, nextDeps];
 
+  // 相当于只是进来存了一下这个callback，然后又原封不动的返回去了
   // 返回的是第一个函数参数本身的函数
-  // 在这里面不用执行进入的第一个函数，而是等到依赖项发生变化的时候才 
+  // 在这里面不用执行进入的第一个函数，而是等到依赖项发生变化的时候才执行
   return callback;
 }
 
@@ -7479,6 +7606,7 @@ function resetChildExpirationTime(workInProgress, renderTime) {
 
     // 找到这个fiber的孩子
     var child = workInProgress.child;
+    // 找孩子层最大的过期时间作为自己的childExpirationTime
     while (child !== null) {
       // 这里是在看孩子的过期时间大还是孙子的过期时间大
       var childUpdateExpirationTime = child.expirationTime;
@@ -8387,11 +8515,16 @@ function interactiveUpdates$1(fn, a, b) {
   var previousIsBatchingUpdates = isBatchingUpdates;
   isBatchingUpdates = true;
   try {
+    // 执行dispatchEvent函数
     return unstable_runWithPriority(UserBlockingPriority, function () {
       return fn(a, b);
     });
   } finally {
+
+    // 3. 这个时候的previousIsBatchingUpdates就是false了
     isBatchingUpdates = previousIsBatchingUpdates;
+
+    // 可以进入下面，开始同步更新
     if (!isBatchingUpdates && !isRendering) {
       performSyncWork();
     }
@@ -8425,9 +8558,12 @@ function dispatchEvent(topLevelType, nativeEvent) {
 
   // 5. 开始批量更新
   try {
+
     // 传入bookKeeping这个包装对象
     batchedUpdates(handleTopLevel, bookKeeping);
   } finally {
+
+    // 恢复外层合成事件对象，把她放回池子里面
     releaseTopLevelCallbackBookKeeping(bookKeeping);
   }
 }
@@ -8522,7 +8658,8 @@ function getTopLevelCallbackBookKeeping(topLevelType, nativeEvent, targetInst) {
   // topLevelType是原生的事件名称
   // nativeEvent是原生的事件对象
   // targetInst就是fiber
-  // 从池子里面拿出一个事件对象，加一些信息
+
+  // 从池子里面拿出一个【外层合成事件对象】，加一些信息
   if (callbackBookkeepingPool.length) {
     var instance = callbackBookkeepingPool.pop();
     instance.topLevelType = topLevelType;
@@ -8559,17 +8696,17 @@ function batchedUpdates(fn, bookkeeping) {
   try {
     return batchedUpdates$1(fn, bookkeeping);
   } finally {
-    // Here we wait until all updates have propagated, which is important
-    // when using controlled components within layers:
-    // https://github.com/facebook/react/issues/1698
-    // Then we restore state of any controlled component.
+    // isBatching改回为false
     isBatching = false;
+
+    // 例如，如果 React 中某个受控组件的状态发生变化，
+    // 但 React 判断没有必要触及实际的 DOM 更新（例如优化渲染性能），则该组件的状态可能与实际 DOM 不匹配。
+    // 在这种情况下，需要恢复状态以确保它的一致性。
     var controlledComponentsHavePendingUpdates = needsStateRestore();
     if (controlledComponentsHavePendingUpdates) {
-      // If a controlled event was fired, we may need to restore the state of
-      // the DOM node back to the controlled value. This is necessary when React
-      // bails out of the update without touching the DOM.
+      // 下面是用于刷新或强制执行某些交互式更新的过程
       _flushInteractiveUpdatesImpl();
+      // 根据需要恢复组件的状态
       restoreStateIfNeeded();
     }
   }
@@ -8581,14 +8718,18 @@ function batchedUpdates$1(fn, a) {
   // 再改一下标识
   var previousIsBatchingUpdates = isBatchingUpdates;
   isBatchingUpdates = true;
+
   // 执行回调函数，也就是handleTopLevel函数
   try {
     return fn(a);
   } finally {
     isBatchingUpdates = previousIsBatchingUpdates;
 
-    // 首次点击后开始更新时，这里是true，在包裹dispatchEvent函数里面修改了
     // 如果是非批量更新，直接进入同步更新
+
+    // 首次点击后开始更新时，
+    // previousIsBatchingUpdates这里是true，之前在包裹dispatchEvent的函数里面已经修改了
+    // 因此这里进不去
     if (!isBatchingUpdates && !isRendering) {
       performSyncWork();
     }
@@ -8821,9 +8962,12 @@ var SimpleEventPlugin = {
 function getPooledEvent(dispatchConfig, targetInst, nativeEvent, nativeInst) {
   // 这个this就是EventConstructor，也就是SyntheticEvent
   var EventConstructor = this;
+
+  // 从池子里面拿一个合成对象
   // 一开始这个对象的事件池子里面没有东西
   if (EventConstructor.eventPool.length) {
     var instance = EventConstructor.eventPool.pop();
+    // 把类改一下上下文为这个对象，相当于重新new EventConstructor一下，只不过用的是过往的内存
     EventConstructor.call(instance, dispatchConfig, targetInst, nativeEvent, nativeInst);
     return instance;
   }
@@ -9728,7 +9872,7 @@ function runEventsInBatch(events) {
   // 到这一步才开始执行，用户定义的监听函数
   forEachAccumulated(processingEventQueue, executeDispatchesAndReleaseTopLevel);
 
-  // This would be a good time to rethrow if any of the event handlers threw.
+  // 抛出错误
   rethrowCaughtError();
 }
 
@@ -9739,9 +9883,17 @@ var executeDispatchesAndReleaseTopLevel = function (e) {
 };
 
 var executeDispatchesAndRelease = function (event) {
+  // 派发事件（也就是执行listener函数）
   if (event) {
     executeDispatchesInOrder(event);
 
+    // isPersistent() 方法用于判断某个事件对象是否需要在事件处理后保持在内存中，即是否应该“持续”存在。
+    // 默认情况下，事件对象会在事件处理完后被回收（从池中释放），
+    // 但在某些情况下，开发者可能需要保留事件对象（例如，如果你需要异步处理事件中的数据）。
+    // 这时，isPersistent() 会返回 true，表示事件对象应当被持久化，React 不会自动将其释放。
+
+    // 如果是非持久化的话，那要释放事件，将其归还给事件池
+    // 去到releasePooledEvent函数！！！
     if (!event.isPersistent()) {
       event.constructor.release(event);
     }
@@ -9749,14 +9901,21 @@ var executeDispatchesAndRelease = function (event) {
 };
 
 function executeDispatchesInOrder(event) {
+
+  // 拿到保存的listenr函数和fiber对象
   var dispatchListeners = event._dispatchListeners;
   var dispatchInstances = event._dispatchInstances;
+
+  // 验证一下，
   {
     validateEventDispatches(event);
   }
+
   if (Array.isArray(dispatchListeners)) {
     // 如果是一个数组就要按顺序监听
     for (var i = 0; i < dispatchListeners.length; i++) {
+      // 这是停止冒泡的意思
+      // 如果事件的传播被停止（即调用了 event.stopPropagation()），则停止执行后续的事件监听器，跳出循环。
       if (event.isPropagationStopped()) {
         break;
       }
@@ -9767,17 +9926,34 @@ function executeDispatchesInOrder(event) {
     // 执行监听函数
     executeDispatch(event, dispatchListeners, dispatchInstances);
   }
+  // 恢复变量
   event._dispatchListeners = null;
   event._dispatchInstances = null;
 }
 
 
+function validateEventDispatches(event) {
+  var dispatchListeners = event._dispatchListeners;
+  var dispatchInstances = event._dispatchInstances;
+
+  var listenersIsArr = Array.isArray(dispatchListeners);
+  var listenersLen = listenersIsArr ? dispatchListeners.length : dispatchListeners ? 1 : 0;
+
+  var instancesIsArr = Array.isArray(dispatchInstances);
+  var instancesLen = instancesIsArr ? dispatchInstances.length : dispatchInstances ? 1 : 0;
+
+  !(instancesIsArr === listenersIsArr && instancesLen === listenersLen) ? warningWithoutStack$1(false, 'EventPluginUtils: Invalid `event`.') : void 0;
+};
+
+
+
+
 function executeDispatch(event, listener, inst) {
   var type = event.type || 'unknown-event';
-  // 拿到原生DOM
+  // 通过fiber拿到原生DOM，赋予给合成对象的currentTarget
   event.currentTarget = getNodeFromInstance(inst);
 
-  // 开始执行监听函数
+  // 开始执行监听函数，然后才执行里面的listener，也就是setXXXX，这个时候去看钩子函数返回的是什么样的函数（dispatchAction）
   invokeGuardedCallbackAndCatchFirstError(type, listener, undefined, event);
   event.currentTarget = null;
 }
@@ -9794,6 +9970,8 @@ function getNodeFromInstance(inst) {
   // invariant for a missing parent, which is super confusing.
   invariant(false, 'getNodeFromInstance: Invalid argument.');
 }
+
+
 
 
 function invokeGuardedCallbackAndCatchFirstError(name, func, context, a, b, c, d, e, f) {
@@ -9876,7 +10054,7 @@ var invokeGuardedCallbackDev = function (name, func, context, a, b, c, d, e, f) 
   // 5.1 生成唯一的事件类型名
   var evtType = 'react-' + (name ? name : 'invokeguardedcallback');
 
-  // window 监听全局错误，fakeNode 监听自定义事件
+  // window 监听全局错误，fakeNode 监听自定义事件，后面利用【代码式】的事件对象触发callCallback
   window.addEventListener('error', handleWindowError);
   fakeNode.addEventListener(evtType, callCallback, false);
 
@@ -9913,7 +10091,6 @@ var invokeGuardedCallbackDev = function (name, func, context, a, b, c, d, e, f) 
 
 
 
-
 function addEventBubbleListener(element, eventType, listener) {
   element.addEventListener(eventType, listener, false);
 }
@@ -9925,6 +10102,103 @@ function getRawEventName(topLevelType) {
 function unsafeCastDOMTopLevelTypeToString(topLevelType) {
   return topLevelType;
 }
+
+
+
+
+// 回收合成事件
+function releasePooledEvent(event) {
+  var EventConstructor = this;
+  !(event instanceof EventConstructor) ? invariant(false, 'Trying to release an event instance into a pool of a different type.') : void 0;
+  // 走下面的函数SyntheticEvent.prototype.destructor
+  // 自己身上有摧毁自己的函数
+  event.destructor();
+
+  // 首次更新，这个池子是0，把这个对象回收到（放回）池子里面
+  if (EventConstructor.eventPool.length < EVENT_POOL_SIZE) {
+    EventConstructor.eventPool.push(event);
+  }
+}
+
+
+SyntheticEvent.prototype.destructor = function () {
+  var Interface = this.constructor.Interface;
+
+  // 定义一些警告信息
+  for (var propName in Interface) {
+    {
+      Object.defineProperty(this, propName, getPooledWarningPropertyDefinition(propName, Interface[propName]));
+    }
+  }
+
+
+  // 重要！
+  // 把所有相关的属性全部改为null
+  this.dispatchConfig = null;
+  this._targetInst = null;
+  this.nativeEvent = null;
+  this.isDefaultPrevented = functionThatReturnsFalse;
+  this.isPropagationStopped = functionThatReturnsFalse;
+  this._dispatchListeners = null;
+  this._dispatchInstances = null;
+
+
+  {
+    Object.defineProperty(this, 'nativeEvent', getPooledWarningPropertyDefinition('nativeEvent', null));
+    Object.defineProperty(this, 'isDefaultPrevented', getPooledWarningPropertyDefinition('isDefaultPrevented', functionThatReturnsFalse));
+    Object.defineProperty(this, 'isPropagationStopped', getPooledWarningPropertyDefinition('isPropagationStopped', functionThatReturnsFalse));
+    Object.defineProperty(this, 'preventDefault', getPooledWarningPropertyDefinition('preventDefault', function () {}));
+    Object.defineProperty(this, 'stopPropagation', getPooledWarningPropertyDefinition('stopPropagation', function () {}));
+  }
+}
+
+function functionThatReturnsTrue() {
+  return true;
+}
+
+function functionThatReturnsFalse() {
+  return false;
+}
+
+
+
+
+function rethrowCaughtError() {
+  if (hasRethrowError) {
+    var error = rethrowError;
+    hasRethrowError = false;
+    rethrowError = null;
+    throw error;
+  }
+}
+
+
+
+
+
+
+
+function needsStateRestore() {
+  return restoreTarget !== null || restoreQueue !== null;
+}
+
+
+
+
+function releaseTopLevelCallbackBookKeeping(instance) {
+  // 恢复属性
+  instance.topLevelType = null;
+  instance.nativeEvent = null;
+  instance.targetInst = null;
+  instance.ancestors.length = 0;
+  // 放回池子里面
+  if (callbackBookkeepingPool.length < CALLBACK_BOOKKEEPING_POOL_SIZE) {
+    callbackBookkeepingPool.push(instance);
+  }
+}
+
+
+
 
 
 
@@ -10424,10 +10698,12 @@ function unstable_runWithPriority(priorityLevel, eventHandler) {
   try {
     return eventHandler();
   } finally {
+
+    // 然后恢复现状
     currentPriorityLevel = previousPriorityLevel;
     currentEventStartTime = previousEventStartTime;
 
-    // Before exiting, flush all the immediate work that was scheduled.
+    // 处理立即优先级的回调
     flushImmediateWork();
   }
 }
@@ -10645,8 +10921,7 @@ function commitRoot(root, finishedWork) {
   var childExpirationTimeAfterCommit = finishedWork.childExpirationTime;
   var earliestRemainingTimeAfterCommit = childExpirationTimeAfterCommit > updateExpirationTimeAfterCommit ? childExpirationTimeAfterCommit : updateExpirationTimeAfterCommit;
   if (earliestRemainingTimeAfterCommit === NoWork) {
-    // If there's no remaining work, we can clear the set of already failed
-    // error boundaries.
+    // 没有剩余的工作了
     legacyErrorBoundariesThatAlreadyFailed = null;
   }
 
@@ -13009,7 +13284,7 @@ function onCommit(root, expirationTime) {
 
 
 
-// REVIEW - 以下是 交互后 更新时 触发的函数
+// REVIEW - 以下是 交互后 更新时 触发的函数（以函数组件为例子）
 
 
 
@@ -13031,4 +13306,154 @@ function onCommit(root, expirationTime) {
 
 // 上面相当于包裹了一层外表皮，控制是否有交互式挂起任务，然后才【批量】执行dispatchEvent
 // 可以在【事件触发相关】部分找到
+
+
+// 等到事件部分的函数走完，在interactiveUpdates$1函数里面走finally的函数的时候，重新以同步方式进入performWork
+// 然后在beginWork函数里面走下面的bailoutOnAlreadyFinishedWork函数
+
+
+
+function bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime) {
+
+  // 先取消与当前WIP相关的工作计时器。
+  cancelWorkTimer(workInProgress);
+
+  if (current$$1 !== null) {
+    workInProgress.contextDependencies = current$$1.contextDependencies;
+  }
+
+  if (enableProfilerTimer) {
+    stopProfilerTimerIfRunning(workInProgress);
+  }
+
+  // 检查孩子的时间是否小于nextRender的时间
+  var childExpirationTime = workInProgress.childExpirationTime;
+  if (childExpirationTime < renderExpirationTime) {
+    // 如果过期时间小于当前的 renderExpirationTime（nextRender），那么就说明子节点已经完成了。
+    return null;
+  } else {
+    // 当前节点的子节点还有工作需要完成
+    // 二更时，childExpirationTime和renderExpirationTime是一样的，都是SYnc，
+    // ?!什么时候赋予的，在commit的最后，这个还是0呢！
+
+    // 给当前节点的孩子层创造fiber的替身
+    cloneChildFibers(current$$1, workInProgress);
+    return workInProgress.child;
+  }
+}
+
+function cancelWorkTimer(fiber) {
+  if (enableUserTimingAPI) {
+    if (!supportsUserTiming || shouldIgnoreFiber(fiber)) {
+      return;
+    }
+    // Remember we shouldn't complete measurement for this fiber.
+    // Otherwise flamechart will be deep even for small updates.
+    fiber._debugIsCurrentlyTiming = false;
+    clearFiberMark(fiber, null);
+  }
+}
+var clearFiberMark = function (fiber, phase) {
+  var componentName = getComponentName(fiber.type) || 'Unknown';
+  var debugID = fiber._debugID;
+  var isMounted = fiber.alternate !== null;
+  var label = getFiberLabel(componentName, isMounted, phase);
+  var markName = getFiberMarkName(label, debugID);
+  clearMark(markName);
+};
+
+var clearMark = function (markName) {
+  performance.clearMarks(formatMarkName(markName));
+};
+
+
+
+function cloneChildFibers(current$$1, workInProgress) {
+
+  if (workInProgress.child === null) {
+    return;
+  }
+
+  var currentChild = workInProgress.child;
+  // 给大孩子创造一个alternate（复制现有 fiber ）
+  // 返回的是替身，也就是WIP是current的alternate，但里面的属性啥的都更新过了
+  var newChild = createWorkInProgress(currentChild, currentChild.pendingProps, currentChild.expirationTime);
+  workInProgress.child = newChild;
+
+  newChild.return = workInProgress;
+
+  // 给其他孩子也创造一个alternate（复制现有 fiber ）
+  while (currentChild.sibling !== null) {
+    currentChild = currentChild.sibling;
+    newChild = newChild.sibling = createWorkInProgress(currentChild, currentChild.pendingProps, currentChild.expirationTime);
+    newChild.return = workInProgress;
+  }
+  newChild.sibling = null;
+}
+
+
+
+
+
+function updateFunctionComponent(current$$1, workInProgress, Component, nextProps, renderExpirationTime) {
+  
+  {
+    if (workInProgress.type !== workInProgress.elementType) {
+      // Lazy component props can't be validated in createElement
+      // because they're only guaranteed to be resolved here.
+      var innerPropTypes = Component.propTypes;
+      if (innerPropTypes) {
+        checkPropTypes(innerPropTypes, nextProps, // Resolved props
+        'prop', getComponentName(Component), getCurrentFiberStackInDev);
+      }
+    }
+  }
+
+  // 拿到上下文
+  var unmaskedContext = getUnmaskedContext(workInProgress, Component, true);
+  var context = getMaskedContext(workInProgress, unmaskedContext);
+
+
+  var nextChildren = void 0;
+  prepareToReadContext(workInProgress, renderExpirationTime);
+
+
+  // 处理这个函数组件本身
+  {
+    ReactCurrentOwner$3.current = workInProgress;
+    setCurrentPhase('render');
+
+    // 处理这个函数组件本身
+    nextChildren = renderWithHooks(current$$1, workInProgress, Component, nextProps, context, renderExpirationTime);
+    
+    
+    if (debugRenderPhaseSideEffects || debugRenderPhaseSideEffectsForStrictMode && workInProgress.mode & StrictMode) {
+      // Only double-render components with Hooks
+      if (workInProgress.memoizedState !== null) {
+        nextChildren = renderWithHooks(current$$1, workInProgress, Component, nextProps, context, renderExpirationTime);
+      }
+    }
+    setCurrentPhase(null);
+  }
+
+  // 在beginWork分发到这里之前，已经给didReceiveUpdate赋值为false
+  if (current$$1 !== null && !didReceiveUpdate) {
+    bailoutHooks(current$$1, workInProgress, renderExpirationTime);
+    return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
+  }
+
+
+  // React DevTools reads this flag.
+  workInProgress.effectTag |= PerformedWork;
+  reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime);
+  return workInProgress.child;
+}
+
+
+
+function setCurrentPhase(lifeCyclePhase) {
+  {
+    phase = lifeCyclePhase;
+  }
+}
 
