@@ -3658,7 +3658,8 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
     if (oldProps !== newProps || hasContextChanged()) {
       // 新旧的props不一样，需要更新
 
-      // 如果props是[{}, {}, {}...]这样的，props肯定都不一样，
+      // 更新阶段：
+      // 如果props是[{}, {}, {}...]或者{}这样的，props肯定都不一样，
       // 因为每次在执行函数组件的时候，相当于重新执行了创建虚拟DOM的函数，props重新指向一个新的内存地址
       didReceiveUpdate = true;
     } else if (updateExpirationTime < renderExpirationTime) {
@@ -4539,6 +4540,7 @@ function reconcileChildren(
 // useFiber
 // createFiberFromElement
 // createFiberFromTypeAndProps
+// updateSlot
 
 // shouldConstruct
 // coerceRef
@@ -4566,7 +4568,8 @@ function ChildReconciler(shouldTrackSideEffects) {
 
 
     // 2. 开始分发
-    // 2.1如果newChild是只有一个，且是一个对象或者一个数组的形式（数组不在这里面，去到下面的逻辑）
+    // 2.1 如果newChild是只有一个，且是一个对象（虚拟DOM）
+    // （数组不在这里面，去到下面的逻辑，因为数组本身没有$$typeof的属性）
     if (isObject) {
       switch (newChild.$$typeof) {
         case REACT_ELEMENT_TYPE:
@@ -4594,6 +4597,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       }
     }
 
+    // 2.2 文本节点
     if (typeof newChild === "string" || typeof newChild === "number") {
       return placeSingleChild(
         reconcileSingleTextNode(
@@ -4605,6 +4609,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       );
     }
 
+    // 2.3 数组形式
     // 一般来说，一个大的父节点下面肯定有很多个子节点，因此newChild就是一个数组的形式
     // 这里面涉及到diff的算法
     if (isArray(newChild)) {
@@ -4616,6 +4621,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       );
     }
 
+    // 2.4 类数组形式
     if (getIteratorFn(newChild)) {
       return reconcileChildrenIterator(
         returnFiber,
@@ -4625,6 +4631,8 @@ function ChildReconciler(shouldTrackSideEffects) {
       );
     }
 
+
+    // 3. 警告与错误处理
     if (isObject) {
       throwOnInvalidObjectType(returnFiber, newChild);
     }
@@ -4634,6 +4642,8 @@ function ChildReconciler(shouldTrackSideEffects) {
         warnOnFunctionType();
       }
     }
+
+    // 没有子虚拟DOM树（错误处理）
     if (typeof newChild === "undefined" && !isUnkeyedTopLevelFragment) {
       // If the new child is undefined, and the return fiber is a composite
       // component, throw an error. If Fiber return types are disabled,
@@ -4662,7 +4672,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       }
     }
 
-    // Remaining cases are all treated as empty.
+    // 其他情况就视为一个空的元素，要删掉
     return deleteRemainingChildren(returnFiber, currentFirstChild);
   }
 
@@ -4677,7 +4687,8 @@ function ChildReconciler(shouldTrackSideEffects) {
     var key = element.key;
     var child = currentFirstChild;
 
-    // 在首次渲染的时候，currentFirstChild是null，因为替身没有child属性
+
+    // 在首次渲染的时候，currentFirstChild是null
     // 如果有替身，就用替身，不用再新建一个fiber
     while (child !== null) {
       // 1. 如果key是一样的，那继续操作（目的是拿到孩子们的fiber）
@@ -4685,7 +4696,7 @@ function ChildReconciler(shouldTrackSideEffects) {
         if (child.tag === Fragment ? element.type === REACT_FRAGMENT_TYPE : child.elementType === element.type) {
           // 1.1 如果类型是一样的，继续操作
 
-          // 把其他兄弟姐妹的节点删掉
+          // 把其他兄弟姐妹的节点删掉（因为当前是处理单个节点的情况，看函数名字！！）
           deleteRemainingChildren(returnFiber, child.sibling);
           
           // 给当前节点的孩子们创造替身
@@ -4714,6 +4725,11 @@ function ChildReconciler(shouldTrackSideEffects) {
       child = child.sibling;
     }
 
+
+    // 首次渲染（child为null）走下面的
+    // 新旧节点的key（删掉自己）和类型（删掉剩下所有的）都不一样，走下面
+
+
     // 空标签走下面的逻辑
     if (element.type === REACT_FRAGMENT_TYPE) {
       var created = createFiberFromFragment(
@@ -4724,8 +4740,10 @@ function ChildReconciler(shouldTrackSideEffects) {
       );
       created.return = returnFiber;
       return created;
+
     } else {
       // 单纯的函数组件或类组件走下面的逻辑
+
       // 创建一个fiber，然后更新ref属性
       // 给return的属性赋予父亲fiber
       var _created4 = createFiberFromElement(
@@ -4908,17 +4926,6 @@ function ChildReconciler(shouldTrackSideEffects) {
         if (returnFiber.mode & StrictMode) {
           var componentName = getComponentName(returnFiber.type) || "Component";
           if (!didWarnAboutStringRefInStrictMode[componentName]) {
-            warningWithoutStack$1(
-              false,
-              'A string ref, "%s", has been found within a strict mode tree. ' +
-                "String refs are a source of potential bugs and should be avoided. " +
-                "We recommend using createRef() instead." +
-                "\n%s" +
-                "\n\nLearn more about using refs safely here:" +
-                "\nhttps://fb.me/react-strict-mode-string-ref",
-              mixedRef,
-              getStackByFiberInDevAndProd(returnFiber)
-            );
             didWarnAboutStringRefInStrictMode[componentName] = true;
           }
         }
@@ -4929,21 +4936,9 @@ function ChildReconciler(shouldTrackSideEffects) {
         var inst = void 0;
         if (owner) {
           var ownerFiber = owner;
-          !(ownerFiber.tag === ClassComponent)
-            ? invariant(
-                false,
-                "Function components cannot have refs. Did you mean to use React.forwardRef()?"
-              )
-            : void 0;
           inst = ownerFiber.stateNode;
         }
-        !inst
-          ? invariant(
-              false,
-              "Missing owner for string ref %s. This error is likely caused by a bug in React. Please file an issue.",
-              mixedRef
-            )
-          : void 0;
+
         var stringRef = "" + mixedRef;
         // Check if previous string ref matches new string ref
         if (
@@ -4969,19 +4964,7 @@ function ChildReconciler(shouldTrackSideEffects) {
         ref._stringRef = stringRef;
         return ref;
       } else {
-        !(typeof mixedRef === "string")
-          ? invariant(
-              false,
-              "Expected ref to be a function, a string, an object returned by React.createRef(), or null."
-            )
-          : void 0;
-        !element._owner
-          ? invariant(
-              false,
-              "Element ref was specified as a string (%s) but no owner was set. This could happen for one of the following reasons:\n1. You may be adding a ref to a function component\n2. You may be adding a ref to a component that was not created inside a component's render method\n3. You have multiple copies of React loaded\nSee https://fb.me/react-refs-must-have-owner for more information.",
-              mixedRef
-            )
-          : void 0;
+        // 警告信息
       }
     }
     return mixedRef;
@@ -5007,7 +4990,8 @@ function ChildReconciler(shouldTrackSideEffects) {
     // newChildren是数组形式的虚拟DOM
 
     {
-      // 如果类型是REACT_PORTAL_TYPE，需要检查key是否重复，是否是字符串类型
+      // 检查key是否重复，是否是字符串类型
+      // 保证每个子元素的 key 是唯一的，并且不会在子树中产生重复
       var knownKeys = null;
       for (var i = 0; i < newChildren.length; i++) {
         var child = newChildren[i];
@@ -5026,55 +5010,103 @@ function ChildReconciler(shouldTrackSideEffects) {
     var nextOldFiber = null;
 
 
-    // 1. 下面是更新时的逻辑
-    // 经过首次渲染，lastPlacedIndex为0
+    // 0. 总说明，
+    // 总共有三轮循环：
+    // 1）顺序比对
+    // 2）新建节点
+    // 3）map查询式比对
+
+    // 可能发生的情况如下：
+    // （1）顺序比对 + （中途在“key匹配不上”或“旧节点位于右侧”这两个情况停下，oldFiber还有值，进不去第二轮） + map查询式比对
+    // （2）顺序比对 + （key全部匹配上了，旧fiber遍历到底部，newIndx还有值） + 新建节点（结束后newIndx到末尾，进不去第三轮）
+
+
+
+    // 1. 第一轮循环：顺序比对（目的是找key按顺序匹配的情况）
+    // !下面是更新时的逻辑（oldFiber存在）
+    // (经过首次渲染，lastPlacedIndex为0)
     for (; oldFiber !== null && newIdx < newChildren.length; newIdx++) {
 
+      // 1.1 检查位置是否正确，并提前更新下一个需要处理的旧子节点
       if (oldFiber.index > newIdx) {
-        // 遍历第一遍为0
+        // 什么时候会进来这种情况？？？
+        // 说明原本在后面的旧子节点被往前移动了，比如：
+        // 旧的子节点列表（oldFiber 链表）：
+        //   oldFiber1，index = 0
+        //   oldFiber2，index = 2
+        //   oldFiber3，index = 3
+        // 新的子节点列表（newChildren 数组）：
+        //   newChild1，index = 0
+        //   newChild2，index = 1
+        //   newChild3，index = 2
+        //   newChild4，index = 3
+        // 在遍历到第二次的时候，new的index为1，而旧的index为2，匹配不上！
+        // 此时暂停顺序比对，因为此时说明旧的子节点列表中有节点被删除或移动
+
+        // oldFiber设为null，在后面的updateSlot那里会让新节点也输出null，然后直接break退出循环。
+        // 不去第二轮的【新建节点】环节，去到【查找比对】环节，后续需要通过Map处理可能的移动或新增节点。
         nextOldFiber = oldFiber;
         oldFiber = null;
       } else {
+        // 旧节点在左侧时继续处理
+        // 提前更新nextOldFiber
         nextOldFiber = oldFiber.sibling;
       }
-      
+
+      // 1.2 更新每个子节点
+      // （1）尝试复用旧节点（仅仅根据key逐一比对）
       var newFiber = updateSlot(returnFiber, oldFiber, newChildren[newIdx], expirationTime);
+
+      // （2）拿不到可复用的（key不一样）
+      // ?!直接退出循环（剩下的也不管了？），去到【查找比对】环节
+      // 退出循环是因为顺序比对已失效，顺序比对的前提是key按顺序匹配。当遇到key不匹配时，继续顺序比对没有意义。
+      // 后续需要通过Map处理可能的移动或新增节点。
       if (newFiber === null) {
-        // This breaks on empty slots like null children. That's
-        // unfortunate because it triggers the slow path all the time. We need
-        // a better way to communicate whether this was a miss or null,
-        // boolean, undefined, etc.
+        // 这里是key不匹配，直接break，oldFiber还有值，继续在第三轮处理本次的这个旧fiber（使得进不去第二轮循环）
         if (oldFiber === null) {
+          // 两个都为null（是oldFiber.index > newIdx的情况），直接break，oldFiber还有值，继续在第三轮处理本次的这个旧fiber（使得进不去第二轮循环）
           oldFiber = nextOldFiber;
         }
         break;
       }
 
+      // （!删除逻辑!）
+      // （3）删除数组中的旧子节点
+      // 更新时shouldTrackSideEffects为true
       if (shouldTrackSideEffects) {
         if (oldFiber && newFiber.alternate === null) {
-          // We matched the slot, but we didn't reuse the existing fiber, so we
-          // need to delete the existing child.
+          // 新的 Fiber 没有复用旧的 Fiber，此时需要删除旧的子节点
           deleteChild(returnFiber, oldFiber);
         }
       }
 
-      // diff算法，看谁需要移动，谁需要插入，注意：这里面没有处理删除逻辑
+      // （4）移动或新增节点
+      // diff算法，看谁需要移动，谁需要插入（移动和插入都是placement）
+      // 注意：这里面没有处理（!删除逻辑!）
       lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
+
+
+      // 1.3 处理每个孩子相互之间的sibling关系
+      // 构建新Fiber链表
       if (previousNewFiber === null) {
-        // Move out of the loop. This only happens for the first run.
         resultingFirstChild = newFiber;
       } else {
-        // Defer siblings if we're not at the right index for this slot.
-        // I.e. if we had null values before, then we want to defer this
-        // for each null value. However, we also don't want to call updateSlot
-        // with the previous one.
         previousNewFiber.sibling = newFiber;
       }
       previousNewFiber = newFiber;
+
+      // 横向处理下一个oldFiber
       oldFiber = nextOldFiber;
     }
 
 
+
+    // 2. 第二轮循环：处理剩余节点（新旧数组分别多出来的）
+    // 有可能在这里是因为一个数组前半部分的key对了，后面的没对上（旧数组多了 或者 新数组多了）
+
+    // （!删除逻辑!）
+    // 2.1 （旧数组多出来的）删除数组之外的旧节点
+    // 到了新数组的最后，把现有的（旧fiber）以及剩下的都删掉
     if (newIdx === newChildren.length) {
       // We've reached the end of the new children. We can delete the rest.
       deleteRemainingChildren(returnFiber, oldFiber);
@@ -5082,13 +5114,15 @@ function ChildReconciler(shouldTrackSideEffects) {
     }
 
 
-    // 2. 首次渲染走下面
+    // 2.2 （新数组多出来的）剩余的新节点全部插入
+    // 仅当旧Fiber已全部遍历完时触发，
+    // 也就是说，只有在第一轮循环遍历到底部（旧fiber为null）的时候才会进来，这个接着的newIdx就是新数组多出来的节点的起始点
+    // 没有剩余的旧子节点，说明新子节点多于旧子节点，需要遍历剩下的新子节点并创建它们
+    // !首次渲染走下面
     if (oldFiber === null) {
-      // If we don't have any more existing children we can choose a fast path
-      // since the rest will all be insertions.
       for (; newIdx < newChildren.length; newIdx++) {
 
-        // 2.1 首先新建孩子fiber，每个孩子都新建一个fiber。
+        // 2.2.1 首先新建孩子fiber，每个孩子都新建一个fiber。
         // 由此可见当遍历到一个节点的时候，他的所有孩子节点都会相应地建立起fiber
         // 往右探索的时候，这个fiber已经存在了
         var _newFiber = createChild(returnFiber, newChildren[newIdx], expirationTime);
@@ -5096,43 +5130,60 @@ function ChildReconciler(shouldTrackSideEffects) {
           continue;
         }
 
-        // 2.2 然后移动孩子的顺序，都是新增的节点，最后lastPlacedIndex不变，还是为0
+        // 2.2.2 然后移动孩子的顺序，都是新增的节点（没有替身）最后lastPlacedIndex不变，还是为0
         // 这里给fiber加上index的属性，记录位置
         lastPlacedIndex = placeChild(_newFiber, lastPlacedIndex, newIdx);
 
-        // 2.3 赋予sibling的属性
-        // 首次渲染且遍历第一遍这个为null
+        // 2.2.3 继续为previousNewFiber链表新增节点（需要新增的节点）
+        // （在这里赋予sibling的属性）
+        // 首次渲染且遍历第一遍这个previousNewFiber变量为null
+        // 更新时，previousNewFiber为上一轮遍历留下来的，继续往后面添加
         if (previousNewFiber === null) {
-          // 让大儿子变量为_newFiber
+          // 让大儿子变量（resultingFirstChild）为_newFiber
           resultingFirstChild = _newFiber;
         } else {
           // 遍历第二遍往后
           // 在这里赋予sibling的属性
           previousNewFiber.sibling = _newFiber;
         }
+
         // 让当前的fiber进入一个中间变量（等待空间）等待下一次给他赋予sibling的属性，以便连接兄弟
         previousNewFiber = _newFiber;
       }
+
+      // 返回大儿子
       return resultingFirstChild;
     }
 
-    // Add all children to a key map for quick lookups.
+
+    // 3. 第三轮循环：查询式比对（非顺序比对）
+    // 这里是newIdx还有效的时候才会进来，也就是一旦进入了第二轮遍历，就不可能进入第三轮遍历
+
+    // 3.1 存一下孩子fiber和key的关系，返回一个map映射表（以key或index为键， fiber本身为孩子）
+    // 注意，这里存的是 “ 未被第一轮顺序比对处理的所有旧Fiber节点 ” ，也就是存的是需要进行移动的旧节点
     var existingChildren = mapRemainingChildren(returnFiber, oldFiber);
 
-    // Keep scanning and use the map to restore deleted items as moves.
+    // 3.2 使用现有的子节点进行更新
     for (; newIdx < newChildren.length; newIdx++) {
+      // （1）从旧的映射里面找到可复用的节点（不是逐一顺序比对key，而是从映射表里面查找）
       var _newFiber2 = updateFromMap(existingChildren, returnFiber, newIdx, newChildren[newIdx], expirationTime);
+
+      // （2）将已被复用的旧节点从existingChildren中移除，标记副作用，添加到链表
       if (_newFiber2) {
         if (shouldTrackSideEffects) {
           if (_newFiber2.alternate !== null) {
-            // The new fiber is a work in progress, but if there exists a
-            // current, that means that we reused the fiber. We need to delete
-            // it from the child list so that we don't add it to the deletion
-            // list.
+            // 如果这个节点是存在替身的，说明是复用的，删掉existingChildren里面的这个_newFiber2
+            // 因为existingChildren存的是需要删除的节点，可复用的节点不能被删掉了
+            // 怎么复用？alternate指向map找到的旧节点就行，不需要移动（删除 + 新增）
             existingChildren.delete(_newFiber2.key === null ? newIdx : _newFiber2.key);
           }
         }
+
+        // （3）移动或新增节点标记（这个时候的fiber是替身fiber，且属性已经更新（虽然可能属性不变，只是移动了一下节点）
+        // 然后标记副作用，然后后面提交的时候就会更新（实际上如果仅仅只是移动也不太需要更新）
         lastPlacedIndex = placeChild(_newFiber2, lastPlacedIndex, newIdx);
+
+        // （4）继续为previousNewFiber链表新增节点（需要移动的节点）
         if (previousNewFiber === null) {
           resultingFirstChild = _newFiber2;
         } else {
@@ -5142,9 +5193,8 @@ function ChildReconciler(shouldTrackSideEffects) {
       }
     }
 
+    // 3.3 剩下的所有都是没找到复用的节点的，直接删掉（标记删除）吧！
     if (shouldTrackSideEffects) {
-      // Any existing children that weren't consumed above were deleted. We need
-      // to add them to the deletion list.
       existingChildren.forEach(function (child) {
         return deleteChild(returnFiber, child);
       });
@@ -5228,14 +5278,16 @@ function ChildReconciler(shouldTrackSideEffects) {
         // 标记为移动，返回当前的lastPlacedIndex
         newFiber.effectTag = Placement;
         return lastPlacedIndex;
+
       } else {
         // oldIndex >= lastPlacedIndex的情况：
         // 更新首个孩子时，由于lastPlacedIndex为0，所以肯定会走到这里，也就是此时的lastPlacedIndex被更新为这个fiber过去所在的位置
         // 如果发现这个孩子的老位置比过去位于最右边的节点的位置还要大，
-        // 那就说明左边有东西要向右移动到这里，这个节点本身自己则不需要处理，同时更新一下最大的lastPlacedIndex
+        // 那就说明左边有（更远的）东西要向右移动到这里，这个节点本身自己则不需要处理，同时更新一下最大的lastPlacedIndex
         return oldIndex;
       }
     } else {
+
       // 首次渲染走这里
       // 这是插入的情况，都是新增，lastIndex不变，为0
       newFiber.effectTag = Placement;
@@ -5328,6 +5380,178 @@ function ChildReconciler(shouldTrackSideEffects) {
     return clone;
   }
 
+  function updateSlot(returnFiber, oldFiber, newChild, expirationTime) {
+
+    // 入参：
+    // oldFiber是替身WIP的某个儿子（外面在遍历中，oldFiber是替身WIP的任意一个儿子）
+    // newChild是单个虚拟DOM（从newChildren里面用索引拿出来的）
+
+    var key = oldFiber !== null ? oldFiber.key : null;
+
+    // 如果孩子是文本节点
+    if (typeof newChild === 'string' || typeof newChild === 'number') {
+      // 文本节点没有 key
+      if (key !== null) {
+        return null;
+      }
+      return updateTextNode(returnFiber, oldFiber, '' + newChild, expirationTime);
+    }
+
+    // 如果孩子是对象（数组形式的孩子不会走下面，因为数组没有$$typeof属性）
+    if (typeof newChild === 'object' && newChild !== null) {
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE:
+          {
+            // 判断新旧节点的key是否一样
+            if (newChild.key === key) {
+              // 如果新旧节点的key是一样的
+              if (newChild.type === REACT_FRAGMENT_TYPE) {
+                return updateFragment(returnFiber, oldFiber, newChild.props.children, expirationTime, key);
+              }
+              // 更新节点，返回替身（但是把属性都更新了，包括props）
+              return updateElement(returnFiber, oldFiber, newChild, expirationTime);
+            } else {
+              // 新旧节点的key不一样，说明新节点需要重新创建
+              return null;
+            }
+          }
+
+        case REACT_PORTAL_TYPE:
+          {
+            if (newChild.key === key) {
+              return updatePortal(returnFiber, oldFiber, newChild, expirationTime);
+            } else {
+              return null;
+            }
+          }
+      }
+
+      // 如果孩子是数组
+      if (isArray(newChild) || getIteratorFn(newChild)) {
+        // 如果key存在就返回一个null， 因为React不允许数组元素有key
+        if (key !== null) {
+          return null;
+        }
+
+        return updateFragment(returnFiber, oldFiber, newChild, expirationTime, null);
+      }
+
+      throwOnInvalidObjectType(returnFiber, newChild);
+    }
+
+    {
+      if (typeof newChild === 'function') {
+        warnOnFunctionType();
+      }
+    }
+
+    return null;
+  }
+
+  function updateElement(returnFiber, current$$1, element, expirationTime) {
+
+    // current$$1是旧fiber
+    // element是新虚拟DOM
+
+    if (current$$1 !== null && current$$1.elementType === element.type) {
+      // 有替身
+      // 复用替身
+      var existing = useFiber(current$$1, element.props, expirationTime);
+      existing.ref = coerceRef(returnFiber, current$$1, element);
+      existing.return = returnFiber;
+      {
+        existing._debugSource = element._source;
+        existing._debugOwner = element._owner;
+      }
+      // 返回替身fiber
+      return existing;
+    } else {
+      // 没有替身
+      // 新建一个fiber
+      var created = createFiberFromElement(element, returnFiber.mode, expirationTime);
+      created.ref = coerceRef(returnFiber, current$$1, element);
+      created.return = returnFiber;
+      return created;
+    }
+  }
+
+  function updateFragment(returnFiber, current$$1, fragment, expirationTime, key) {
+    if (current$$1 === null || current$$1.tag !== Fragment) {
+      // 没有替身
+      var created = createFiberFromFragment(fragment, returnFiber.mode, expirationTime, key);
+      created.return = returnFiber;
+      return created;
+    } else {
+      // 有替身
+      var existing = useFiber(current$$1, fragment, expirationTime);
+      existing.return = returnFiber;
+      return existing;
+    }
+  }
+
+  function mapRemainingChildren(returnFiber, currentFirstChild) {
+    // Add the remaining children to a temporary map so that we can find them by
+    // keys quickly. Implicit (null) keys get added to this set with their index
+    var existingChildren = new Map();
+
+    var existingChild = currentFirstChild;
+    while (existingChild !== null) {
+      if (existingChild.key !== null) {
+        existingChildren.set(existingChild.key, existingChild);
+      } else {
+        existingChildren.set(existingChild.index, existingChild);
+      }
+      existingChild = existingChild.sibling;
+    }
+    return existingChildren;
+  }
+
+  // 这个很像updateSlot
+  function updateFromMap(existingChildren, returnFiber, newIdx, newChild, expirationTime) {
+
+    // 孩子是文本节点
+    if (typeof newChild === 'string' || typeof newChild === 'number') {
+      var matchedFiber = existingChildren.get(newIdx) || null;
+      return updateTextNode(returnFiber, matchedFiber, '' + newChild, expirationTime);
+    }
+
+    // 孩子是一个虚拟DOM（对象）
+    if (typeof newChild === 'object' && newChild !== null) {
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE:
+          {
+            var _matchedFiber = existingChildren.get(newChild.key === null ? newIdx : newChild.key) || null;
+            if (newChild.type === REACT_FRAGMENT_TYPE) {
+              return updateFragment(returnFiber, _matchedFiber, newChild.props.children, expirationTime, newChild.key);
+            }
+            // 查看是否可以复用旧fiber
+            return updateElement(returnFiber, _matchedFiber, newChild, expirationTime);
+          }
+        case REACT_PORTAL_TYPE:
+          {
+            var _matchedFiber2 = existingChildren.get(newChild.key === null ? newIdx : newChild.key) || null;
+            return updatePortal(returnFiber, _matchedFiber2, newChild, expirationTime);
+          }
+      }
+
+      // 孩子是一个数组
+      if (isArray(newChild) || getIteratorFn(newChild)) {
+        var _matchedFiber3 = existingChildren.get(newIdx) || null;
+        return updateFragment(returnFiber, _matchedFiber3, newChild, expirationTime, null);
+      }
+
+      throwOnInvalidObjectType(returnFiber, newChild);
+    }
+
+    {
+      if (typeof newChild === 'function') {
+        warnOnFunctionType();
+      }
+    }
+
+    return null;
+  }
+
   return reconcileChildFibers;
 }
 
@@ -5335,6 +5559,12 @@ function ChildReconciler(shouldTrackSideEffects) {
 var reconcileChildFibers = ChildReconciler(true);
 var mountChildFibers = ChildReconciler(false);
 
+
+function createFiberFromFragment(elements, mode, expirationTime, key) {
+  var fiber = createFiber(Fragment, elements, key, mode);
+  fiber.expirationTime = expirationTime;
+  return fiber;
+}
 
 function resetHydrationState() {
   // 如果不支持水化就直接退出吧！！
@@ -6346,14 +6576,14 @@ function createContext(defaultValue, calculateChangedBits) {
 // 一个myConetxt.Provider组件，经过beginWork分发之后，来到这里
 function updateContextProvider(current$$1, workInProgress, renderExpirationTime) {
   
-  // 拿到初始化的上下文对象
+  // 1. 拿到初始化的上下文对象
   var providerType = workInProgress.type;
   var context = providerType._context;
 
   var newProps = workInProgress.pendingProps;
   var oldProps = workInProgress.memoizedProps;
 
-  // 拿到这个fiber里面的value
+  // 2. 拿到这个fiber的props里面的value
   var newValue = newProps.value;
 
 
@@ -6366,12 +6596,12 @@ function updateContextProvider(current$$1, workInProgress, renderExpirationTime)
     }
   }
 
-  // 把Provider的value放到全局的context里面
+  // 3. 把Provider的value放到全局的context里面
   // 消费者从哪里拿到，在useContext钩子那边
   pushProvider(workInProgress, newValue);
 
 
-  // 更新的时候，比较两个上下文是否发生了变化
+  // 4. 更新的时候，比较两个上下文是否发生了变化
   if (oldProps !== null) {
     var oldValue = oldProps.value;
     // 检查看上下文是哪里发生了变化
@@ -6384,8 +6614,10 @@ function updateContextProvider(current$$1, workInProgress, renderExpirationTime)
         // 早期退出的函数，告诉 React，当前的工作已经完成，可以跳过不必要的处理
         return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
       }
+
     } else {
       // 上下文已经变化，更新上下文
+      // 一般更新的时候上下文都会变，因为在生成<>创造虚拟DOM的时候，新建了一个对象，是不同的内存地址
       propagateContextChange(workInProgress, context, changedBits, renderExpirationTime);
     }
   }
@@ -6507,7 +6739,8 @@ function readContext(context, observedBits) {
       // 保存到lastContextDependency
       lastContextDependency = contextItem;
 
-      // 同时currentlyRenderingFiber也要保存
+      // 同时当前Fiber也要保存
+      // 再包装一层对象，加上过期时间
       currentlyRenderingFiber.contextDependencies = {
         first: contextItem,
         expirationTime: NoWork
@@ -6523,6 +6756,143 @@ function readContext(context, observedBits) {
 }
 
 
+
+function propagateContextChange(workInProgress, context, changedBits, renderExpirationTime) {
+  
+  // 拿到provider的孩子
+  var fiber = workInProgress.child;
+  if (fiber !== null) {
+    fiber.return = workInProgress;
+  }
+
+  // 开始遍历（将provider的孩子，也就是consumer作为起点，往下遍历）
+  while (fiber !== null) {
+    var nextFiber = void 0;
+
+    // 拿到上下文相关信息
+    var list = fiber.contextDependencies;
+    if (list !== null) {
+      // 提前设置下一个处理的fiber（下面一个节点）
+      nextFiber = fiber.child;
+
+      // 拿到上下文对象
+      var dependency = list.first;
+      while (dependency !== null) {
+
+        // 查看上下文依赖与传入的是否一样
+        if (dependency.context === context && (dependency.observedBits & changedBits) !== 0) {
+          // 如果找到了匹配的依赖，调度更新
+
+          // 为啥类组件就要强制更新？？？
+          if (fiber.tag === ClassComponent) {
+            // 新建一个update对象
+            var update = createUpdate(renderExpirationTime);
+            update.tag = ForceUpdate;
+            // 强制更新
+            enqueueUpdate(fiber, update);
+          }
+
+          // 如果renderExpirationTime比较大，更新一下当前fiber及其替身的时间
+          if (fiber.expirationTime < renderExpirationTime) {
+            fiber.expirationTime = renderExpirationTime;
+          }
+          var alternate = fiber.alternate;
+          if (alternate !== null && alternate.expirationTime < renderExpirationTime) {
+            alternate.expirationTime = renderExpirationTime;
+          }
+
+          // 向上遍历，更新每一个祖先的childExpirationTime时间
+          // 在更新阶段，这里的childExpirationTime全部变为sync了
+          scheduleWorkOnParentPath(fiber.return, renderExpirationTime);
+
+          // 把fiber里面存的这个时间也改一下
+          if (list.expirationTime < renderExpirationTime) {
+            list.expirationTime = renderExpirationTime;
+          }
+
+          break;
+        }
+        // 如果不一样就要一直找下去
+        dependency = dependency.next;
+      }
+
+    } else if (fiber.tag === ContextProvider) {
+      // 如果是一个ContextProvider，往下遍历，啥也不干
+      nextFiber = fiber.type === workInProgress.type ? null : fiber.child;
+
+    } else if (enableSuspenseServerRenderer && fiber.tag === DehydratedSuspenseComponent) {
+      // ssr的逻辑
+      if (fiber.expirationTime < renderExpirationTime) {
+        fiber.expirationTime = renderExpirationTime;
+      }
+      var _alternate = fiber.alternate;
+      if (_alternate !== null && _alternate.expirationTime < renderExpirationTime) {
+        _alternate.expirationTime = renderExpirationTime;
+      }
+      scheduleWorkOnParentPath(fiber, renderExpirationTime);
+      nextFiber = fiber.sibling;
+    } else {
+      // 其他不是provider（fiber没有上下文的那个属性），也不是ssr相关的fiber
+      // 往下遍历
+      nextFiber = fiber.child;
+    }
+
+
+    // 遍历到最底层没有了
+    if (nextFiber !== null) {
+      nextFiber.return = fiber;
+    } else {
+      // 没有孩子，就回到上一个节点
+      nextFiber = fiber;
+
+      while (nextFiber !== null) {
+        // 发现父亲回到了最开始的起点（WIP就是provider）
+        if (nextFiber === workInProgress) {
+          nextFiber = null;
+          break;
+        }
+
+        // 开始从底层节点往右遍历，找到兄弟就退出循环，使得nextFiber变为兄弟
+        var sibling = nextFiber.sibling;
+        if (sibling !== null) {
+          sibling.return = nextFiber.return;
+          // 找兄弟
+          nextFiber = sibling;
+          break;
+        }
+
+        // 连兄弟也没有了，回到父亲，一直回去
+        nextFiber = nextFiber.return;
+      }
+    }
+    // 更新一下当前fiber的值
+    // 因为fiber就是当前的要处理的节点（这里下一个就是处理fiber了）
+    fiber = nextFiber;
+  }
+}
+
+
+
+function scheduleWorkOnParentPath(parent, renderExpirationTime) {
+  // 向上遍历，更新每一个祖先的时间
+  var node = parent;
+  while (node !== null) {
+    var alternate = node.alternate;
+    if (node.childExpirationTime < renderExpirationTime) {
+      node.childExpirationTime = renderExpirationTime;
+      if (alternate !== null && alternate.childExpirationTime < renderExpirationTime) {
+        alternate.childExpirationTime = renderExpirationTime;
+      }
+    } else if (alternate !== null && alternate.childExpirationTime < renderExpirationTime) {
+      alternate.childExpirationTime = renderExpirationTime;
+    } else {
+      // Neither alternate was updated, which means the rest of the
+      // ancestor path already has sufficient priority.
+      break;
+    }
+    node = node.return;
+  }
+}
 
 
 
@@ -6623,8 +6993,7 @@ function getChildHostContext(parentHostContext, type, rootContainerInstance) {
   }
 }
 
-var updatedAncestorInfo = function () {};
-updatedAncestorInfo = function (oldInfo, tag) {
+function updatedAncestorInfo (oldInfo, tag) {
   var ancestorInfo = _assign({}, oldInfo || emptyAncestorInfo);
   var info = { tag: tag };
 
@@ -7307,7 +7676,7 @@ function createInstance(type, props, rootContainerInstance, hostContext, interna
 
 
 
-validateDOMNesting = function (childTag, childText, ancestorInfo) {
+function validateDOMNesting (childTag, childText, ancestorInfo) {
   ancestorInfo = ancestorInfo || emptyAncestorInfo;
   var parentInfo = ancestorInfo.current;
   var parentTag = parentInfo && parentInfo.tag;
@@ -8081,7 +8450,7 @@ function setValueForProperty(node, name, value, isCustomComponentTag) {
     return;
   }
 
-  // 接着开始处理必须要有的props，加到真实的DOM里面
+  // 2. 接着开始处理必须要有的props，加到真实的DOM里面
   var mustUseProperty = propertyInfo.mustUseProperty;
 
   if (mustUseProperty) {
@@ -11614,6 +11983,8 @@ function commitHookEffectList(unmountTag, mountTag, finishedWork) {
 
 
 function commitAllHostEffects() {
+  // 遍历副作用链子
+
   while (nextEffect !== null) {
     // 设置全局变量
     {
@@ -11638,7 +12009,7 @@ function commitAllHostEffects() {
       }
     }
 
-    // 3. 副作用是三个中的一个，操作原生DOM
+    // 3. 副作用是三个（增删改）中的一个，操作原生DOM
     // !可是之前在commitRoot那里不是已经把原生的DOM设置好内容和属性放到父亲的DOM上面了吗
     // 在首次渲染阶段，最底层节点的primaryEffectTag为0，不走下面
     // （首次渲染，函数/类组件下面的原生标签的stateNode已经有完整内容了，只是root对象的containerInfo只有root自己的原生DOM）
@@ -11936,6 +12307,7 @@ function commitWork(current$$1, finishedWork) {
   // true表示该渲染器支持直接修改 DOM 的操作。这适用于大多数基于 DOM 的更新，如直接更新页面上的元素。
   // false则意味着该渲染器不支持直接操作 DOM，可能使用像 协调（reconciliation） 或 虚拟 DOM 来处理状态的变更，具体的更新会以不同的方式提交。
   // 首次渲染为false
+
   if (!supportsMutation) {
     switch (finishedWork.tag) {
       case FunctionComponent:
@@ -11966,18 +12338,19 @@ function commitWork(current$$1, finishedWork) {
         return;
       }
     case HostComponent:
+      // 原生节点
       {
         var instance = finishedWork.stateNode;
         if (instance != null) {
-          // Commit the work prepared earlier.
+          // 拿到新老props对象
           var newProps = finishedWork.memoizedProps;
-          // For hydration we reuse the update path but we treat the oldProps
-          // as the newProps. The updatePayload will contain the real change in
-          // this case.
           var oldProps = current$$1 !== null ? current$$1.memoizedProps : newProps;
           var type = finishedWork.type;
+
+          // 从fiber身上拿到updateQueue数组
           var updatePayload = finishedWork.updateQueue;
           finishedWork.updateQueue = null;
+
           // 提交更新
           if (updatePayload !== null) {
             commitUpdate(instance, updatePayload, type, oldProps, newProps, finishedWork);
@@ -12063,35 +12436,29 @@ function commitWork(current$$1, finishedWork) {
 
 
 function commitUpdate(domElement, updatePayload, type, oldProps, newProps, internalInstanceHandle) {
-  // Update the props handle so that we know which props are the ones with
-  // with current event handlers.
+  // 把props放到真实的DOM上面，用一个随机key
   updateFiberProps(domElement, newProps);
-  // Apply the diff to the DOM node.
+  // 更新props（属性和内容）
   updateProperties(domElement, updatePayload, type, oldProps, newProps);
 }
 
 
 
 function updateProperties(domElement, updatePayload, tag, lastRawProps, nextRawProps) {
-  // Update checked *before* name.
-  // In the middle of an update, it is possible to have multiple checked.
-  // When a checked radio tries to change name, browser makes another radio's checked false.
+  // 针对输入类型的（选项）元素，有额外的更新逻辑
   if (tag === 'input' && nextRawProps.type === 'radio' && nextRawProps.name != null) {
     updateChecked(domElement, nextRawProps);
   }
 
   var wasCustomComponentTag = isCustomComponent(tag, lastRawProps);
   var isCustomComponentTag = isCustomComponent(tag, nextRawProps);
-  // Apply the diff.
+
+  // 更新DOM的属性
   updateDOMProperties(domElement, updatePayload, wasCustomComponentTag, isCustomComponentTag);
 
-  // Ensure that an update gets scheduled if any of the special props
-  // changed.
+  // 针对输入类型的元素
   switch (tag) {
     case 'input':
-      // Update the wrapper around inputs *after* updating props. This has to
-      // happen after `updateDOMProperties`. Otherwise HTML5 input validations
-      // raise warnings and prevent the new value from being assigned.
       updateWrapper(domElement, nextRawProps);
       break;
     case 'textarea':
@@ -13440,7 +13807,6 @@ function updateFunctionComponent(current$$1, workInProgress, Component, nextProp
     // 进入renderWithHooks函数
     nextChildren = renderWithHooks(current$$1, workInProgress, Component, nextProps, context, renderExpirationTime);
     
-    
     if (debugRenderPhaseSideEffects || debugRenderPhaseSideEffectsForStrictMode && workInProgress.mode & StrictMode) {
       // Only double-render components with Hooks
       if (workInProgress.memoizedState !== null) {
@@ -13460,7 +13826,7 @@ function updateFunctionComponent(current$$1, workInProgress, Component, nextProp
   }
 
 
-  // React DevTools reads this flag.
+  // 更新孩子
   workInProgress.effectTag |= PerformedWork;
   reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime);
   return workInProgress.child;
@@ -13953,6 +14319,274 @@ function updateRef(initialValue) {
   var hook = updateWorkInProgressHook();
   // 用回之前的那个对象里面存的东西！
   return hook.memoizedState;
+}
+
+
+
+
+
+function updateHostComponent$1 (current, workInProgress, type, newProps, rootContainerInstance) {
+  // 首先对比新老props
+  var oldProps = current.memoizedProps;
+  if (oldProps === newProps) {
+    return;
+  }
+
+  // 拿到当前的WIP的原生DOM
+  var instance = workInProgress.stateNode;
+  // 拿到当前的上下文
+  var currentHostContext = getHostContext();
+
+  // 收集汇总所有更新数据
+  var updatePayload = prepareUpdate(instance, type, oldProps, newProps, rootContainerInstance, currentHostContext);
+
+  // 把这个数组赋予给updateQueue队列
+  workInProgress.updateQueue = updatePayload;
+
+  // 标识一下这个fiber是需要更新！
+  if (updatePayload) {
+    markUpdate(workInProgress);
+  }
+};
+
+
+function prepareUpdate(domElement, type, oldProps, newProps, rootContainerInstance, hostContext) {
+  {
+    var hostContextDev = hostContext;
+
+    // 如果新旧节点的文本孩子的类型不一样
+    if (typeof newProps.children !== typeof oldProps.children && (typeof newProps.children === 'string' || typeof newProps.children === 'number')) {
+      // 新孩子节点改为字符串类型
+      var string = '' + newProps.children;
+      // 更新标准、元素名称等信息
+      var ownAncestorInfo = updatedAncestorInfo(hostContextDev.ancestorInfo, type);
+      // 检验元素的类型是否合法！
+      validateDOMNesting(null, string, ownAncestorInfo);
+    }
+  }
+
+  return diffProperties(domElement, type, oldProps, newProps, rootContainerInstance);
+}
+
+
+
+
+function diffProperties(domElement, tag, lastRawProps, nextRawProps, rootContainerElement) {
+  // 入参：
+  // domElement：当前的WIP的原生DOM
+  // tag：当前WIP的type属性
+  // lastRawProps：替身的memoizedProps
+  // nextRawProps：当前WIP的pendingProps
+  // rootContainerElement：根节点的root原生DOM节点
+
+  // 1. 检验props是否合法
+  {
+    validatePropertiesInDevelopment(tag, nextRawProps);
+  }
+
+  var updatePayload = null;
+
+  var lastProps = void 0;
+  var nextProps = void 0;
+
+
+  // 2.处理文本输入类的元素，拿到增强好的封装好的一个props对象
+  switch (tag) {
+    case 'input':
+      lastProps = getHostProps(domElement, lastRawProps);
+      nextProps = getHostProps(domElement, nextRawProps);
+      updatePayload = [];
+      break;
+    case 'option':
+      lastProps = getHostProps$1(domElement, lastRawProps);
+      nextProps = getHostProps$1(domElement, nextRawProps);
+      updatePayload = [];
+      break;
+    case 'select':
+      lastProps = getHostProps$2(domElement, lastRawProps);
+      nextProps = getHostProps$2(domElement, nextRawProps);
+      updatePayload = [];
+      break;
+    case 'textarea':
+      lastProps = getHostProps$3(domElement, lastRawProps);
+      nextProps = getHostProps$3(domElement, nextRawProps);
+      updatePayload = [];
+      break;
+    default:
+      lastProps = lastRawProps;
+      nextProps = nextRawProps;
+      if (typeof lastProps.onClick !== 'function' && typeof nextProps.onClick === 'function') {
+        trapClickOnNonInteractiveElement(domElement);
+      }
+      break;
+  }
+
+  // 检验props是否合法
+  assertValidProps(tag, nextProps);
+
+  var propKey = void 0;
+  var styleName = void 0;
+  var styleUpdates = null;
+
+
+  // 3. 处理老props
+  for (propKey in lastProps) {
+    if (nextProps.hasOwnProperty(propKey) || !lastProps.hasOwnProperty(propKey) || lastProps[propKey] == null) {
+      continue;
+    }
+
+    // 如果是style
+    if (propKey === STYLE$1) {
+      // 拿到style对象
+      var lastStyle = lastProps[propKey];
+      for (styleName in lastStyle) {
+        if (lastStyle.hasOwnProperty(styleName)) {
+          // 初始化styleUpdates为空对象
+          if (!styleUpdates) {
+            styleUpdates = {};
+          }
+          // 保存一下style作为key，在styleUpdates对象中
+          styleUpdates[styleName] = '';
+        }
+      }
+    } else if (propKey === DANGEROUSLY_SET_INNER_HTML || propKey === CHILDREN) {
+      // Noop.
+    } else if (propKey === SUPPRESS_CONTENT_EDITABLE_WARNING || propKey === SUPPRESS_HYDRATION_WARNING$1) {
+      // Noop
+    } else if (propKey === AUTOFOCUS) {
+      // Noop. It doesn't work on updates anyway.
+    } else if (registrationNameModules.hasOwnProperty(propKey)) {
+      if (!updatePayload) {
+        updatePayload = [];
+      }
+
+    } else {
+      // 如果是老props的别的属性
+      // 【存】把数据（key及其null）加到updatePayload里面
+      // 说明是需要删除的属性
+      (updatePayload = updatePayload || []).push(propKey, null);
+    }
+  }
+
+
+  // 4. 处理新props
+  for (propKey in nextProps) {
+    // 拿到新老属性的对应的值
+    var nextProp = nextProps[propKey];
+    var lastProp = lastProps != null ? lastProps[propKey] : undefined;
+    if (!nextProps.hasOwnProperty(propKey) || nextProp === lastProp || nextProp == null && lastProp == null) {
+      continue;
+    }
+
+    // 如果是style
+    if (propKey === STYLE$1) {
+      {
+        if (nextProp) {
+          Object.freeze(nextProp);
+        }
+      }
+      if (lastProp) {
+        // 保存老的style的属性到styleUpdates
+        for (styleName in lastProp) {
+          if (lastProp.hasOwnProperty(styleName) && (!nextProp || !nextProp.hasOwnProperty(styleName))) {
+            if (!styleUpdates) {
+              styleUpdates = {};
+            }
+            styleUpdates[styleName] = '';
+          }
+        }
+        // 更新styleUpdates的值为新的style的值
+        for (styleName in nextProp) {
+          if (nextProp.hasOwnProperty(styleName) && lastProp[styleName] !== nextProp[styleName]) {
+            if (!styleUpdates) {
+              styleUpdates = {};
+            }
+            styleUpdates[styleName] = nextProp[styleName];
+          }
+        }
+      } else {
+        // 没有老的props
+        if (!styleUpdates) {
+          if (!updatePayload) {
+            updatePayload = [];
+          }
+          // 【存】此时为style，把数据（key及其对应的styleUpdates对象（此时为null，后续变为一整个对象））加到updatePayload里面
+          updatePayload.push(propKey, styleUpdates);
+        }
+        // 直接把最新的props对象赋予给styleUpdates
+        styleUpdates = nextProp;
+      }
+    } else if (propKey === DANGEROUSLY_SET_INNER_HTML) {
+      var nextHtml = nextProp ? nextProp[HTML] : undefined;
+      var lastHtml = lastProp ? lastProp[HTML] : undefined;
+      if (nextHtml != null) {
+        // 【存】内置html有改变，把数据（key及其内容）加到updatePayload里面
+        if (lastHtml !== nextHtml) {
+          (updatePayload = updatePayload || []).push(propKey, '' + nextHtml);
+        }
+      } else {
+        // inserted already.
+      }
+    } else if (propKey === CHILDREN) {
+      // 如果是孩子
+      // 【存】文本有改变，把数据（key及其内容）加到updatePayload里面
+      if (lastProp !== nextProp && (typeof nextProp === 'string' || typeof nextProp === 'number')) {
+        (updatePayload = updatePayload || []).push(propKey, '' + nextProp);
+      }
+    } else if (propKey === SUPPRESS_CONTENT_EDITABLE_WARNING || propKey === SUPPRESS_HYDRATION_WARNING$1) {
+      // Noop
+    } else if (registrationNameModules.hasOwnProperty(propKey)) {
+      // 如果是事件名称！
+      if (nextProp != null) {
+        if (true && typeof nextProp !== 'function') {
+          warnForInvalidEventListener(propKey, nextProp);
+        }
+        // 保证监听！（到时候在WIP里面拿到props对象，通过propKey取出交互函数）
+        ensureListeningTo(rootContainerElement, propKey);
+      }
+      if (!updatePayload && lastProp !== nextProp) {
+        updatePayload = [];
+      }
+    } else {
+      // 【存】剩下的属性，把数据（key及其内容）加到updatePayload里面
+      (updatePayload = updatePayload || []).push(propKey, nextProp);
+    }
+  }
+
+  // 如果这个styleUpdates存在
+  if (styleUpdates) {
+    // 检验里面的名称是否正确
+    {
+      validateShorthandPropertyCollisionInDev(styleUpdates, nextProps[STYLE$1]);
+    }
+    (updatePayload = updatePayload || []).push(STYLE$1, styleUpdates);
+  }
+
+  // 返回需要更新的数据收集的汇总
+  return updatePayload;
+}
+
+
+function updateDOMProperties(domElement, updatePayload, wasCustomComponentTag, isCustomComponentTag) {
+  // 每两个每两个遍历updatePayload数组，
+  // 这是之前在updateHostComponent$1里面的prepareUpdate里面收集汇总的需要更新的数据
+  for (var i = 0; i < updatePayload.length; i += 2) {
+
+    // 拿到要更新的key和value
+    var propKey = updatePayload[i];
+    var propValue = updatePayload[i + 1];
+
+    // 直接操作原生DOM，修改props值
+    if (propKey === STYLE$1) {
+      setValueForStyles(domElement, propValue);
+    } else if (propKey === DANGEROUSLY_SET_INNER_HTML) {
+      setInnerHTML(domElement, propValue);
+    } else if (propKey === CHILDREN) {
+      setTextContent(domElement, propValue);
+    } else {
+      setValueForProperty(domElement, propKey, propValue, isCustomComponentTag);
+    }
+  }
 }
 
 
