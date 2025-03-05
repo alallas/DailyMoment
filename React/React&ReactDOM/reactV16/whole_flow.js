@@ -1460,17 +1460,7 @@ function validatePropTypes(element) {
 
 function getComponentName(type) {
   if (type == null) {
-    // Host root, text node or just invalid type.
     return null;
-  }
-  {
-    if (typeof type.tag === "number") {
-      warningWithoutStack$1(
-        false,
-        "Received an unexpected object in getComponentName(). " +
-          "This is likely a bug in React. Please file an issue."
-      );
-    }
   }
   if (typeof type === "function") {
     return type.displayName || type.name || null;
@@ -3772,6 +3762,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
   // 把fiber本身的优先级改回为NoWork，最低的
   workInProgress.expirationTime = NoWork;
 
+
   // 2. 开始分发，哪种类型去哪里
   // 首次渲染是hostRoot类型，去updateHostRoot
   switch (workInProgress.tag) {
@@ -3810,6 +3801,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
         renderExpirationTime
       );
     }
+    // 【首渲和二更】时的类组件走这里
     case ClassComponent: {
       var _Component2 = workInProgress.type;
       var _unresolvedProps = workInProgress.pendingProps;
@@ -3817,6 +3809,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
         workInProgress.elementType === _Component2
           ? _unresolvedProps
           : resolveDefaultProps(_Component2, _unresolvedProps);
+
       return updateClassComponent(
         current$$1,
         workInProgress,
@@ -4229,7 +4222,7 @@ function processUpdateQueue(
 ) {
   hasForceUpdate = false;
 
-  // 这里需要保证提升的更新队列，和目前的更新队列不是一个内存地址的对象，为什么？为啥queue对象就不能复用呢？
+  // 这里需要保证替身的更新队列，和目前的更新队列不是一个内存地址的对象，为什么？为啥queue对象就不能复用呢？
   queue = ensureWorkInProgressQueueIsAClone(workInProgress, queue);
 
   // 然后替换掉全局的正在更新中的队列对象
@@ -4237,6 +4230,8 @@ function processUpdateQueue(
     currentlyProcessingQueue = queue;
   }
 
+
+  // 1. 处理普通类型的更新
   // 定义一些本函数才用的变量
   var newBaseState = queue.baseState;
   var newFirstUpdate = null;
@@ -4249,21 +4244,21 @@ function processUpdateQueue(
     // 这里的update存的eT就是root.nextExpirationTimeToWorkOn
     var updateExpirationTime = update.expirationTime;
 
-    // 如果更新的优先级比较小
-    // 首次渲染阶段，两者一样
     if (updateExpirationTime < renderExpirationTime) {
-      // 这次更新的优先级低，需要跳过
+      // 如果更新的过期时间比较小，准备到期了，说明优先级大，那为啥要跳过呢
       if (newFirstUpdate === null) {
         newFirstUpdate = update;
         newBaseState = resultState;
       }
-      // 这个更新还留在链表里面，更新一下newExpirationTime的优先级
+      // 这个更新还留在链表里面
+      // 如果更新的时间更大，更富足，更新newExpirationTime时间
       if (newExpirationTime < updateExpirationTime) {
         newExpirationTime = updateExpirationTime;
       }
+
     } else {
-      // 首次渲染走下面的逻辑
-      // 更新的优先级大，需要进行更新，拿到最新的state，更新resultState变量
+      // 首次渲染走下面的逻辑（updateExpirationTime等于renderExpirationTime）
+      // 更新的优先级小，需要进行更新，拿到最新的state，更新resultState变量
       resultState = getStateFromUpdate(
         workInProgress,
         queue,
@@ -4293,6 +4288,9 @@ function processUpdateQueue(
     // 去到更新队列的下一个update
     update = update.next;
   }
+
+
+  // 2. 处理CapturedUpdate类型的更新
 
   // 首次渲染queue.firstCapturedUpdate为null，不走下面
   // 走到这里，最终resultState为最后的更新好之后的state
@@ -4344,6 +4342,8 @@ function processUpdateQueue(
     update = update.next;
   }
 
+
+  // 3. 更新属性
   // 如果说一整个下来，newFirstUpdate都是空的，意味着每个update的优先级都很高，进入if的第二个逻辑
   // 如果不是的话，因此把lastUpdate变为null，因为队列里面按照应该是没有update对象的！
   if (newFirstUpdate === null) {
@@ -4799,6 +4799,8 @@ function ChildReconciler(shouldTrackSideEffects) {
 
     // 开始定义fiberTag
     // 函数组件下面的判断都走不了，fiberTag只能是IndeterminateComponent
+    // (但是后面在mountIndeterminateComponent的时候会改为FunctionComponent，
+    // 设这个的目的是用来在首渲阶段把处理函数/类组件的逻辑整合到一起）
     // 类组件
     if (typeof type === "function") {
       if (shouldConstruct(type)) {
@@ -5631,13 +5633,13 @@ function mountIndeterminateComponent(
   var props = workInProgress.pendingProps;
 
   // 2. 下面是在找这个函数组件是不是用了context
-  // 获取unmasked的上下文：看一下是否有自己定义的上下文，这个上下文就是一个Unmasked的上下文！
+  // 获取自定义/默认的上下文
   var unmaskedContext = getUnmaskedContext(workInProgress, Component, false);
-  // 获取masked的上下文，包裹一下unmaskedContext
+  // 复制自定义的上下文，进行检查/缓存的工作
   var context = getMaskedContext(workInProgress, unmaskedContext);
 
   // 准备好读取这个全局的上下文数据对象
-  // ?待研究
+  // 看是否需要更新！
   prepareToReadContext(workInProgress, renderExpirationTime);
 
   var value = void 0;
@@ -5689,6 +5691,7 @@ function mountIndeterminateComponent(
 
   // 4. 开始分发（根据孩子树的类型）
   // 第一种情况是是一个类组件
+  // （但是实际上，类组件在beginWork里面分发之后，是去到updateClassComponent了，不会走下面）
   if (
     typeof value === "object" &&
     value !== null &&
@@ -5798,11 +5801,10 @@ function mountIndeterminateComponent(
   }
 }
 
-function getUnmaskedContext(
-  workInProgress,
-  Component,
-  didPushOwnContextIfProvider
-) {
+function getUnmaskedContext(workInProgress, Component, didPushOwnContextIfProvider) {
+
+  // PS：从constructClassInstance过来的didPushOwnContextIfProvider是true
+
   if (didPushOwnContextIfProvider && isContextProvider(Component)) {
     // 如果此刻处理的这个fiber有他自己的上下文，是一个上下文的provider
     // 那么我们用以前的上下文，（已经把她的孩子的上下文存到栈里面了）
@@ -5818,29 +5820,29 @@ function isContextProvider(type) {
 }
 
 function getMaskedContext(workInProgress, unmaskedContext) {
+  // 复制一份自定义的上下文对象（经过检查和缓存的）
   var type = workInProgress.type;
   var contextTypes = type.contextTypes;
-  // 这里在找函数中是不是用了context上下文，不是的话就直接回到原来的函数了
+
+  // 处理一下可以额外提前退出的情况
+  // 1）这里在找函数中是不是用了context上下文，不是的话就直接回到原来的函数了
   if (!contextTypes) {
     return emptyContextObject;
   }
 
-  // Avoid recreating masked context unless unmasked context has changed.
-  // Failing to do this will result in unnecessary calls to componentWillReceiveProps.
-  // This may trigger infinite loops if componentWillReceiveProps calls setState.
+  // 2）如果是类组件，拿到类组件的实例，如果之前保存过在这个属性里面，就直接返回，不用费内存再复制一份
   var instance = workInProgress.stateNode;
-  if (
-    instance &&
-    instance.__reactInternalMemoizedUnmaskedChildContext === unmaskedContext
-  ) {
+  if (instance && instance.__reactInternalMemoizedUnmaskedChildContext === unmaskedContext) {
     return instance.__reactInternalMemoizedMaskedChildContext;
   }
 
+  // 复制一份上下文
   var context = {};
   for (var key in contextTypes) {
     context[key] = unmaskedContext[key];
   }
 
+  // 检查上下文对象的属性的合法性
   {
     var name = getComponentName(type) || "Unknown";
     checkPropTypes(
@@ -5852,30 +5854,39 @@ function getMaskedContext(workInProgress, unmaskedContext) {
     );
   }
 
-  // Cache unmasked context so we can avoid recreating masked context unless necessary.
-  // Context is created before the class component is instantiated so check for instance.
+  // 如果是类组件，缓存这个上下文到类组件实例里面
   if (instance) {
     cacheContext(workInProgress, unmaskedContext, context);
   }
 
+  // 返回复制的自己定义的一个上下文对象
   return context;
 }
 
+
+
 function prepareToReadContext(workInProgress, renderExpirationTime) {
   currentlyRenderingFiber = workInProgress;
+
+  // 重置了当前上下文依赖的状态。
   lastContextDependency = null;
+  // 重置当前渲染过程中与上下文相关的观察状态。
   lastContextWithAllBitsObserved = null;
 
   var currentDependencies = workInProgress.contextDependencies;
+
+  // 检查当前 Fiber 节点是否有上下文依赖
+  // 以及这些上下文的过期时间是否大于或等于 renderExpirationTime（即是否有挂起的更新，即将要处理的更新）
   if (
     currentDependencies !== null &&
     currentDependencies.expirationTime >= renderExpirationTime
   ) {
-    // Context list has a pending update. Mark that this fiber performed work.
+    // 记录当前 Fiber 节点已经收到了一个更新，这样就能确保这个 Fiber 在渲染时能够正确地处理依赖的上下文变化。
+    // 设置didReceivedUpdate为true
     markWorkInProgressReceivedUpdate();
   }
 
-  // Reset the work-in-progress list
+  // 重置当前 Fiber 节点的上下文依赖。
   workInProgress.contextDependencies = null;
 }
 
@@ -6199,10 +6210,8 @@ function dispatchAction(fiber, queue, action) {
 
   var alternate = fiber.alternate;
   if (fiber === currentlyRenderingFiber$1 || alternate !== null && alternate === currentlyRenderingFiber$1) {
-    // 有替身！！
-    // This is a render phase update. Stash it in a lazily-created map of
-    // queue -> linked list of updates. After this render pass, we'll restart
-    // and apply the stashed updates on top of the work-in-progress hook.
+    // 有替身！！更新过一次之后，第二次更新时，就有了替身了
+    // 这个时候仅仅只是创建一个update对象，并不会进去scheduleWork
     didScheduleRenderPhaseUpdate = true;
     var update = {
       expirationTime: renderExpirationTime,
@@ -6211,22 +6220,25 @@ function dispatchAction(fiber, queue, action) {
       eagerState: null,
       next: null
     };
+
     if (renderPhaseUpdates === null) {
       renderPhaseUpdates = new Map();
     }
+    // 保存在一个map映射表里面，WIP的updateQueue为key，update对象为值
     var firstRenderPhaseUpdate = renderPhaseUpdates.get(queue);
     if (firstRenderPhaseUpdate === undefined) {
       renderPhaseUpdates.set(queue, update);
     } else {
-      // Append the update to the end of the list.
+      // 加到update对象链条的末尾
       var lastRenderPhaseUpdate = firstRenderPhaseUpdate;
       while (lastRenderPhaseUpdate.next !== null) {
         lastRenderPhaseUpdate = lastRenderPhaseUpdate.next;
       }
       lastRenderPhaseUpdate.next = update;
     }
+
   } else {
-    // 首次渲染，没有替身fiber
+    // 首次渲染，之后进行的交互，此刻没有替身fiber
 
     // 1. 处理和执行 被动副作用（确保所有挂起的副作用都被执行）
     flushPassiveEffects();
@@ -6588,6 +6600,7 @@ function updateContextProvider(current$$1, workInProgress, renderExpirationTime)
 
 
   // 什么时候会出现下面这种情况？？？？？？
+  // 类组件的propTypes
   {
     var providerPropTypes = workInProgress.type.propTypes;
 
@@ -6642,6 +6655,10 @@ function pushProvider(providerFiber, nextValue) {
 
     // 把provider的数据放到context._currentValue属性里面
     context._currentValue = nextValue;
+
+    // 总结：上面相当于nextValue存到valueCursor的current里面 以及 _context的_currentValue里面
+    // valueCursor存到一个数组里面
+
 
     // 这个属性用来干嘛？？
     {
@@ -6700,20 +6717,15 @@ function useContext(Context, unstable_observedBits) {
 
 
 function readContext(context, observedBits) {
-  {
-    // This warning would fire if you read context inside a Hook like useMemo.
-    // Unlike the class check below, it's not enforced in production for perf.
-    !!isDisallowedContextReadInDEV ? warning$1(false, 'Context can only be read while React is rendering. ' + 'In classes, you can read it in the render method or getDerivedStateFromProps. ' + 'In function components, you can read it directly in the function body, but not ' + 'inside Hooks like useReducer() or useMemo().') : void 0;
-  }
 
   // lastContextWithAllBitsObserved初始为null，在prepareToReadContext函数里面也将其变为null
   if (lastContextWithAllBitsObserved === context) {
-    // Nothing to do. We already observe everything in this context.
+    // Nothing to do
   } else if (observedBits === false || observedBits === 0) {
     // Do not observe any updates.
   } else {
 
-    // 这个变量用来干嘛？？？？
+    // !这个变量用来干嘛？？？？
     var resolvedObservedBits = void 0; // Avoid deopting on observable arguments or heterogeneous types.
     if (typeof observedBits !== 'number' || observedBits === maxSigned31BitInt) {
       // Observe all updates.
@@ -6733,8 +6745,6 @@ function readContext(context, observedBits) {
 
     // 把受封的上下文对象保存在全局的一个链条里面
     if (lastContextDependency === null) {
-      !(currentlyRenderingFiber !== null) ? invariant(false, 'Context can only be read while React is rendering. In classes, you can read it in the render method or getDerivedStateFromProps. In function components, you can read it directly in the function body, but not inside Hooks like useReducer() or useMemo().') : void 0;
-
       // 首次渲染进入
       // 保存到lastContextDependency
       lastContextDependency = contextItem;
@@ -6746,7 +6756,6 @@ function readContext(context, observedBits) {
         expirationTime: NoWork
       };
     } else {
-      // Append a new context item.
       lastContextDependency = lastContextDependency.next = contextItem;
     }
   }
@@ -6896,10 +6905,537 @@ function scheduleWorkOnParentPath(parent, renderExpirationTime) {
 
 
 
+// REVIEW - 类组件经过beginWork分发来到updateClassComponent！！！！
+
+
+function updateClassComponent(current$$1, workInProgress, Component, nextProps, renderExpirationTime) {
+  // 入参：
+  // current$$1是WIP的替身
+  // Component是类组件的对象
+  // nextProps是WIP的pendingProps
+  // renderExpirationTime是全局的nextRenderExpirationTime
+
+
+  // 1. 检查异常情况
+  // 检查组件是否是惰性加载组件
+  // 如果组件有 propTypes，就会使用 checkPropTypes 来检查 nextProps
+  {
+    if (workInProgress.type !== workInProgress.elementType) {
+      // Lazy component props can't be validated in createElement
+      // because they're only guaranteed to be resolved here.
+      var innerPropTypes = Component.propTypes;
+      if (innerPropTypes) {
+        checkPropTypes(innerPropTypes, nextProps, // Resolved props
+        'prop', getComponentName(Component), getCurrentFiberStackInDev);
+      }
+    }
+  }
+
+
+  // 2. 处理上下文相关
+  // 整合上下文，如果是类组件的话（不是<Conetxt.Provider>），isContextProvider(Component)为false
+  var hasContext = void 0;
+  if (isContextProvider(Component)) {
+    hasContext = true;
+    pushContextProvider(workInProgress);
+  } else {
+    hasContext = false;
+  }
+
+  // 查看上下文是否存在，且是否需要更新（要的话标记一下didReceivedUpdate的标识）
+  prepareToReadContext(workInProgress, renderExpirationTime);
+
+
+  // 3. 执行类组件constructor（初始化类组件）
+  // 拿到这个组件的实例
+  var instance = workInProgress.stateNode;
+  var shouldUpdate = void 0;
+  if (instance === null) {
+    // 拿不到组件的实例，该实例尚未创建
+
+    if (current$$1 !== null) {
+      // 说明这个时候是二更阶段，这个组件已经被渲染过，但是可能被置为不一样的状态，需要重新挂载
+      // 重置一些变量，标记为需要新增的副作用
+      current$$1.alternate = null;
+      workInProgress.alternate = null;
+      // Since this is conceptually a new fiber, schedule a Placement effect
+      workInProgress.effectTag |= Placement;
+    }
+
+    // 首次渲染走这里，需要创造组件实例（处理上下文，创造实例，保存信息）
+    constructClassInstance(workInProgress, Component, nextProps, renderExpirationTime);
+    // 并且挂载这个实例（更新state数据（update队列批量更新），执行生命周期函数）
+    mountClassInstance(workInProgress, Component, nextProps, renderExpirationTime);
+
+    // 这个标识类组件是否应该执行render函数
+    shouldUpdate = true;
+
+  } else if (current$$1 === null) {
+    // 能够拿到组件实例，但是没有替身，说明是第一次挂载，
+    // 需要恢复挂载
+    shouldUpdate = resumeMountClassInstance(workInProgress, Component, nextProps, renderExpirationTime);
+  } else {
+    // 剩下的是能够拿到组件实例，又有替身的情况，这是普通的更新阶段
+    shouldUpdate = updateClassInstance(current$$1, workInProgress, Component, nextProps, renderExpirationTime);
+  }
+
+  // 4. 执行类组件的render方法，拿到大儿子
+  var nextUnitOfWork = finishClassComponent(current$$1, workInProgress, Component, shouldUpdate, hasContext, renderExpirationTime)
+
+  // 5. 返回大儿子，也就是执行render方法后返回的东西
+  return nextUnitOfWork;
+}
 
 
 
-// REVIEW - 下面是经过beginWork分发后来到原生的普通的DOM节点的更新函数
+
+
+function constructClassInstance(workInProgress, ctor, props, renderExpirationTime) {
+  // 入参：
+  // ctor是类组件
+  // nextProps是WIP的pendingProps
+
+
+  // 1. 处理上下文
+  // 拿到上下文相关变量
+  var isLegacyContextConsumer = false;
+  var unmaskedContext = emptyContextObject;
+  var context = null;
+  var contextType = ctor.contextType;
+
+  // 检测上下文对象contextType的合理性
+  {
+    if ('contextType' in ctor) {
+      var isValid =
+      // Allow null for conditional declaration
+      contextType === null || contextType !== undefined && contextType.$$typeof === REACT_CONTEXT_TYPE && contextType._context === undefined; // Not a <Context.Consumer>
+
+      if (!isValid && !didWarnAboutInvalidateContextType.has(ctor)) {
+        didWarnAboutInvalidateContextType.add(ctor);
+
+        var addendum = '';
+        if (contextType === undefined) {
+          addendum = ' However, it is set to undefined. ' + 'This can be caused by a typo or by mixing up named and default imports. ' + 'This can also happen due to a circular dependency, so ' + 'try moving the createContext() call to a separate file.';
+        } else if (typeof contextType !== 'object') {
+          addendum = ' However, it is set to a ' + typeof contextType + '.';
+        } else if (contextType.$$typeof === REACT_PROVIDER_TYPE) {
+          addendum = ' Did you accidentally pass the Context.Provider instead?';
+        } else if (contextType._context !== undefined) {
+          // <Context.Consumer>
+          addendum = ' Did you accidentally pass the Context.Consumer instead?';
+        } else {
+          addendum = ' However, it is set to an object with keys {' + Object.keys(contextType).join(', ') + '}.';
+        }
+        warningWithoutStack$1(false, '%s defines an invalid contextType. ' + 'contextType should point to the Context object returned by React.createContext().%s', getComponentName(ctor) || 'Component', addendum);
+      }
+    }
+  }
+
+  // 读取上下文
+  if (typeof contextType === 'object' && contextType !== null) {
+    // （consumer的情况）有这个属性的话，直接读取里面的对象，同时把这个对象保存到全局
+    context = readContext(contextType);
+
+  } else {
+    // 拿到自定义（如这个是一个consumer（有contextTypes属性））/默认的上下文
+    unmaskedContext = getUnmaskedContext(workInProgress, ctor, true);
+    // 复制上下文，进行缓存/检查
+    var contextTypes = ctor.contextTypes;
+    isLegacyContextConsumer = contextTypes !== null && contextTypes !== undefined;
+    context = isLegacyContextConsumer ? getMaskedContext(workInProgress, unmaskedContext) : emptyContextObject;
+  }
+
+
+  // 2. 初始化类组件，拿到实例和state，保存state
+  {
+    if (debugRenderPhaseSideEffects || debugRenderPhaseSideEffectsForStrictMode && workInProgress.mode & StrictMode) {
+      new ctor(props, context); // eslint-disable-line no-new
+    }
+  }
+
+  var instance = new ctor(props, context);
+  var state = workInProgress.memoizedState = instance.state !== null && instance.state !== undefined ? instance.state : null;
+  
+  // 保存一些信息（包括实例和fiber之间的相互引用）
+  adoptClassInstance(workInProgress, instance);
+
+
+  // 3. 处理生命周期函数（在执行render方法之前）
+  // 检查生命函数名称是否正确
+  {
+    if (typeof ctor.getDerivedStateFromProps === 'function' && state === null) {
+      var componentName = getComponentName(ctor) || 'Component';
+      if (!didWarnAboutUninitializedState.has(componentName)) {
+        didWarnAboutUninitializedState.add(componentName);
+        warningWithoutStack$1(false, '`%s` uses `getDerivedStateFromProps` but its initial state is ' + '%s. This is not recommended. Instead, define the initial state by ' + 'assigning an object to `this.state` in the constructor of `%s`. ' + 'This ensures that `getDerivedStateFromProps` arguments have a consistent shape.', componentName, instance.state === null ? 'null' : 'undefined', componentName);
+      }
+    }
+
+    if (typeof ctor.getDerivedStateFromProps === 'function' || typeof instance.getSnapshotBeforeUpdate === 'function') {
+      var foundWillMountName = null;
+      var foundWillReceivePropsName = null;
+      var foundWillUpdateName = null;
+      if (typeof instance.componentWillMount === 'function' && instance.componentWillMount.__suppressDeprecationWarning !== true) {
+        foundWillMountName = 'componentWillMount';
+      } else if (typeof instance.UNSAFE_componentWillMount === 'function') {
+        foundWillMountName = 'UNSAFE_componentWillMount';
+      }
+      if (typeof instance.componentWillReceiveProps === 'function' && instance.componentWillReceiveProps.__suppressDeprecationWarning !== true) {
+        foundWillReceivePropsName = 'componentWillReceiveProps';
+      } else if (typeof instance.UNSAFE_componentWillReceiveProps === 'function') {
+        foundWillReceivePropsName = 'UNSAFE_componentWillReceiveProps';
+      }
+      if (typeof instance.componentWillUpdate === 'function' && instance.componentWillUpdate.__suppressDeprecationWarning !== true) {
+        foundWillUpdateName = 'componentWillUpdate';
+      } else if (typeof instance.UNSAFE_componentWillUpdate === 'function') {
+        foundWillUpdateName = 'UNSAFE_componentWillUpdate';
+      }
+      if (foundWillMountName !== null || foundWillReceivePropsName !== null || foundWillUpdateName !== null) {
+        var _componentName = getComponentName(ctor) || 'Component';
+        var newApiName = typeof ctor.getDerivedStateFromProps === 'function' ? 'getDerivedStateFromProps()' : 'getSnapshotBeforeUpdate()';
+        if (!didWarnAboutLegacyLifecyclesAndDerivedState.has(_componentName)) {
+          didWarnAboutLegacyLifecyclesAndDerivedState.add(_componentName);
+          warningWithoutStack$1(false, 'Unsafe legacy lifecycles will not be called for components using new component APIs.\n\n' + '%s uses %s but also contains the following legacy lifecycles:%s%s%s\n\n' + 'The above lifecycles should be removed. Learn more about this warning here:\n' + 'https://fb.me/react-async-component-lifecycle-hooks', _componentName, newApiName, foundWillMountName !== null ? '\n  ' + foundWillMountName : '', foundWillReceivePropsName !== null ? '\n  ' + foundWillReceivePropsName : '', foundWillUpdateName !== null ? '\n  ' + foundWillUpdateName : '');
+        }
+      }
+    }
+  }
+
+  // 如果是一个consumer，保存一下上下文到类组件实例里面
+  if (isLegacyContextConsumer) {
+    cacheContext(workInProgress, unmaskedContext, context);
+  }
+
+  return instance;
+}
+
+
+
+// PS：类组件的大Component组件如下
+// super(props) 类似于 new Component(props) 加 Object.assign(this, instanceOfComponent)
+// 实际上没有创建父类实例，父类构造函数直接操作当前子类实例 (this)
+// 更准确地说，是
+// 1. 调用父类构造函数，在子类实例上初始化父类定义的属性（如 this.props、this.其他属性）
+// 2. 然后继续执行子类自己的初始化逻辑
+// 底层做法是：
+// 1. 当 new ClassCounter() 时，JS 引擎会先创建一个空对象（子类实例）
+// 2. 执行ClassCounter的constructor构造函数时，super(props) 调用父类constructor构造函数，父类构造函数直接在子类实例上设置 this.props = props
+// 3. 继续执行子类构造函数，设置 this.state = {...}
+
+function Component(props, context, updater) {
+  this.props = props;
+  this.context = context;
+  // If a component has string refs, we will assign a different object later.
+  this.refs = emptyObject;
+  // We initialize the default updater but the real one gets injected by the
+  // renderer.
+  this.updater = updater || ReactNoopUpdateQueue;
+}
+
+Component.prototype.isReactComponent = {};
+
+
+
+
+
+
+function adoptClassInstance(workInProgress, instance) {
+  // instance是类组件实例
+
+  // 把类组件的更新器赋予到实例的updater属性上面
+  // 其中包括enqueueSetState、enqueueReplaceState、enqueueForceUpdate三个方法
+  instance.updater = classComponentUpdater;
+
+  // 把实例挂到WIP身上
+  workInProgress.stateNode = instance;
+
+  // 把fiber保存到实例的_reactInternalFiber属性上
+  set(instance, workInProgress);
+
+  {
+    instance._reactInternalInstance = fakeInternalInstance;
+  }
+}
+
+
+
+
+var classComponentUpdater = {
+  isMounted: isMounted,
+  enqueueSetState: function (inst, payload, callback) {
+    var fiber = get(inst);
+    var currentTime = requestCurrentTime();
+    var expirationTime = computeExpirationForFiber(currentTime, fiber);
+
+    var update = createUpdate(expirationTime);
+    update.payload = payload;
+    if (callback !== undefined && callback !== null) {
+      {
+        warnOnInvalidCallback$1(callback, 'setState');
+      }
+      update.callback = callback;
+    }
+
+    flushPassiveEffects();
+    enqueueUpdate(fiber, update);
+    scheduleWork(fiber, expirationTime);
+  },
+  enqueueReplaceState: function (inst, payload, callback) {
+    var fiber = get(inst);
+    var currentTime = requestCurrentTime();
+    var expirationTime = computeExpirationForFiber(currentTime, fiber);
+
+    var update = createUpdate(expirationTime);
+    update.tag = ReplaceState;
+    update.payload = payload;
+
+    if (callback !== undefined && callback !== null) {
+      {
+        warnOnInvalidCallback$1(callback, 'replaceState');
+      }
+      update.callback = callback;
+    }
+
+    flushPassiveEffects();
+    enqueueUpdate(fiber, update);
+    scheduleWork(fiber, expirationTime);
+  },
+  enqueueForceUpdate: function (inst, callback) {
+    var fiber = get(inst);
+    var currentTime = requestCurrentTime();
+    var expirationTime = computeExpirationForFiber(currentTime, fiber);
+
+    var update = createUpdate(expirationTime);
+    update.tag = ForceUpdate;
+
+    if (callback !== undefined && callback !== null) {
+      {
+        warnOnInvalidCallback$1(callback, 'forceUpdate');
+      }
+      update.callback = callback;
+    }
+
+    flushPassiveEffects();
+    enqueueUpdate(fiber, update);
+    scheduleWork(fiber, expirationTime);
+  }
+};
+
+
+
+function set(key, value) {
+  key._reactInternalFiber = value;
+}
+
+
+function cacheContext(workInProgress, unmaskedContext, maskedContext) {
+  var instance = workInProgress.stateNode;
+  instance.__reactInternalMemoizedUnmaskedChildContext = unmaskedContext;
+  instance.__reactInternalMemoizedMaskedChildContext = maskedContext;
+}
+
+
+
+
+
+function mountClassInstance(workInProgress, ctor, newProps, renderExpirationTime) {
+
+  // 检查这个实例的生命周期函数
+  {
+    checkClassInstance(workInProgress, ctor, newProps);
+  }
+
+  // 更新一些变量
+  var instance = workInProgress.stateNode;
+  instance.props = newProps;
+  instance.state = workInProgress.memoizedState;
+  instance.refs = emptyRefsObject;
+
+  // 保存上下文到全局
+  var contextType = ctor.contextType;
+  if (typeof contextType === 'object' && contextType !== null) {
+    instance.context = readContext(contextType);
+  } else {
+    var unmaskedContext = getUnmaskedContext(workInProgress, ctor, true);
+    instance.context = getMaskedContext(workInProgress, unmaskedContext);
+  }
+
+  // 处理异常情况
+  // 如果这个state和接下来的新的pendingProps一样，给出一些警告信息
+  {
+    if (instance.state === newProps) {
+      var componentName = getComponentName(ctor) || 'Component';
+      if (!didWarnAboutDirectlyAssigningPropsToState.has(componentName)) {
+        didWarnAboutDirectlyAssigningPropsToState.add(componentName);
+        warningWithoutStack$1(false, '%s: It is not recommended to assign props directly to state ' + "because updates to props won't be reflected in state. " + 'In most cases, it is better to use props directly.', componentName);
+      }
+    }
+
+    if (workInProgress.mode & StrictMode) {
+      ReactStrictModeWarnings.recordUnsafeLifecycleWarnings(workInProgress, instance);
+
+      ReactStrictModeWarnings.recordLegacyContextWarning(workInProgress, instance);
+    }
+
+    if (warnAboutDeprecatedLifecycles) {
+      ReactStrictModeWarnings.recordDeprecationWarnings(workInProgress, instance);
+    }
+  }
+
+
+  // 更新state数据
+  // 拿到WIP的更新队列
+  var updateQueue = workInProgress.updateQueue;
+  if (updateQueue !== null) {
+    // 整合所有更新队列，保存到WIP的memoizedState
+    processUpdateQueue(workInProgress, updateQueue, newProps, instance, renderExpirationTime);
+    // 更新这个实例的state属性
+    instance.state = workInProgress.memoizedState;
+  }
+
+
+  // 处理生命周期函数
+  // 执行getDerivedStateFromProps生命周期函数
+  var getDerivedStateFromProps = ctor.getDerivedStateFromProps;
+  if (typeof getDerivedStateFromProps === 'function') {
+    applyDerivedStateFromProps(workInProgress, ctor, getDerivedStateFromProps, newProps);
+    // 再次更新state数据，直接改一下state
+    instance.state = workInProgress.memoizedState;
+  }
+
+  // 防止有人用componentWillMount这个函数
+  if (typeof ctor.getDerivedStateFromProps !== 'function' && typeof instance.getSnapshotBeforeUpdate !== 'function' && (typeof instance.UNSAFE_componentWillMount === 'function' || typeof instance.componentWillMount === 'function')) {
+    callComponentWillMount(workInProgress, instance);
+    // 这个生命周期可能会改变state，重新执行processUpdateQueue
+    updateQueue = workInProgress.updateQueue;
+    if (updateQueue !== null) {
+      processUpdateQueue(workInProgress, updateQueue, newProps, instance, renderExpirationTime);
+      instance.state = workInProgress.memoizedState;
+    }
+  }
+
+
+  // 标记副作用为更新
+  if (typeof instance.componentDidMount === 'function') {
+    workInProgress.effectTag |= Update;
+  }
+
+}
+
+
+
+function applyDerivedStateFromProps(workInProgress, ctor, getDerivedStateFromProps, nextProps) {
+  var prevState = workInProgress.memoizedState;
+
+
+  // 执行getDerivedStateFromProps生命周期函数
+  {
+    if (debugRenderPhaseSideEffects || debugRenderPhaseSideEffectsForStrictMode && workInProgress.mode & StrictMode) {
+      // Invoke the function an extra time to help detect side-effects.
+      getDerivedStateFromProps(nextProps, prevState);
+    }
+  }
+
+  var partialState = getDerivedStateFromProps(nextProps, prevState);
+
+  {
+    warnOnUndefinedDerivedState(ctor, partialState);
+  }
+
+  // 把新的state和原来的state结合到一起，然后保存到WIP
+  var memoizedState = partialState === null || partialState === undefined ? prevState : _assign({}, prevState, partialState);
+  workInProgress.memoizedState = memoizedState;
+
+  // 一旦updateQueue不是空，且当前没有工作了，把当前的memoizedState保存到updateQueue的baseState
+  var updateQueue = workInProgress.updateQueue;
+  if (updateQueue !== null && workInProgress.expirationTime === NoWork) {
+    updateQueue.baseState = memoizedState;
+  }
+}
+
+
+
+
+
+function finishClassComponent(current$$1, workInProgress, Component, shouldUpdate, hasContext, renderExpirationTime) {
+  
+  // 标记一下ref需要更新（即便shouldComponentUpdate返回false（意味着不用执行render函数））
+  markRef(current$$1, workInProgress);
+
+
+  var didCaptureError = (workInProgress.effectTag & DidCapture) !== NoEffect;
+
+  // 如果经过shouldComponentUpdate，得到不应该更新的命令，那么直接退出
+  if (!shouldUpdate && !didCaptureError) {
+    // 退出前，首先重新计算一下上下文
+    if (hasContext) {
+      invalidateContextProvider(workInProgress, Component, false);
+    }
+    return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
+  }
+
+  // 拿到组件的实例
+  var instance = workInProgress.stateNode;
+  ReactCurrentOwner$3.current = workInProgress;
+  var nextChildren = void 0;
+
+  // 有错误就返回null
+  if (didCaptureError && typeof Component.getDerivedStateFromError !== 'function') {
+    nextChildren = null;
+    if (enableProfilerTimer) {
+      stopProfilerTimerIfRunning(workInProgress);
+    }
+  } else {
+    // 没有错误就执行render方法
+    {
+      setCurrentPhase('render');
+      nextChildren = instance.render();
+      if (debugRenderPhaseSideEffects || debugRenderPhaseSideEffectsForStrictMode && workInProgress.mode & StrictMode) {
+        instance.render();
+      }
+      setCurrentPhase(null);
+    }
+  }
+
+  workInProgress.effectTag |= PerformedWork;
+
+  // 进入孩子层次
+  if (current$$1 !== null && didCaptureError) {
+    forceUnmountCurrentAndReconcile(current$$1, workInProgress, nextChildren, renderExpirationTime);
+  } else {
+    // 没有错误的时候直接调和孩子
+    reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime);
+  }
+
+  // 把state变回为memoizedState
+  workInProgress.memoizedState = instance.state;
+
+  // 重新计算一下上下文
+  if (hasContext) {
+    invalidateContextProvider(workInProgress, Component, true);
+  }
+
+  return workInProgress.child;
+}
+
+
+
+
+
+
+
+
+
+
+// REVIEW - 下面是经过beginWork分发后来到【原生的普通的DOM节点】以及【单纯文本节点】的更新函数
+
+
+
+
+
+// !【原生的普通DOM节点】
+
+
 
 
 function updateHostComponent(current$$1, workInProgress, renderExpirationTime) {
@@ -7098,6 +7634,66 @@ function markRef(current$$1, workInProgress) {
 function shouldDeprioritizeSubtree(type, props) {
   return !!props.hidden;
 }
+
+
+
+
+
+// !【单纯文本节点】
+
+
+
+function updateHostText(current$$1, workInProgress) {
+  if (current$$1 === null) {
+    // 水化走下面
+    tryToClaimNextHydratableInstance(workInProgress);
+  }
+  // 返回null，因为这是超级底层节点了（直接文字，没有div兜着！）
+  return null;
+}
+
+
+function tryToClaimNextHydratableInstance(fiber) {
+  if (!isHydrating) {
+    return;
+  }
+  var nextInstance = nextHydratableInstance;
+  if (!nextInstance) {
+    // Nothing to hydrate. Make it an insertion.
+    insertNonHydratedInstance(hydrationParentFiber, fiber);
+    isHydrating = false;
+    hydrationParentFiber = fiber;
+    return;
+  }
+  var firstAttemptedInstance = nextInstance;
+  if (!tryHydrate(fiber, nextInstance)) {
+    // If we can't hydrate this instance let's try the next one.
+    // We use this as a heuristic. It's based on intuition and not data so it
+    // might be flawed or unnecessary.
+    nextInstance = getNextHydratableSibling(firstAttemptedInstance);
+    if (!nextInstance || !tryHydrate(fiber, nextInstance)) {
+      // Nothing to hydrate. Make it an insertion.
+      insertNonHydratedInstance(hydrationParentFiber, fiber);
+      isHydrating = false;
+      hydrationParentFiber = fiber;
+      return;
+    }
+    // We matched the next one, we'll now assume that the first one was
+    // superfluous and we'll delete it. Since we can't eagerly delete it
+    // we'll have to schedule a deletion. To do that, this node needs a dummy
+    // fiber associated with it.
+    deleteHydratableInstance(hydrationParentFiber, firstAttemptedInstance);
+  }
+  hydrationParentFiber = fiber;
+  nextHydratableInstance = getFirstHydratableChild(nextInstance);
+}
+
+
+
+
+
+
+
 
 
 
@@ -11263,7 +11859,7 @@ function commitRoot(root, finishedWork) {
   // }
   // 执行了这样一个逻辑：用来标识root对象是否存在被动副作用（例如 useEffect 钩子的副作用）
   // 如果存在的话，就进入调度，然后执行副作用函数，然后直接return
-  // 首次渲染会走下面的逻辑
+  // 首次渲染会走下面的逻辑，更新的时候，rootWithPendingPassiveEffects为null
   if (firstEffect !== null && rootWithPendingPassiveEffects !== null) {
 
     // 这个函数是用来处理 被动副作用（passive effects） 的函数，通常用于处理例如 useEffect 钩子的副作用，这些副作用会在组件渲染后被执行。
@@ -14567,6 +15163,9 @@ function diffProperties(domElement, tag, lastRawProps, nextRawProps, rootContain
 }
 
 
+
+// 提交阶段！
+// 这是在commitWork里面派发出来的HostComponent类别里面的commitUpdate
 function updateDOMProperties(domElement, updatePayload, wasCustomComponentTag, isCustomComponentTag) {
   // 每两个每两个遍历updatePayload数组，
   // 这是之前在updateHostComponent$1里面的prepareUpdate里面收集汇总的需要更新的数据
