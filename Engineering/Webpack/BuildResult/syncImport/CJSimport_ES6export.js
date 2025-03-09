@@ -17,11 +17,7 @@ export const age = 'title_age'
 (() => {
   // ! 大对象
   var __webpack_modules__ = {
-    "./src/title.js": (
-      __unused_webpack_module,
-      __webpack_exports__,
-      __webpack_require__
-    ) => {
+    "./src/title.js": (__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
       "use strict";
 
       // 执行r方法和d方法
@@ -65,18 +61,12 @@ export const age = 'title_age'
       for (var key in definition) {
 
         // 如果exports对象没有
-        if (
-          __webpack_require__.o(definition, key) &&
-          !__webpack_require__.o(exports, key)
-        ) {
+        if (__webpack_require__.o(definition, key) && !__webpack_require__.o(exports, key)) {
 
           // 给exports对象加上这些key和value
           // 相当于把es6的export的东西放到exports对象上
           // 这里用了getter的方式，传入get：getter表示value：getter()，也就是用getter函数执行后的值赋给value属性
-          Object.defineProperty(exports, key, {
-            enumerable: true,
-            get: definition[key],
-          });
+          Object.defineProperty(exports, key, { enumerable: true, get: definition[key], });
         }
       }
     };

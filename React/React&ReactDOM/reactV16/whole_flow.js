@@ -918,7 +918,7 @@ var topLevelEventsToDispatchConfig = {};
 // 为topLevelEventsToDispatchConfig映射表存储事件，及相应的优先级等信息
 function addEventTypeNameToConfig(_ref, isInteractive) {
   var topEvent = _ref[0],
-      event = _ref[1];
+    event = _ref[1];
 
   var capitalizedEvent = event[0].toUpperCase() + event.slice(1);
   var onEvent = 'on' + capitalizedEvent;
@@ -1103,9 +1103,6 @@ var isAnimationFrameScheduled = false;
 var isFlushingHostCallback = false;
 
 var frameDeadline = 0;
-// We start out assuming that we run at 30fps but then the heuristic tracking
-// will adjust this value to a faster fps if we get more frequent animation
-// frames.
 var previousFrameTime = 33;
 var activeFrameTime = 33;
 
@@ -1114,7 +1111,6 @@ shouldYieldToHost = function () {
   return frameDeadline <= now();
 };
 
-// We use the postMessage trick to defer idle work until after the repaint.
 var channel = new MessageChannel();
 var port = channel.port2;
 
@@ -1139,10 +1135,6 @@ var helpersByRoot = new Map(); // We keep track of mounted roots so we can sched
 var mountedRoots = new Set(); // If a root captures an error, we remember it so we can retry on edit.
 
 var failedRoots = new Set(); // In environments that support WeakMap, we also remember the last element for every root.
-// It needs to be weak because we do this even for roots that failed to mount.
-// If there is no WeakMap, we won't attempt to do retrying.
-// $FlowIssue
-
 
 
 
@@ -1153,6 +1145,17 @@ var failedRoots = new Set(); // In environments that support WeakMap, we also re
 var ReactCurrentOwner$3 = ReactSharedInternals.ReactCurrentOwner;
 
 
+
+
+
+// 17.router相关
+
+// 对url栈的动作定义
+var Action = {
+  Pop: "POP",
+  Push: "PUSH",
+  Replace: "REPLACE",
+}
 
 
 
@@ -1431,10 +1434,10 @@ function validatePropTypes(element) {
   if (typeof type.getDefaultProps === "function") {
     !type.getDefaultProps.isReactClassApproved
       ? warningWithoutStack$1(
-          false,
-          "getDefaultProps is only used on classic React.createClass " +
-            "definitions. Use a static property named `defaultProps` instead."
-        )
+        false,
+        "getDefaultProps is only used on classic React.createClass " +
+        "definitions. Use a static property named `defaultProps` instead."
+      )
       : void 0;
   }
 }
@@ -1860,9 +1863,6 @@ ReactRoot.prototype.render = function (children, callback) {
   // _callbacks数组存的callback函数
   var work = new ReactWork();
   callback = callback === undefined ? null : callback;
-  {
-    warnOnInvalidCallback(callback, "render");
-  }
 
   // then方法是在把callback函数加入队列，也就是ReactWork实例存储的回调函数队列里面
   if (callback !== null) {
@@ -1904,10 +1904,10 @@ ReactWork.prototype._onCommit = function () {
     var _callback2 = callbacks[i];
     !(typeof _callback2 === "function")
       ? invariant(
-          false,
-          "Invalid argument passed as callback. Expected a function. Instead received: %s",
-          _callback2
-        )
+        false,
+        "Invalid argument passed as callback. Expected a function. Instead received: %s",
+        _callback2
+      )
       : void 0;
     _callback2();
   }
@@ -1924,13 +1924,7 @@ function updateContainer(element, container, parentComponent, callback) {
   // 根据当前时间计算优先级，肯定是越往后交互的事件导致引发的scheduleWork引发的计算优先级会更高
   var expirationTime = computeExpirationForFiber(currentTime, current$$1);
   // 开始更新，根据优先级
-  return updateContainerAtExpirationTime(
-    element,
-    container,
-    parentComponent,
-    expirationTime,
-    callback
-  );
+  return updateContainerAtExpirationTime(element, container, parentComponent, expirationTime, callback);
 }
 
 function requestCurrentTime() {
@@ -2130,13 +2124,7 @@ function ceiling(num, precision) {
 // 其中updateContainerAtExpirationTime也是一个小小的包裹，中间保存了上下文到root对象里面
 // scheduleRootUpdate才是更新的开始
 
-function updateContainerAtExpirationTime(
-  element,
-  container,
-  parentComponent,
-  expirationTime,
-  callback
-) {
+function updateContainerAtExpirationTime(element, container, parentComponent, expirationTime, callback) {
   // 这里拿到的就是root对象的fiber
   var current$$1 = container.current;
 
@@ -2297,9 +2285,9 @@ function enqueueUpdate(fiber, update) {
       warningWithoutStack$1(
         false,
         "An update (setState, replaceState, or forceUpdate) was scheduled " +
-          "from inside an update function. Update functions should be pure, " +
-          "with zero side-effects. Consider using componentDidUpdate or a " +
-          "callback."
+        "from inside an update function. Update functions should be pure, " +
+        "with zero side-effects. Consider using componentDidUpdate or a " +
+        "callback."
       );
       didWarnUpdateInsideUpdate = true;
     }
@@ -2731,9 +2719,9 @@ function findHighestPriorityRoot() {
         // from the loop right after.
         !(previousScheduledRoot !== null && lastScheduledRoot !== null)
           ? invariant(
-              false,
-              "Should have a previous and last root. This error is likely caused by a bug in React. Please file an issue."
-            )
+            false,
+            "Should have a previous and last root. This error is likely caused by a bug in React. Please file an issue."
+          )
           : void 0;
         if (root === root.nextScheduledRoot) {
           // This is the only root in the list.
@@ -3510,8 +3498,8 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       // renderExpirationTime是nextRenderExpirationTime，为Sync的值（若从performWorkSync进来的）
       // 首次渲染时，fiber的eT和入参的eT对比，是一样的，不进入这里
       // 二更时
-        // WIP为root或者文本节点时，根节点或者文本节点的WIP的eT为0（什么时候设置的？），则进入这部分逻辑
-        // WIP不为root或者文本节点时，为函数/类组件之类的，WIP的eT为Sync（之前在首渲的时候就是Sync？？），不进去这部分逻辑
+      // WIP为root或者文本节点时，根节点或者文本节点的WIP的eT为0（什么时候设置的？），则进入这部分逻辑
+      // WIP不为root或者文本节点时，为函数/类组件之类的，WIP的eT为Sync（之前在首渲的时候就是Sync？？），不进去这部分逻辑
       // TODO---
 
       didReceiveUpdate = false;
@@ -3595,6 +3583,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
   // 首次渲染是hostRoot类型，去updateHostRoot
   switch (workInProgress.tag) {
     // 函数组件【首渲染】走这里
+    // BrowserRouter【首渲】走这里
     case IndeterminateComponent: {
       var elementType = workInProgress.elementType;
       return mountIndeterminateComponent(current$$1, workInProgress, elementType, renderExpirationTime);
@@ -4128,8 +4117,7 @@ function getStateFromUpdate(workInProgress, queue, update, prevState, nextProps,
       return _payload;
     }
     case CaptureUpdate: {
-      workInProgress.effectTag =
-        (workInProgress.effectTag & ~ShouldCapture) | DidCapture;
+      workInProgress.effectTag = (workInProgress.effectTag & ~ShouldCapture) | DidCapture;
     }
     // 首渲和二更走下面
     case UpdateState: {
@@ -4319,10 +4307,10 @@ function ChildReconciler(shouldTrackSideEffects) {
 
           // 把其他兄弟姐妹的节点删掉（因为当前是处理单个节点的情况，看函数名字！！）
           deleteRemainingChildren(returnFiber, child.sibling);
-          
+
           // 【给孩子节点层创建替身】给当前节点的孩子（当前节点肯定只有一个孩子）创造替身
           var existing = useFiber(child, element.type === REACT_FRAGMENT_TYPE ? element.props.children : element.props, expirationTime);
-          
+
           // 更新亲子关系的指针
           existing.ref = coerceRef(returnFiber, child, element);
           existing.return = returnFiber;
@@ -5283,7 +5271,7 @@ function mountIndeterminateComponent(_current, workInProgress, Component, render
     adoptClassInstance(workInProgress, value);
     mountClassInstance(workInProgress, Component, props, renderExpirationTime);
     return finishClassComponent(null, workInProgress, Component, true, hasContext, renderExpirationTime);
-    
+
   } else {
 
     // 第二种情况不是一个类组件，其他任何类型只要不是类组件都归类于FunctionComponent
@@ -5807,8 +5795,7 @@ function dispatchAction(fiber, queue, action) {
 
 
 function is(x, y) {
-  return x === y && (x !== 0 || 1 / x === 1 / y) || x !== x && y !== y // eslint-disable-line no-self-compare
-  ;
+  return x === y && (x !== 0 || 1 / x === 1 / y) || x !== x && y !== y;
 }
 
 
@@ -5938,6 +5925,36 @@ function mountRef(initialValue) {
 
 
 
+// 7. useLayoutEffect钩子函数
+
+function mountLayoutEffect(create, deps) {
+  return mountEffectImpl(Update, UnmountMutation | MountLayout, create, deps);
+}
+// function mountEffect(create, deps) {
+//   return mountEffectImpl(Update | Passive, UnmountPassive | MountPassive, create, deps);
+// }
+
+// 这个于useEffect的区别在于：
+// useLayoutEffect是用的Update的fiber副作用，是在commitAllHostEffect那里就执行了，是同步操作
+// 而useEffect用的是passive的fiber副作用，passive是在绘制页面完成之后才进行操作，且是异步操作
+
+// useLayoutEffect: 这个钩子的副作用会在浏览器绘制前同步执行。
+// 这意味着它会在 DOM 更新后立即执行，浏览器在完成这些副作用后才会开始渲染。
+// 这对于需要在 DOM 更新后立即进行测量或调整的场景非常有用，例如读取 DOM 布局并触发 DOM 更新。
+
+// useEffect: 这个钩子的副作用会在浏览器绘制之后异步执行。
+// React 会先渲染出页面，然后才会执行副作用，确保不会阻塞渲染。
+// 通常情况下，useEffect 用于执行对 UI 不会产生阻塞或影响的副作用，如数据获取、订阅、手动 DOM 操作等。
+
+
+
+
+
+
+
+
+
+
 // REVIEW - 【上下文】下面是上下文相关的方法
 // !包括初始化上下文对象，provider的组件更新，useContext钩子函数
 
@@ -5966,7 +5983,7 @@ function createContext(defaultValue, calculateChangedBits) {
 
     // 用于跟踪此上下文当前在单个渲染器中支持多少个并发渲染器。例如并行服务器渲染。
     _threadCount: 0,
-    
+
     // 提供者与消费者的存储地方
     Provider: null,
     Consumer: null
@@ -6058,7 +6075,7 @@ function createContext(defaultValue, calculateChangedBits) {
 
 // 一个myConetxt.Provider组件，经过beginWork分发之后，来到这里
 function updateContextProvider(current$$1, workInProgress, renderExpirationTime) {
-  
+
   // 1. 拿到初始化的上下文对象
   var providerType = workInProgress.type;
   var context = providerType._context;
@@ -6216,9 +6233,9 @@ function readContext(context, observedBits) {
 
       // 同时当前Fiber也要保存，且再包装一层对象，加上过期时间
       // 此时的fiber就是:
-        // 函数组件本身（从useContext来的）或者 
-        // 类组件本身（从updateClassInstance、mountClassInstance、constructClassInstance来的）或者 
-        // 函数/类组件下面的大孩子即consumer组件<Context.Consumer>（这种组件他的孩子是(value)=>{}函数）（从updateContextConsumer来的）
+      // 函数组件本身（从useContext来的）或者 
+      // 类组件本身（从updateClassInstance、mountClassInstance、constructClassInstance来的）或者 
+      // 函数/类组件下面的大孩子即consumer组件<Context.Consumer>（这种组件他的孩子是(value)=>{}函数）（从updateContextConsumer来的）
       // 1和3一般很少共存！用了钩子就不需要用consumer去拿数据了
       currentlyRenderingFiber.contextDependencies = {
         first: contextItem,
@@ -6238,7 +6255,7 @@ function readContext(context, observedBits) {
 function propagateContextChange(workInProgress, context, changedBits, renderExpirationTime) {
   // 本函数是从provider的孩子开始，找到保存了上下文的函数组件或者类组件或者consumer组件，凡是fiber有保存上下文对象的都要处理
   // 找到之后干嘛？答：修改当前fiber与替身的eT，以及所有祖上的childET
-  
+
   // 拿到provider的孩子，也就是说本函数是从provider的孩子开始起更新的
   var fiber = workInProgress.child;
   if (fiber !== null) {
@@ -6446,7 +6463,7 @@ function updateClassComponent(current$$1, workInProgress, Component, nextProps, 
       var innerPropTypes = Component.propTypes;
       if (innerPropTypes) {
         checkPropTypes(innerPropTypes, nextProps, // Resolved props
-        'prop', getComponentName(Component), getCurrentFiberStackInDev);
+          'prop', getComponentName(Component), getCurrentFiberStackInDev);
       }
     }
   }
@@ -6546,7 +6563,7 @@ function constructClassInstance(workInProgress, ctor, props, renderExpirationTim
   // 注意：这里把context放进去初始化了，也就是说可以利用this.context拿到上下文的数据，不需要借助(value) => {...}
   var instance = new ctor(props, context);
   var state = workInProgress.memoizedState = instance.state !== null && instance.state !== undefined ? instance.state : null;
-  
+
   // 保存一些信息（包括实例和fiber之间的相互引用）
   adoptClassInstance(workInProgress, instance);
 
@@ -6776,7 +6793,7 @@ function applyDerivedStateFromProps(workInProgress, ctor, getDerivedStateFromPro
 
 
 function finishClassComponent(current$$1, workInProgress, Component, shouldUpdate, hasContext, renderExpirationTime) {
-  
+
   // 标记一下ref需要更新（即便shouldComponentUpdate返回false（意味着不用执行render函数））
   markRef(current$$1, workInProgress);
 
@@ -7096,13 +7113,13 @@ function getChildHostContext(parentHostContext, type, rootContainerInstance) {
     // 把最新的type融入到以前的上下文对象里面
     var _namespace = getChildNamespace(parentHostContextDev.namespace, type);
     var _ancestorInfo2 = updatedAncestorInfo(parentHostContextDev.ancestorInfo, type);
-    
+
     // 返回更新过的上下文
     return { namespace: _namespace, ancestorInfo: _ancestorInfo2 };
   }
 }
 
-function updatedAncestorInfo (oldInfo, tag) {
+function updatedAncestorInfo(oldInfo, tag) {
   var ancestorInfo = _assign({}, oldInfo || emptyAncestorInfo);
   var info = { tag: tag };
 
@@ -7263,6 +7280,437 @@ function tryToClaimNextHydratableInstance(fiber) {
 
 
 
+
+// REVIEW - 下面是经过beginWork分发后来到【suspense类型】以及【】的更新函数
+
+
+
+function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTime) {
+  var mode = workInProgress.mode;
+  var nextProps = workInProgress.pendingProps;
+  var nextState = workInProgress.memoizedState;
+  var nextDidTimeout = void 0;
+
+
+  // 首先判断当前的WIP是否捕获到错误？即是否超时？？
+  if ((workInProgress.effectTag & DidCapture) === NoEffect) {
+    // 首渲走下面，没有超时
+    nextState = null;
+    nextDidTimeout = false;
+  } else {
+    // 已经超时了，需要显示fallback
+    // 记录标识（nextState用于比较下一次，nextDidTimeout用于比较本次）
+    nextState = {
+      timedOutAt: nextState !== null ? nextState.timedOutAt : NoWork
+    };
+    nextDidTimeout = true;
+    // 清除副作用
+    workInProgress.effectTag &= ~DidCapture;
+  }
+
+  var child = void 0;
+  var next = void 0;
+
+  if (current$$1 === null) {
+    // 首渲走下面
+
+    // 处理服务端渲染脱水（Dehydrate）情况
+    if (enableSuspenseServerRenderer) {
+      if (nextProps.fallback !== undefined) {
+        tryToClaimNextHydratableInstance(workInProgress);
+        if (workInProgress.tag === DehydratedSuspenseComponent) {
+          return updateDehydratedSuspenseComponent(null, workInProgress, renderExpirationTime);
+        }
+      }
+    }
+
+    if (nextDidTimeout) {
+      // 如果超时了，需要显示fallback的东西
+
+      // 为孩子创建一个fiber，但是这个fiber是一个空的！为什么？
+      // 因为孩子树太大太复杂了，不可能很快构建好fiber，就先创造一个容器，预计用来保留下下面的真实节点
+      var primaryChildFragment = createFiberFromFragment(null, mode, NoWork, null);
+
+      // 如果不是并发模式
+      if ((workInProgress.mode & ConcurrentMode) === NoContext) {
+        // 拿到WIP的state，这里面存的是：{ timedOutAt: NoWork }（超时）或者null（没超时）
+        // 如果超时了，让空fiber的大儿子为当前WIP的大孩子的大孩子？？？
+        var progressedState = workInProgress.memoizedState;
+        var progressedPrimaryChild = progressedState !== null ? workInProgress.child.child : workInProgress.child;
+        primaryChildFragment.child = progressedPrimaryChild;
+      }
+
+      // 无论是否并发模式都需要走下面
+      // 为fallback创造一个fiber
+      var nextFallbackChildren = nextProps.fallback;
+      var fallbackChildFragment = createFiberFromFragment(nextFallbackChildren, mode, renderExpirationTime, null);
+      
+      // 使用兄弟关系把真正的孩子和fallback的孩子联系在一起
+      primaryChildFragment.sibling = fallbackChildFragment;
+      child = primaryChildFragment;
+      next = fallbackChildFragment;
+
+      // 联系父节点
+      child.return = next.return = workInProgress;
+
+    } else {
+      // 如果没有超时，直接显示真实的孩子，往下创造fiber，直接忽略fallback的属性内容
+      var nextPrimaryChildren = nextProps.children;
+      child = next = mountChildFibers(workInProgress, null, nextPrimaryChildren, renderExpirationTime);
+    }
+
+  } else {
+    // 更新走下面
+
+    // 通过替身的 memoizedState 判断之前是否处于超时状态
+    // 替身的state有值，说明过去是超时的
+    var prevState = current$$1.memoizedState;
+    var prevDidTimeout = prevState !== null;
+
+    if (prevDidTimeout) {
+      // 之前超时了，之前显示的是fallback
+
+      // 替身的大孩子是真实的孩子节点，二孩子是fallback的内容
+      var currentPrimaryChildFragment = current$$1.child;
+      var currentFallbackChildFragment = currentPrimaryChildFragment.sibling;
+
+      if (nextDidTimeout) {
+        // （之前显示的是fallback）现在超时了，现在需要显示fallback
+        // 旧:fallback，新:fallback
+
+        // 复用以前的真实的孩子
+        var _primaryChildFragment = createWorkInProgress(currentPrimaryChildFragment, currentPrimaryChildFragment.pendingProps, NoWork);
+
+        // 如果不是并发模式走下面
+        if ((workInProgress.mode & ConcurrentMode) === NoContext) {
+          var _progressedState = workInProgress.memoizedState;
+          var _progressedPrimaryChild = _progressedState !== null ? workInProgress.child.child : workInProgress.child;
+          if (_progressedPrimaryChild !== currentPrimaryChildFragment.child) {
+            _primaryChildFragment.child = _progressedPrimaryChild;
+          }
+        }
+
+        // 一些计时
+        if (enableProfilerTimer && workInProgress.mode & ProfileMode) {
+          var treeBaseDuration = 0;
+          var hiddenChild = _primaryChildFragment.child;
+          while (hiddenChild !== null) {
+            treeBaseDuration += hiddenChild.treeBaseDuration;
+            hiddenChild = hiddenChild.sibling;
+          }
+          _primaryChildFragment.treeBaseDuration = treeBaseDuration;
+        }
+
+        // 复用以前的fallback的fiber
+        var _nextFallbackChildren = nextProps.fallback;
+        var _fallbackChildFragment = _primaryChildFragment.sibling = createWorkInProgress(currentFallbackChildFragment, _nextFallbackChildren, currentFallbackChildFragment.expirationTime);
+        
+        // 更新变量
+        child = _primaryChildFragment;
+        _primaryChildFragment.childExpirationTime = NoWork;
+        next = _fallbackChildFragment;
+        child.return = next.return = workInProgress;
+
+      } else {
+        // （之前显示的是fallback）现在没超时，现在直接显示真实的孩子
+        // 旧:fallback，新:真实的孩子
+
+        // 复用替身的真实孩子
+        // currentPrimaryChild是替身的大孩子（即替身的真实孩子节点）的孩子？？？
+        var _nextPrimaryChildren = nextProps.children;
+        var currentPrimaryChild = currentPrimaryChildFragment.child;
+        var primaryChild = reconcileChildFibers(workInProgress, currentPrimaryChild, _nextPrimaryChildren, renderExpirationTime);
+        child = next = primaryChild;
+      }
+
+    } else {
+      // 之前没超时，之前显示的是真实的子树
+      var _currentPrimaryChild = current$$1.child;
+
+      if (nextDidTimeout) {
+        // （之前显示的是真实的子树）现在超时了，现在需要显示fallback
+        // 旧:真实的孩子，新:fallback
+
+        // 创造一个空的fiber，让 替身的真实孩子树 附在这个 空fiber的child属性 上面
+        var _primaryChildFragment2 = createFiberFromFragment(null, mode, NoWork, null);
+        _primaryChildFragment2.child = _currentPrimaryChild;
+
+        // 如果不是并发模式走下面
+        if ((workInProgress.mode & ConcurrentMode) === NoContext) {
+          var _progressedState2 = workInProgress.memoizedState;
+          var _progressedPrimaryChild2 = _progressedState2 !== null ? workInProgress.child.child : workInProgress.child;
+          _primaryChildFragment2.child = _progressedPrimaryChild2;
+        }
+
+        // 一些计时
+        if (enableProfilerTimer && workInProgress.mode & ProfileMode) {
+          var _treeBaseDuration = 0;
+          var _hiddenChild = _primaryChildFragment2.child;
+          while (_hiddenChild !== null) {
+            _treeBaseDuration += _hiddenChild.treeBaseDuration;
+            _hiddenChild = _hiddenChild.sibling;
+          }
+          _primaryChildFragment2.treeBaseDuration = _treeBaseDuration;
+        }
+
+        // 复用fallback的fiber，并且给予新增的副作用
+        var _nextFallbackChildren2 = nextProps.fallback;
+        var _fallbackChildFragment2 = _primaryChildFragment2.sibling = createFiberFromFragment(_nextFallbackChildren2, mode, renderExpirationTime, null);
+        _fallbackChildFragment2.effectTag |= Placement;
+
+        // 更新变量
+        child = _primaryChildFragment2;
+        _primaryChildFragment2.childExpirationTime = NoWork;
+        next = _fallbackChildFragment2;
+        child.return = next.return = workInProgress;
+
+      } else {
+        // （之前显示的是真实的子树）现在没超时，现在需要显示真实的子树
+        // 旧:真实的孩子，新:真实的子树
+        var _nextPrimaryChildren2 = nextProps.children;
+        // 直接进入孩子层更新孩子
+        next = child = reconcileChildFibers(workInProgress, _currentPrimaryChild, _nextPrimaryChildren2, renderExpirationTime);
+      }
+    }
+    workInProgress.stateNode = current$$1.stateNode;
+  }
+
+  workInProgress.memoizedState = nextState;
+  workInProgress.child = child;
+  return next;
+}
+
+
+
+
+
+
+
+// !beginWork分发之后的BrowserRouters组件
+// BrowserRouters是一个函数组件
+// 下面是BrowserRouters的renderWithHooks里面执行Component()函数之后来到的地方
+
+export function BrowserRouter({ basename, children, future, window, }) {
+
+  // 1. 拿出历史栈相关的工具箱
+  // 使用ref来记录东西，把关于历史栈的一些工具放到historyRef.current里面，相当于historyRef就是一个工具箱
+  let historyRef = React.useRef();
+  if (historyRef.current == null) {
+    historyRef.current = createBrowserHistory({ window, v5Compat: true });
+  }
+
+  // 2. 同时用useState来管理这个工具箱里面的其中两个函数
+  // 一个是动作，例如Action.Pop
+  // 一个是createBrowserLocation函数的调用结果，是拿到location对象，
+  // 里面记录当前的url的一些信息，包括{ pathname, search, hash }等
+  let history = historyRef.current;
+  let [state, setStateImpl] = React.useState({
+    action: history.action,
+    location: history.location,
+  });
+
+
+  // 从renderWithHooks进来的是没有参数的，这里是undefined
+  let { v7_startTransition } = future || {};
+
+
+  // 3. 用useCallback把setState的函数缓存起来！
+  let setState = React.useCallback(
+    // 下面的newState长这样：{ action: NavigationType; location: Location }
+    (newState) => {
+      v7_startTransition && startTransitionImpl
+        ? startTransitionImpl(() => setStateImpl(newState))
+        : setStateImpl(newState);
+    },
+    [setStateImpl, v7_startTransition]
+  );
+
+  // 用LayoutEffect在绘制页面之前，监听setState这个函数，看他是否有变化
+  React.useLayoutEffect(() => history.listen(setState), [history, setState]);
+
+  React.useEffect(() => logV6DeprecationWarnings(future), [future]);
+
+  return (
+    <Router
+      basename={basename}
+      children={children}
+      location={state.location}
+      navigationType={state.action}
+      navigator={history}
+      future={future}
+    />
+  );
+}
+
+
+function createBrowserHistory(options) {
+  function createBrowserLocation(window, globalHistory) {
+    let { pathname, search, hash } = window.location;
+    return createLocation(
+      "",
+      { pathname, search, hash },
+      (globalHistory.state && globalHistory.state.usr) || null,
+      (globalHistory.state && globalHistory.state.key) || "default"
+    );
+  }
+
+  function createBrowserHref(window, to) {
+    return typeof to === "string" ? to : createPath(to);
+  }
+
+  return getUrlBasedHistory(createBrowserLocation, createBrowserHref, null, options);
+}
+
+
+
+
+function getUrlBasedHistory(getLocation, createHref, validateLocation, options) {
+
+  // 入参长这样
+  // getLocation就是createBrowserLocation: (window: Window, globalHistory: Window["history"]) => Location,
+  // createHref就是createBrowserHref: (window: Window, to: To) => string,
+  // validateLocation: ((location: Location, to: To) => void) | null,
+  // options: { window, v5Compat: true }
+
+  let { window, v5Compat } = options;
+  let globalHistory = window.history;
+  let action = Action.Pop;
+  let listener = null;
+
+  // 拿到当前历史栈里面的state（也就是索引）
+  // 一开始拿到的是null
+  let index = getIndex();
+  if (index == null) {
+    index = 0;
+    globalHistory.replaceState({ ...globalHistory.state, idx: index }, "");
+  }
+  function getIndex() {
+    let state = globalHistory.state || { idx: null };
+    return state.idx;
+  }
+
+  function handlePop() {
+    action = Action.Pop;
+    let nextIndex = getIndex();
+    let delta = nextIndex == null ? null : nextIndex - index;
+    index = nextIndex;
+    if (listener) {
+      listener({ action, location: history.location, delta });
+    }
+  }
+
+  function push(to, state) {
+    action = Action.Push;
+    let location = createLocation(history.location, to, state);
+    if (validateLocation) validateLocation(location, to);
+
+    index = getIndex() + 1;
+    let historyState = getHistoryState(location, index);
+    let url = history.createHref(location);
+
+    try {
+      globalHistory.pushState(historyState, "", url);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "DataCloneError") {
+        throw error;
+      }
+      window.location.assign(url);
+    }
+
+    if (v5Compat && listener) {
+      listener({ action, location: history.location, delta: 1 });
+    }
+  }
+
+  function replace(to, state) {
+    action = Action.Replace;
+    let location = createLocation(history.location, to, state);
+    if (validateLocation) validateLocation(location, to);
+
+    index = getIndex();
+    let historyState = getHistoryState(location, index);
+    let url = history.createHref(location);
+    globalHistory.replaceState(historyState, "", url);
+
+    if (v5Compat && listener) {
+      listener({ action, location: history.location, delta: 0 });
+    }
+  }
+
+  function createURL(to) {
+    let base =
+      window.location.origin !== "null"
+        ? window.location.origin
+        : window.location.href;
+
+    let href = typeof to === "string" ? to : createPath(to);
+    href = href.replace(/ $/, "%20");
+    return new URL(href, base);
+  }
+
+  let history = {
+    get action() {
+      return action;
+    },
+    get location() {
+      return getLocation(window, globalHistory);
+    },
+    listen(fn) {
+      if (listener) {
+        throw new Error("A history only accepts one active listener");
+      }
+      window.addEventListener(PopStateEventType, handlePop);
+      listener = fn;
+
+      return () => {
+        window.removeEventListener(PopStateEventType, handlePop);
+        listener = null;
+      };
+    },
+    createHref(to) {
+      return createHref(window, to);
+    },
+    createURL,
+    encodeLocation(to) {
+      let url = createURL(to);
+      return {
+        pathname: url.pathname,
+        search: url.search,
+        hash: url.hash,
+      };
+    },
+    push,
+    replace,
+    go(n) {
+      return globalHistory.go(n);
+    },
+  };
+
+  return history;
+}
+
+
+
+
+export function createLocation(current, to, state, key) {
+
+  // 从createBrowserLocation过来是
+  // 入参：
+  // current是‘’
+  // to是当前所在位置：pathname，search，hash
+  // state是globalHistory.state.usr
+  // key是globalHistory.state.key
+
+  let location = {
+    pathname: typeof current === "string" ? current : current.pathname,
+    search: "",
+    hash: "",
+    ...(typeof to === "string" ? parsePath(to) : to),
+    state,
+    key: (to && to.key) || key || createKey(),
+  };
+  return location;
+}
 
 
 
@@ -7799,7 +8247,7 @@ function createInstance(type, props, rootContainerInstance, hostContext, interna
 
 
 
-function validateDOMNesting (childTag, childText, ancestorInfo) {
+function validateDOMNesting(childTag, childText, ancestorInfo) {
   ancestorInfo = ancestorInfo || emptyAncestorInfo;
   var parentInfo = ancestorInfo.current;
   var parentTag = parentInfo && parentInfo.tag;
@@ -7943,7 +8391,7 @@ function updateFiberProps(node, props) {
 
 
 
-function appendAllChildren (parent, workInProgress, needsVisibilityToggle, isHidden) {
+function appendAllChildren(parent, workInProgress, needsVisibilityToggle, isHidden) {
 
   // 参数：
   // parent是真实的空的DOM
@@ -8044,7 +8492,7 @@ var endMark = function (label, markName, warning) {
   var formattedLabel = formatLabel(label, warning);
   try {
     performance.measure(formattedLabel, formattedMarkName);
-  } catch (err) {}
+  } catch (err) { }
   // If previous mark was missing for some reason, this will throw.
   // This could only happen if React crashed in an unexpected place earlier.
   // Don't pile on with more errors.
@@ -8174,7 +8622,7 @@ function popTopLevelContextObject(fiber) {
 
 
 
-function updateHostContainer (workInProgress) {
+function updateHostContainer(workInProgress) {
   // Noop
 };
 
@@ -8578,7 +9026,7 @@ function setValueForProperty(node, name, value, isCustomComponentTag) {
   // 接下来这个属性是特殊的属性
   // 处理这个属性
   var attributeName = propertyInfo.attributeName,
-      attributeNamespace = propertyInfo.attributeNamespace;
+    attributeNamespace = propertyInfo.attributeNamespace;
 
   if (value === null) {
     node.removeAttribute(attributeName);
@@ -8703,7 +9151,7 @@ function trackValueOnNode(node) {
     return;
   }
   var get = descriptor.get,
-      set = descriptor.set;
+    set = descriptor.set;
 
   // 对DOM节点本身赋予一些属性
   Object.defineProperty(node, valueField, {
@@ -8767,7 +9215,7 @@ function postMountWrapper(element, props, isHydrating) {
         // 手动同步走下面
         var value = getToStringValue(props.value);
 
-        
+
         if (value != null) {
           // 更新value的值，如果现在的value经过用户的输入之后不一样了
           if (isButton || value !== node.value) {
@@ -8864,7 +9312,7 @@ function ensureListeningTo(rootContainerElement, registrationName) {
   // registrationName是事件名称
   var isDocumentOrFragment = rootContainerElement.nodeType === DOCUMENT_NODE || rootContainerElement.nodeType === DOCUMENT_FRAGMENT_NODE;
   var doc = isDocumentOrFragment ? rootContainerElement : rootContainerElement.ownerDocument;
-  
+
   // 确保根节点的原生dom节点有效
   listenTo(registrationName, doc);
 }
@@ -8892,8 +9340,6 @@ function listenTo(registrationName, mountAt) {
         case TOP_BLUR:
           trapCapturedEvent(TOP_FOCUS, mountAt);
           trapCapturedEvent(TOP_BLUR, mountAt);
-          // We set the flag for a single dependency later in this function,
-          // but this ensures we mark both as attached rather than just one.
           isListening[TOP_BLUR] = true;
           isListening[TOP_FOCUS] = true;
           break;
@@ -8906,8 +9352,6 @@ function listenTo(registrationName, mountAt) {
         case TOP_INVALID:
         case TOP_SUBMIT:
         case TOP_RESET:
-          // We listen to them on the target DOM elements.
-          // Some of them bubble so we don't want them to fire twice.
           break;
         default:
 
@@ -8967,18 +9411,12 @@ function trapBubbledEvent(topLevelType, element) {
 
 
 
-var isInteractiveTopLevelEventType = SimpleEventPlugin.isInteractiveTopLevelEventType;
-var SimpleEventPlugin = {
-  eventTypes: eventTypes$4,
-
-  isInteractiveTopLevelEventType: function (topLevelType) {
-    // topLevelEventsToDispatchConfig将事件类型（例如，"click"）映射到与该事件相关的配置。
-    // 配置通常包含有关事件类型的详细信息，例如该事件是否是交互式的、该事件的优先级等
-    var config = topLevelEventsToDispatchConfig[topLevelType];
-    return config !== undefined && config.isInteractive === true;
-  },
+function isInteractiveTopLevelEventType(topLevelType) {
+  // topLevelEventsToDispatchConfig将事件类型（例如，"click"）映射到与该事件相关的配置。
+  // 配置通常包含有关事件类型的详细信息，例如该事件是否是交互式的、该事件的优先级等
+  var config = topLevelEventsToDispatchConfig[topLevelType];
+  return config !== undefined && config.isInteractive === true;
 }
-
 
 
 
@@ -9228,7 +9666,7 @@ function batchedUpdates$1(fn, a) {
 
 
 function handleTopLevel(bookKeeping) {
-  
+
   // 1. 找到这个事件对象的fiber
   var targetInst = bookKeeping.targetInst;
   var ancestor = targetInst;
@@ -9303,12 +9741,12 @@ function extractEvents(topLevelType, targetInst, nativeEvent, nativeEventTarget)
   var events = null;
   for (var i = 0; i < plugins.length; i++) {
     // 遍历插件数组，整合event
-    
+
     var possiblePlugin = plugins[i];
     if (possiblePlugin) {
       // 返回的是合成事件对象
       var extractedEvents = possiblePlugin.extractEvents(topLevelType, targetInst, nativeEvent, nativeEventTarget);
-      
+
       // 把两个对象合并到一起，形成一个数组，然后覆盖原先的events
       if (extractedEvents) {
         events = accumulateInto(events, extractedEvents);
@@ -9326,12 +9764,6 @@ function extractEvents(topLevelType, targetInst, nativeEvent, nativeEventTarget)
 var SimpleEventPlugin = {
   eventTypes: eventTypes$4,
 
-  isInteractiveTopLevelEventType: function (topLevelType) {
-    var config = topLevelEventsToDispatchConfig[topLevelType];
-    return config !== undefined && config.isInteractive === true;
-  },
-
-
   extractEvents: function (topLevelType, targetInst, nativeEvent, nativeEventTarget) {
     // 1. 获取事件分发配置
     var dispatchConfig = topLevelEventsToDispatchConfig[topLevelType];
@@ -9343,13 +9775,9 @@ var SimpleEventPlugin = {
     // 2. 根据不同事件类型赋予EventConstructor一个合成事件对象的构造函数（一个类）
     switch (topLevelType) {
       case TOP_KEY_PRESS:
-        // Firefox creates a keypress event for function keys too. This removes
-        // the unwanted keypress events. Enter is however both printable and
-        // non-printable. One would expect Tab to be as well (but it isn't).
         if (getEventCharCode(nativeEvent) === 0) {
           return null;
         }
-      /* falls through */
       case TOP_KEY_DOWN:
       case TOP_KEY_UP:
         EventConstructor = SyntheticKeyboardEvent;
@@ -9365,14 +9793,11 @@ var SimpleEventPlugin = {
         if (nativeEvent.button === 2) {
           return null;
         }
-      /* falls through */
       case TOP_AUX_CLICK:
       case TOP_DOUBLE_CLICK:
       case TOP_MOUSE_DOWN:
       case TOP_MOUSE_MOVE:
       case TOP_MOUSE_UP:
-      // Disabled elements should not respond to mouse events
-      /* falls through */
       case TOP_MOUSE_OUT:
       case TOP_MOUSE_OVER:
       case TOP_CONTEXT_MENU:
@@ -9424,13 +9849,6 @@ var SimpleEventPlugin = {
         EventConstructor = SyntheticPointerEvent;
         break;
       default:
-        {
-          if (knownHTMLTopLevelTypes.indexOf(topLevelType) === -1) {
-            warningWithoutStack$1(false, 'SimpleEventPlugin: Unhandled event type, `%s`. This warning ' + 'is likely caused by a bug in React. Please file an issue.', topLevelType);
-          }
-        }
-        // HTML Events
-        // @see http://www.w3.org/TR/html5/index.html#events-0
         EventConstructor = SyntheticEvent;
         break;
     }
@@ -9438,7 +9856,7 @@ var SimpleEventPlugin = {
     // 默认情况下，EventConstructor是SyntheticEvent
     // 3. 拿到事件池子里面的一个事件
     var event = EventConstructor.getPooled(dispatchConfig, targetInst, nativeEvent, nativeEventTarget);
-    
+
     // 4. 进行冒泡或者捕获逻辑
     accumulateTwoPhaseDispatches(event);
     return event;
@@ -9760,9 +10178,9 @@ var EnterLeaveEventPlugin = {
 
     // 4. 初始化事件类型和事件对象
     var eventInterface = void 0,
-        leaveEventType = void 0,
-        enterEventType = void 0,
-        eventTypePrefix = void 0;
+      leaveEventType = void 0,
+      enterEventType = void 0,
+      eventTypePrefix = void 0;
 
     if (topLevelType === TOP_MOUSE_OUT || topLevelType === TOP_MOUSE_OVER) {
       // TOP_MOUSE_OUT 和 TOP_MOUSE_OVER 对应鼠标事件，使用 SyntheticMouseEvent
@@ -9888,7 +10306,7 @@ var ChangeEventPlugin = {
     var targetNode = targetInst ? getNodeFromInstance$1(targetInst) : window;
 
     var getTargetInstFunc = void 0,
-        handleEventFunc = void 0;
+      handleEventFunc = void 0;
 
     // 判断目标元素类型并选择处理函数
     if (shouldUseChangeEvent(targetNode)) {
@@ -10189,7 +10607,7 @@ var BeforeInputEventPlugin = {
   eventTypes: eventTypes,
 
   extractEvents: function (topLevelType, targetInst, nativeEvent, nativeEventTarget) {
-    
+
     // 提取组合输入事件，返回相应的合成事件对象
     // 提取组合输入事件。组合输入事件通常与输入法（如拼音输入法）相关，
     // 例如，用户在输入时可能会先输入一个拼音组合，然后再选择正确的汉字。
@@ -10257,8 +10675,6 @@ function extractCompositionEvent(topLevelType, targetInst, nativeEvent, nativeEv
 
   // 处理备用数据
   if (fallbackData) {
-    // Inject data generated from fallback path into the synthetic event.
-    // This matches the property of native CompositionEventInterface.
     event.data = fallbackData;
   } else {
     // 从原生事件中提取自定义数据。如果提取到的数据有效（即不为 null），就将其赋值给 event.data
@@ -10296,8 +10712,6 @@ function extractBeforeInputEvent(topLevelType, targetInst, nativeEvent, nativeEv
     chars = getFallbackBeforeInputChars(topLevelType, nativeEvent);
   }
 
-  // If no characters are being inserted, no BeforeInput event should
-  // be fired.
   if (!chars) {
     return null;
   }
@@ -10324,7 +10738,6 @@ function getNativeBeforeInputChars(topLevelType, nativeEvent) {
       return SPACEBAR_CHAR;
 
     case TOP_TEXT_INPUT:
-      // Record the characters to be added to the DOM.
       var chars = nativeEvent.data;
 
       if (chars === SPACEBAR_CHAR && hasSpaceKeypress) {
@@ -10370,7 +10783,7 @@ var executeDispatchesAndReleaseTopLevel = function (e) {
   return executeDispatchesAndRelease(e);
 };
 
-var executeDispatchesAndRelease = function (event) {
+function executeDispatchesAndRelease (event) {
   // 派发事件（也就是执行listener函数）
   if (event) {
     executeDispatchesInOrder(event);
@@ -10455,13 +10868,9 @@ function executeDispatch(event, listener, inst) {
 
 function getNodeFromInstance(inst) {
   if (inst.tag === HostComponent || inst.tag === HostText) {
-    // In Fiber this, is just the state node right now. We assume it will be
-    // a host component or host text.
     return inst.stateNode;
   }
 
-  // Without this first invariant, passing a non-DOM-component triggers the next
-  // invariant for a missing parent, which is super confusing.
   invariant(false, 'getNodeFromInstance: Invalid argument.');
 }
 
@@ -10486,12 +10895,11 @@ function invokeGuardedCallback(name, func, context, a, b, c, d, e, f) {
   invokeGuardedCallbackDev.apply(reporter, arguments);
 }
 
-
-var invokeGuardedCallbackDev = function (name, func, context, a, b, c, d, e, f) {
+function invokeGuardedCallbackDev (name, func, context, a, b, c, d, e, f) {
 
   // 检查document是否存在
   !(typeof document !== 'undefined') ? invariant(false, 'The `document` global was defined when React was initialized, but is not defined anymore. This can happen in a test environment if a component schedules an update from an asynchronous callback, but the test has already finished running. To solve this, you can either unmount the component at the end of your test (and ensure that any asynchronous operations get canceled in `componentWillUnmount`), or you can change the test itself to be asynchronous.') : void 0;
-  
+
 
   // 1. 创建自定义事件
   var evt = document.createEvent('Event');
@@ -10520,7 +10928,7 @@ var invokeGuardedCallbackDev = function (name, func, context, a, b, c, d, e, f) 
     didError = false;
   }
 
-  
+
   // 4. 定义错误处理函数
   var error = void 0;
   var didSetError = false;
@@ -10641,8 +11049,8 @@ SyntheticEvent.prototype.destructor = function () {
     Object.defineProperty(this, 'nativeEvent', getPooledWarningPropertyDefinition('nativeEvent', null));
     Object.defineProperty(this, 'isDefaultPrevented', getPooledWarningPropertyDefinition('isDefaultPrevented', functionThatReturnsFalse));
     Object.defineProperty(this, 'isPropagationStopped', getPooledWarningPropertyDefinition('isPropagationStopped', functionThatReturnsFalse));
-    Object.defineProperty(this, 'preventDefault', getPooledWarningPropertyDefinition('preventDefault', function () {}));
-    Object.defineProperty(this, 'stopPropagation', getPooledWarningPropertyDefinition('stopPropagation', function () {}));
+    Object.defineProperty(this, 'preventDefault', getPooledWarningPropertyDefinition('preventDefault', function () { }));
+    Object.defineProperty(this, 'stopPropagation', getPooledWarningPropertyDefinition('stopPropagation', function () { }));
   }
 }
 
@@ -10769,7 +11177,7 @@ function stopWorkLoopTimer(interruptedBy, didCompleteRoot) {
     }
     commitCountInCurrentWorkLoop = 0;
     var label = didCompleteRoot ? '(React Tree Reconciliation: Completed Root)' : '(React Tree Reconciliation: Yielded)';
-    
+
     // 对每一个fiber的时间相关属性都停止一下
     pauseTimers();
     endMark(label, '(React Tree Reconciliation)', warning);
@@ -10884,7 +11292,7 @@ var endMark = function (label, markName, warning) {
   var formattedLabel = formatLabel(label, warning);
   try {
     performance.measure(formattedLabel, formattedMarkName);
-  } catch (err) {}
+  } catch (err) { }
   // If previous mark was missing for some reason, this will throw.
   // This could only happen if React crashed in an unexpected place earlier.
   // Don't pile on with more errors.
@@ -11084,7 +11492,7 @@ function onTimeout(root, finishedWork, suspendedExpirationTime) {
 
 function flushRoot(root, expirationTime) {
   !!isRendering ? invariant(false, 'work.commit(): Cannot commit while already rendering. This likely means you attempted to commit from inside a lifecycle method.') : void 0;
-  
+
   // 把这种经过等待而来的提交工作，放到flushed相关的变量里面
   nextFlushedRoot = root;
   nextFlushedExpirationTime = expirationTime;
@@ -11722,9 +12130,9 @@ function getOffsets(outerNode) {
   }
 
   var anchorNode = selection.anchorNode,
-      anchorOffset = selection.anchorOffset,
-      focusNode = selection.focusNode,
-      focusOffset = selection.focusOffset;
+    anchorOffset = selection.anchorOffset,
+    focusNode = selection.focusNode,
+    focusOffset = selection.focusOffset;
 
   // In Firefox, anchorNode and focusNode can be "anonymous divs", e.g. the
   // up/down buttons on an <input type="number">. Anonymous divs do not seem to
@@ -12213,7 +12621,7 @@ function commitPlacement(finishedWork) {
   // 2. 找到本兄弟节点的原生DOM
   var before = getHostSibling(finishedWork);
 
-  
+
   // 3. 开始绘制页面（从当前节点开始往下，当前节点往下往右所有都遍历了！）
   // 【上右或下右的遍历写法】
   var node = finishedWork;
@@ -12601,7 +13009,7 @@ function restoreSelection(priorSelectionInformation) {
 
 function setSelection(input, offsets) {
   var start = offsets.start,
-      end = offsets.end;
+    end = offsets.end;
 
   if (end === undefined) {
     end = start;
@@ -12773,7 +13181,7 @@ function commitLifeCycles(finishedRoot, current$$1, finishedWork, committedExpir
 
 function commitUpdateQueue(finishedWork, finishedQueue, instance, renderExpirationTime) {
   // 参数：finishedQueue是finishedWork.updateQueue
-  
+
   // 如果有已经抓住的更新firstCapturedUpdate，说明也有lastCapturedUpdate，
   // 整个CapturedUpdate放到链表的末尾
   if (finishedQueue.firstCapturedUpdate !== null) {
@@ -13082,7 +13490,7 @@ function ensureHostCallbackIsScheduled() {
 }
 
 
-function cancelHostCallback () {
+function cancelHostCallback() {
   _callback = null;
 };
 
@@ -13183,7 +13591,7 @@ channel.port1.onmessage = function (event) {
 
 
 
-var animationTick = function (rafTime) {
+function animationTick(rafTime) {
   // 渲染阶段：
   // 第一次：从requestHostCallback函数起放入宏任务，等从那往下执行一直回到ReactDOM.render才开始执行这个回调函数
   // 此时scheduledHostCallback是有值的，再次调用rAF放入宏任务，然后继续往下执行进入post1的函数
@@ -13386,15 +13794,12 @@ function flushFirstCallback() {
 
     // 继续像unstable_scheduleCallback函数一样，创建一个有序的任务队列
     if (firstCallbackNode === null) {
-      // This is the first callback in the list.
       firstCallbackNode = continuationNode.next = continuationNode.previous = continuationNode;
     } else {
       var nextAfterContinuation = null;
       var node = firstCallbackNode;
       do {
         if (node.expirationTime >= expirationTime) {
-          // This callback expires at or after the continuation. We will insert
-          // the continuation *before* this callback.
           nextAfterContinuation = node;
           break;
         }
@@ -13402,11 +13807,8 @@ function flushFirstCallback() {
       } while (node !== firstCallbackNode);
 
       if (nextAfterContinuation === null) {
-        // No equal or lower priority callback was found, which means the new
-        // callback is the lowest priority callback in the list.
         nextAfterContinuation = firstCallbackNode;
       } else if (nextAfterContinuation === firstCallbackNode) {
-        // The new callback is the highest priority callback in the list.
         firstCallbackNode = continuationNode;
         ensureHostCallbackIsScheduled();
       }
@@ -13607,31 +14009,31 @@ var hook = {
       return nextID++;
     }
     var id = oldInject.apply(this, arguments);
-  
+
     if (typeof injected.scheduleRefresh === 'function' && typeof injected.setRefreshHandler === 'function') {
       helpersByRendererID.set(id, injected);
     }
-  
+
     return id;
   },
-  onCommitFiberUnmount: function () {},
-  onScheduleFiberRoot: function (id, root, children) {},
+  onCommitFiberUnmount: function () { },
+  onScheduleFiberRoot: function (id, root, children) { },
   onCommitFiberRoot: function (id, root, maybePriorityLevel, didError) {
 
     var helpers = helpersByRendererID.get(id);
-  
+
     if (helpers !== undefined) {
       helpersByRoot.set(root, helpers);
       // 获取当前根节点的状态
       var current = root.current;
       var alternate = current.alternate; // We need to determine whether this root has just (un)mounted.
-      
+
       //  判断当前根节点的挂载状态
       if (alternate !== null) {
         // 更新时
         var wasMounted = alternate.memoizedState != null && alternate.memoizedState.element != null;
         var isMounted = current.memoizedState != null && current.memoizedState.element != null;
-  
+
         // wasMounted 和 isMounted 用来判断根节点在当前和上一次渲染时是否已挂载。
         if (!wasMounted && isMounted) {
           // 根节点从未挂载到已挂载：
@@ -13642,7 +14044,7 @@ var hook = {
         } else if (wasMounted && !isMounted) {
           // 根节点从挂载变为未挂载
           mountedRoots.delete(root);
-  
+
           if (didError) {
             // We'll remount it on future edits.
             failedRoots.add(root);
@@ -13779,7 +14181,7 @@ function cloneChildFibers(current$$1, workInProgress) {
   // 给大孩子创造一个alternate（复制现有 fiber ）
   // 返回的是替身，也就是WIP是current的alternate，但里面的属性啥的都更新过了
   var newChild = createWorkInProgress(currentChild, currentChild.pendingProps, currentChild.expirationTime);
-  
+
   // 这里要重新指一下child和return的指针
   workInProgress.child = newChild;
   newChild.return = workInProgress;
@@ -13815,7 +14217,7 @@ function updateFunctionComponent(current$$1, workInProgress, Component, nextProp
 
     // 进入renderWithHooks函数
     nextChildren = renderWithHooks(current$$1, workInProgress, Component, nextProps, context, renderExpirationTime);
-    
+
     setCurrentPhase(null);
   }
 
@@ -14227,8 +14629,8 @@ function useDeepEffect(fn, deps) {
 function deepEqual(a, b) {
   if (a === b) return true;
 
-  if (typeof a !== 'object' || a === null || 
-      typeof b !== 'object' || b === null) {
+  if (typeof a !== 'object' || a === null ||
+    typeof b !== 'object' || b === null) {
     return false;
   }
 
@@ -14243,7 +14645,7 @@ function deepEqual(a, b) {
 
   return (
     keysA.length === keysB.length &&
-    keysA.every(key => 
+    keysA.every(key =>
       Object.prototype.hasOwnProperty.call(b, key) &&
       deepEqual(a[key], b[key])
     )
@@ -14329,7 +14731,7 @@ function updateRef(initialValue) {
 
 
 
-function updateHostComponent$1 (current, workInProgress, type, newProps, rootContainerInstance) {
+function updateHostComponent$1(current, workInProgress, type, newProps, rootContainerInstance) {
   // 首先对比新老props
   var oldProps = current.memoizedProps;
   if (oldProps === newProps) {
@@ -14632,13 +15034,6 @@ var classComponentUpdater = {
     var update = createUpdate(expirationTime);
     update.payload = payload; // 这个可能是state数据，也可能是参数为prevState返回值为newState的函数
 
-    // 一些警告信息
-    if (callback !== undefined && callback !== null) {
-      {
-        warnOnInvalidCallback$1(callback, 'setState');
-      }
-      update.callback = callback;
-    }
 
     // 处理副作用函数
     flushPassiveEffects();
@@ -14721,4 +15116,11 @@ var classComponentUpdater = {
 function get(key) {
   return key._reactInternalFiber;
 }
+
+
+
+
+
+
+
 
