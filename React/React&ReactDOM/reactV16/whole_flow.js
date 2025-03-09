@@ -1157,6 +1157,55 @@ var Action = {
   Replace: "REPLACE",
 }
 
+// 路由相关信息
+var locationProp = {
+  hash: '',
+  key: 'default',
+  pathname: '/',
+  search: '',
+  state: null,
+}
+
+
+// 历史栈工具箱和路由的provider
+let NavigationContext = React.createContext({
+  basename: string,
+  navigator: {
+    createHref,
+    encodeLocation,
+    go,
+    push,
+    replace,
+  },
+  static: boolean,
+  future: {
+    v7_relativeSplatPath: boolean,
+  },
+})
+
+let LocationContext = React.createContext({
+  location: {
+    state,
+    key,
+  },
+  navigationType: NavigationType,
+})
+
+let RouteContext = React.createContext({
+  outlet: React.ReactElement,
+  matches: RouteMatch,
+  isDataRoute: boolean,
+})
+
+
+
+// 处理routes数组的时候
+const paramRe = /^:[\w-]+$/;
+const dynamicSegmentValue = 3;
+const indexRouteValue = 2;
+const emptySegmentValue = 1;
+const staticSegmentValue = 10;
+const splatPenalty = -2;
 
 
 
@@ -1177,7 +1226,7 @@ function createElementWithValidation(type, props, children) {
         Object.keys(type).length === 0)
     ) {
       info +=
-        " You likely forgot to export your component from the file " +
+        " You likely forgot to  your component from the file " +
         "it's defined in, or you might have mixed up default and named imports.";
     }
 
@@ -1196,7 +1245,7 @@ function createElementWithValidation(type, props, children) {
     } else if (type !== undefined && type.$$typeof === REACT_ELEMENT_TYPE) {
       typeString = "<" + (getComponentName(type.type) || "Unknown") + " />";
       info =
-        " Did you accidentally export a JSX literal instead of a component?";
+        " Did you accidentally  a JSX literal instead of a component?";
     } else {
       typeString = typeof type;
     }
@@ -3651,22 +3700,23 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       // 也可以来，只是函数组件可以用useContext，不需要写<Context.Comsumer>(value) => {...}</Context.Comsumer>
       return updateContextConsumer(current$$1, workInProgress, renderExpirationTime);
     case MemoComponent: {
+      // 【memo(() => (<></>))】的类型的【首渲】走这里
+
+      // 拿到memo整个函数本身
       var _type2 = workInProgress.type;
       var _unresolvedProps3 = workInProgress.pendingProps;
-      // Resolve outer props first, then resolve inner props.
+
+      // 把默认props和自定义的props融合到一起
       var _resolvedProps3 = resolveDefaultProps(_type2, _unresolvedProps3);
-      {
-        if (workInProgress.type !== workInProgress.elementType) {
-          var outerPropTypes = _type2.propTypes;
-          if (outerPropTypes) {
-            checkPropTypes(outerPropTypes, _resolvedProps3, "prop", getComponentName(_type2), getCurrentFiberStackInDev);
-          }
-        }
-      }
+      // 把type对象的默认属性也融合到props里面
       _resolvedProps3 = resolveDefaultProps(_type2.type, _resolvedProps3);
+
+      // 上面好像都不会走，走下面
       return updateMemoComponent(current$$1, workInProgress, _type2, _resolvedProps3, updateExpirationTime, renderExpirationTime);
     }
     case SimpleMemoComponent: {
+      // 【memo(() => (<></>))】的类型的【更新】走这里
+      // 之前在MemoComponent明确了这个是一个函数式的memo组件，因此改了tag为SimpleMemoComponent
       return updateSimpleMemoComponent(current$$1, workInProgress, workInProgress.type, workInProgress.pendingProps, updateExpirationTime, renderExpirationTime);
     }
     case IncompleteClassComponent: {
@@ -3685,6 +3735,9 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
   }
   // 这里分发完之后就没事了！！
 }
+
+
+
 
 // REVIEW - root对象经过beginWork分发之后，来到updateHostRoot！！！！
 
@@ -7281,7 +7334,7 @@ function tryToClaimNextHydratableInstance(fiber) {
 
 
 
-// REVIEW - 下面是经过beginWork分发后来到【suspense类型】以及【】的更新函数
+// REVIEW - 下面是经过beginWork分发后来到【suspense类型】的更新函数
 
 
 
@@ -7486,11 +7539,27 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
 
 
 
-// !beginWork分发之后的BrowserRouters组件
+// REVIEW - 下面是经过beginWork分发后来到【BrowserRouters组件】的更新函数
+
+// !这里还包括：【useRoutes的钩子函数】
+
+// 使用例子：
+// 不用useRoutes(routes)，就用routes包裹着route
+// function Blog() {
+//   return (
+//     <Routes>
+//       <Route path="post/:id" element={<Post />} />
+//     </Routes>
+//   );
+// }
+// 如果用useRoutes(routes)，相当于用一个钩子实现routes及其内部包裹的元素树
+
+
+
 // BrowserRouters是一个函数组件
 // 下面是BrowserRouters的renderWithHooks里面执行Component()函数之后来到的地方
 
-export function BrowserRouter({ basename, children, future, window, }) {
+function BrowserRouter({ basename, children, future, window, }) {
 
   // 1. 拿出历史栈相关的工具箱
   // 使用ref来记录东西，把关于历史栈的一些工具放到historyRef.current里面，相当于historyRef就是一个工具箱
@@ -7510,7 +7579,7 @@ export function BrowserRouter({ basename, children, future, window, }) {
   });
 
 
-  // 从renderWithHooks进来的是没有参数的，这里是undefined
+  // 从renderWithHooks进来的参数是props和refOrContext，但是BrowserRouter没有props（除了孩子），也就是没有参数的，这里是undefined
   let { v7_startTransition } = future || {};
 
 
@@ -7526,10 +7595,12 @@ export function BrowserRouter({ basename, children, future, window, }) {
   );
 
   // 用LayoutEffect在绘制页面之前，监听setState这个函数，看他是否有变化
+  // diapatchAction一般是一直保存在useState的，内存地址不会变
   React.useLayoutEffect(() => history.listen(setState), [history, setState]);
 
   React.useEffect(() => logV6DeprecationWarnings(future), [future]);
 
+  // 再包裹一层是因为这个Router是【最后的包装者】
   return (
     <Router
       basename={basename}
@@ -7545,6 +7616,18 @@ export function BrowserRouter({ basename, children, future, window, }) {
 
 function createBrowserHistory(options) {
   function createBrowserLocation(window, globalHistory) {
+    // window.location是浏览器的全局对象
+    // window.location.href → 整个url："https://www.example.com:8080/path/to/page?name=value&age=30#section1"
+    // window.location.protocol → 协议："https:"
+    // window.location.host → 主地址："www.example.com:8080"
+    // window.location.hostname → 主地址名字："www.example.com"
+    // window.location.port → 端口号："8080"
+    // window.location.pathname → 路径："/path/to/page"
+    // window.location.search → 查询参数："?name=value&age=30"
+    // window.location.hash → 哈希值："#section1"
+    // window.location.origin → 协议和主地址名字："https://www.example.com"
+
+    // 这里拿的是路径、查询参数和哈希值
     let { pathname, search, hash } = window.location;
     return createLocation(
       "",
@@ -7692,7 +7775,7 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
 
 
 
-export function createLocation(current, to, state, key) {
+function createLocation(current, to, state, key) {
 
   // 从createBrowserLocation过来是
   // 入参：
@@ -7713,6 +7796,653 @@ export function createLocation(current, to, state, key) {
 }
 
 
+
+
+function Router({basename: basenameProp = "/", children = null, location: locationProp, navigationType = NavigationType.Pop, navigator, static: staticProp = false, future,}) {
+  
+  // 入参：
+  // basename为默认值，即/
+  // children为BrowserRouter的children
+  // location是location对象
+  // navigationType就是action（例如pop）
+  // navigator就是历史栈的工具箱
+  // future是undefined
+  // staticProp是默认值，false
+  // locationProp是默认值，即如下
+  // var locationProp = {
+  //   hash: '',
+  //   key: 'default',
+  //   pathname: '/',
+  //   search: '',
+  //   state: null,
+  // }
+  
+
+  // 再包装一下工具箱，用memo缓存
+  let basename = basenameProp.replace(/^\/*/, "/");
+  let navigationContext = React.useMemo(() => ({
+      basename,
+      navigator,
+      static: staticProp,
+      future: {
+        v7_relativeSplatPath: false,
+        ...future,
+      },
+    }),
+    [basename, future, navigator, staticProp]
+  );
+
+  if (typeof locationProp === "string") {
+    locationProp = parsePath(locationProp);
+  }
+
+  let {
+    pathname = "/",
+    search = "",
+    hash = "",
+    state = null,
+    key = "default",
+  } = locationProp;
+
+  // 包装一下路由的基本信息，用memo缓存
+  let locationContext = React.useMemo(() => {
+    // 从pathname里面截取basename的值
+    let trailingPathname = stripBasename(pathname, basename);
+    if (trailingPathname == null) {
+      return null;
+    }
+    return {
+      location: {
+        // 路径、查询参数、哈希值
+        pathname: trailingPathname,
+        search,
+        hash,
+        state,
+        key,
+      },
+      navigationType,
+    };
+  }, [basename, pathname, search, hash, state, key, navigationType]);
+
+  if (locationContext == null) {
+    return null;
+  }
+
+  // 下面一个是提供历史栈的工具箱，一个是提供路由信息的工具箱
+  return (
+    <NavigationContext.Provider value={navigationContext}>
+      <LocationContext.Provider children={children} value={locationContext} />
+    </NavigationContext.Provider>
+  );
+}
+
+
+function stripBasename(pathname, basename) {
+  if (basename === "/") return pathname;
+
+  if (!pathname.toLowerCase().startsWith(basename.toLowerCase())) {
+    return null;
+  }
+
+  let startIndex = basename.endsWith("/")
+    ? basename.length - 1
+    : basename.length;
+  let nextChar = pathname.charAt(startIndex);
+  if (nextChar && nextChar !== "/") {
+    return null;
+  }
+
+  return pathname.slice(startIndex) || "/";
+}
+
+
+
+
+
+
+// !下面是【useRoutes的钩子函数】相关
+
+
+function useRoutes(routes, locationArg) {
+  return useRoutesImpl(routes, locationArg);
+}
+
+
+
+function useRoutesImpl(routes, locationArg, dataRouterState, future) {
+
+  // 从上下文种拿到工具箱
+  let { navigator, static: isStatic } = React.useContext(NavigationContext);
+  let { matches: parentMatches } = React.useContext(RouteContext);
+
+  // 拿到url收集栈的最后一个
+  let routeMatch = parentMatches[parentMatches.length - 1];
+
+  // 拿到这个url的信息
+  let parentParams = routeMatch ? routeMatch.params : {};
+  let parentPathname = routeMatch ? routeMatch.pathname : "/";
+  let parentPathnameBase = routeMatch ? routeMatch.pathnameBase : "/";
+  let parentRoute = routeMatch && routeMatch.route;
+
+  // 拿到Location上下文里面的location对象，长这样！
+  // {
+  //   pathname: trailingPathname,
+  //   search,
+  //   hash,
+  //   state,
+  //   key,
+  // }
+  let locationFromContext = useLocation();
+
+  // useRoutes没有第二个参数，就不走下面，让location直接等于从上下文拿到的location对象
+  let location;
+  if (locationArg) {
+    let parsedLocationArg = typeof locationArg === "string" ? parsePath(locationArg) : locationArg;
+    location = parsedLocationArg;
+  } else {
+    location = locationFromContext;
+  }
+
+  // 拿到路径
+  let pathname = location.pathname || "/";
+
+  // 拿到剩下的或者多出来的路径的一部分
+  let remainingPathname = pathname;
+  if (parentPathnameBase !== "/") {
+    // pathname把parentPathnameBase截掉
+    let parentSegments = parentPathnameBase.replace(/^\//, "").split("/");
+    let segments = pathname.replace(/^\//, "").split("/");
+    remainingPathname = "/" + segments.slice(parentSegments.length).join("/");
+  }
+
+  // 拿到
+  let matches =
+    !isStatic &&
+    dataRouterState &&
+    dataRouterState.matches &&
+    dataRouterState.matches.length > 0
+      ? dataRouterState.matches
+      : matchRoutes(routes, { pathname: remainingPathname });
+
+
+  let renderedMatches = _renderMatches(
+    matches &&
+      matches.map((match) =>
+        Object.assign({}, match, {
+          params: Object.assign({}, parentParams, match.params),
+          pathname: joinPaths([
+            parentPathnameBase,
+            // Re-encode pathnames that were decoded inside matchRoutes
+            navigator.encodeLocation
+              ? navigator.encodeLocation(match.pathname).pathname
+              : match.pathname,
+          ]),
+          pathnameBase:
+            match.pathnameBase === "/"
+              ? parentPathnameBase
+              : joinPaths([
+                  parentPathnameBase,
+                  // Re-encode pathnames that were decoded inside matchRoutes
+                  navigator.encodeLocation
+                    ? navigator.encodeLocation(match.pathnameBase).pathname
+                    : match.pathnameBase,
+                ]),
+        })
+      ),
+    parentMatches,
+    dataRouterState,
+    future
+  );
+
+  if (locationArg && renderedMatches) {
+    return (
+      <LocationContext.Provider
+        value={{
+          location: {
+            pathname: "/",
+            search: "",
+            hash: "",
+            state: null,
+            key: "default",
+            ...location,
+          },
+          navigationType: NavigationType.Pop,
+        }}
+      >
+        {renderedMatches}
+      </LocationContext.Provider>
+    );
+  }
+
+  return renderedMatches;
+}
+
+
+
+function useLocation() {
+  return useContext(LocationContext).location;
+}
+
+
+
+function matchRoutes(routes, locationArg, basename = "/") {
+  return matchRoutesImpl(routes, locationArg, basename, false);
+}
+
+
+
+function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
+
+  // locationArg是{ pathname: remainingPathname }
+  // routes就是自己定义的一个路由管理数组
+  // const routes = [
+  //   {
+  //     path: "/",
+  //     element: <Navigate to="/users/login" />,
+  //   },
+  //   {
+  //     path: "/users/login",
+  //     element: <Login />,
+  //   },
+  //   {
+  //     path: "/users/home",
+  //     element: <Home />,
+  //   }
+  // ]
+
+
+  let location = typeof locationArg === "string" ? parsePath(locationArg) : locationArg;
+
+  // pathname，也就是remainingPathname，截掉basename的部分
+  let pathname = stripBasename(location.pathname || "/", basename);
+  if (pathname == null) {
+    return null;
+  }
+
+  let branches = flattenRoutes(routes);
+
+  // 
+  rankRouteBranches(branches);
+
+  let matches = null;
+  for (let i = 0; matches == null && i < branches.length; ++i) {
+    let decoded = decodePath(pathname);
+    matches = matchRouteBranch(
+      branches[i],
+      decoded,
+      allowPartial
+    );
+  }
+
+  return matches;
+}
+
+
+
+
+function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "") {
+  let flattenRoute = (route, index, relativePath) => {
+
+    // 针对routes再次包装一个对象
+    let meta = {
+      relativePath: relativePath === undefined ? route.path || "" : relativePath,
+      caseSensitive: route.caseSensitive === true,
+      childrenIndex: index,
+      route,
+    };
+
+    // 从matchRoutesImpl过来的，这里parentPath为空字符串，
+    // 相当于没有裁剪或者合并什么东西
+    if (meta.relativePath.startsWith("/")) {
+      meta.relativePath = meta.relativePath.slice(parentPath.length);
+    }
+    let path = joinPaths([parentPath, meta.relativePath]);
+    let routesMeta = parentsMeta.concat(meta);
+
+  
+    // 如果有孩子，继续执行本函数，拿到更多的路由数组
+    if (route.children && route.children.length > 0) {
+      flattenRoutes(route.children, branches, routesMeta, path);
+    }
+    if (route.path == null && !route.index) {
+      return;
+    }
+
+    // 把【路径，包装对象，路径得分（优先级的体现）】放到“路由枝条数组”中
+    branches.push({
+      path,
+      score: computeScore(path, route.index),
+      routesMeta,
+    });
+  };
+
+  routes.forEach((route, index) => {
+    if (route.path === "" || !route.path?.includes("?")) {
+      flattenRoute(route, index);
+    } else {
+      for (let exploded of explodeOptionalSegments(route.path)) {
+        flattenRoute(route, index, exploded);
+      }
+    }
+  });
+
+  return branches;
+}
+
+
+
+function joinPaths(paths){
+  // 把//变为/
+  paths.join("/").replace(/\/\/+/g, "/")
+}
+
+
+
+function computeScore(path, index) {
+  // 把路径分开
+  let segments = path.split("/");
+  // 有多少段就设置初始分数为多少分
+  let initialScore = segments.length;
+
+  // 看有无星号，只要有一个星号，就在原始的分数上面减去2，这是一个惩罚
+  if (segments.some(isSplat)) {
+    // 是否 至少有一个元素 满足指定的条件，返回一个布尔值
+    initialScore += splatPenalty;
+  }
+
+  // 如果routes数组里面的元素有index属性的话，分数再加2
+  if (index) {
+    initialScore += indexRouteValue;
+  }
+
+  // 把那些没有星号的筛除掉
+  // 然后根据每一个段的情况加分
+  // 如果是动态段（例如 /user/:id 中的 :id），则加上 dynamicSegmentValue（3）
+  // 如果是空字符串段（例如path最前面有“根路径 /”），则加上 emptySegmentValue（1）
+  // 如果是静态段（例如 /users 中的 users），则加上 staticSegmentValue（10）
+  return segments
+    .filter((s) => !isSplat(s))
+    .reduce(
+      (score, segment) => score + (paramRe.test(segment) ? dynamicSegmentValue : segment === "" ? emptySegmentValue : staticSegmentValue),
+      initialScore
+    );
+}
+
+
+var isSplat = (s) => s === "*";
+
+
+
+
+
+
+// REVIEW - 下面是经过beginWork分发后来到【memo(() => { return (<></>) })】的更新函数
+
+
+
+
+function resolveDefaultProps(Component, baseProps) {
+  // 把默认的prop和自定义的prop融合到一起，并且返回一个新的内存地址的对象
+
+  if (Component && Component.defaultProps) {
+    var props = _assign({}, baseProps);
+    var defaultProps = Component.defaultProps;
+    for (var propName in defaultProps) {
+      if (props[propName] === undefined) {
+        props[propName] = defaultProps[propName];
+      }
+    }
+    return props;
+  }
+  return baseProps;
+}
+
+
+
+
+function updateMemoComponent(current$$1, workInProgress, Component, nextProps, updateExpirationTime, renderExpirationTime) {
+  if (current$$1 === null) {
+    // 首渲走这里
+    
+    // component是WIP的type属性，也是memo整个函数本身
+    // 在此基础上又拿了一个type属性，这个type还是memo函数本身
+    var type = Component.type;
+    if (isSimpleFunctionComponent(type) && Component.compare === null && Component.defaultProps === undefined) {
+      // 首次渲染走下面
+      // 如果是函数组件的话，就改tag为SimpleMemoComponent
+      workInProgress.tag = SimpleMemoComponent;
+      workInProgress.type = type;
+
+      // 检验函数
+      validateFunctionComponentInDev(workInProgress, type);
+
+      // 改为去SimpleMemoComponent那边再走一遍
+      return updateSimpleMemoComponent(current$$1, workInProgress, type, nextProps, updateExpirationTime, renderExpirationTime);
+    }
+
+    // 直接创建一个孩子！不走reconcile那边
+    var child = createFiberFromTypeAndProps(Component.type, null, nextProps, null, workInProgress.mode, renderExpirationTime);
+    child.ref = workInProgress.ref;
+    child.return = workInProgress;
+    workInProgress.child = child;
+
+    // 直接返回大孩子
+    return child;
+  }
+
+  // 更新都走下面！
+  var currentChild = current$$1.child;
+  // updateExpirationTime也就是fiber本身的expirationTime
+  // fiber本身的eT小于当前的eT，说明这个更新已经过期了，需要立刻检查前后props是否一样，以判断是否需要提前退出
+  if (updateExpirationTime < renderExpirationTime) {
+    var prevProps = currentChild.memoizedProps;
+    var compare = Component.compare;
+    compare = compare !== null ? compare : shallowEqual;
+    if (compare(prevProps, nextProps) && current$$1.ref === workInProgress.ref) {
+      return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
+    }
+  }
+
+  // React DevTools的副作用
+  workInProgress.effectTag |= PerformedWork;
+
+  // 直接创建一个孩子！不走reconcile那边
+  var newChild = createWorkInProgress(currentChild, nextProps, renderExpirationTime);
+  newChild.ref = workInProgress.ref;
+  newChild.return = workInProgress;
+  workInProgress.child = newChild;
+  return newChild;
+}
+
+
+
+function isSimpleFunctionComponent(type) {
+  return typeof type === 'function' && !shouldConstruct(type) && type.defaultProps === undefined;
+}
+
+
+// 下面函数用来判断一个组件是否是一个类组件（即继承自 React.Component 或者 React.PureComponent 的组件）
+function shouldConstruct(Component) {
+  var prototype = Component.prototype;
+  return !!(prototype && prototype.isReactComponent);
+}
+
+
+
+
+
+function updateSimpleMemoComponent(current$$1, workInProgress, Component, nextProps, updateExpirationTime, renderExpirationTime) {
+  // updateExpirationTime也就是fiber本身的expirationTime
+
+  // 异常信息检验
+  {
+    if (workInProgress.type !== workInProgress.elementType) {
+      // 经过在updateMemoComponent那里把【WIP的type】改为了【WIP的type的type】，这里是不一样的，走下面的逻辑
+      // 但是下面的两个if条件都不满足，直接跳过
+      var outerMemoType = workInProgress.elementType;
+      if (outerMemoType.$$typeof === REACT_LAZY_TYPE) {
+        outerMemoType = refineResolvedLazyComponent(outerMemoType);
+      }
+      var outerPropTypes = outerMemoType && outerMemoType.propTypes;
+      if (outerPropTypes) {
+        checkPropTypes(outerPropTypes, nextProps,
+        'prop', getComponentName(outerMemoType), getCurrentFiberStackInDev);
+      }
+    }
+  }
+
+  if (current$$1 !== null) {
+    // 更新走下面！
+    var prevProps = current$$1.memoizedProps;
+
+    // 检查前后props是否一样，以判断是否需要更新，
+    // 这里是浅比较！！！
+    if (shallowEqual(prevProps, nextProps) && current$$1.ref === workInProgress.ref) {
+      didReceiveUpdate = false;
+      if (updateExpirationTime < renderExpirationTime) {
+        // fiber本身的eT小于当前的eT，说明这个更新已经过期了，需要立刻提前退出
+        return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
+      }
+    }
+  }
+
+  // 首渲走下面，直接去函数组件的逻辑
+  return updateFunctionComponent(current$$1, workInProgress, Component, nextProps, renderExpirationTime);
+}
+
+
+
+function shallowEqual(objA, objB) {
+  if (is(objA, objB)) {
+    return true;
+  }
+
+  if (typeof objA !== 'object' || objA === null || typeof objB !== 'object' || objB === null) {
+    return false;
+  }
+
+  var keysA = Object.keys(objA);
+  var keysB = Object.keys(objB);
+
+  if (keysA.length !== keysB.length) {
+    return false;
+  }
+
+  for (var i = 0; i < keysA.length; i++) {
+    if (!hasOwnProperty$1.call(objB, keysA[i]) || !is(objA[keysA[i]], objB[keysA[i]])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+var hasOwnProperty$1 = Object.prototype.hasOwnProperty;
+
+
+
+
+function createSignatureFunctionForTransform() {
+  {
+    var savedType;
+    var hasCustomHooks;
+    var didCollectHooks = false;
+    return function (type, key, forceReset, getCustomHooks) {
+      if (typeof key === 'string') {
+        // We're in the initial phase that associates signatures
+        // with the functions. Note this may be called multiple times
+        // in HOC chains like _s(hoc1(_s(hoc2(_s(actualFunction))))).
+        if (!savedType) {
+          // We're in the innermost call, so this is the actual type.
+          savedType = type;
+          hasCustomHooks = typeof getCustomHooks === 'function';
+        } // Set the signature for all types (even wrappers!) in case
+        // they have no signatures of their own. This is to prevent
+        // problems like https://github.com/facebook/react/issues/20417.
+
+
+        if (type != null && (typeof type === 'function' || typeof type === 'object')) {
+          setSignature(type, key, forceReset, getCustomHooks);
+        }
+
+        return type;
+      } else {
+        // We're in the _s() call without arguments, which means
+        // this is the time to collect custom Hook signatures.
+        // Only do this once. This path is hot and runs *inside* every render!
+        if (!didCollectHooks && hasCustomHooks) {
+          didCollectHooks = true;
+          collectCustomHooksForSignature(savedType);
+        }
+      }
+    };
+  }
+}
+
+
+function collectCustomHooksForSignature(type) {
+  {
+    var signature = allSignaturesByType.get(type);
+
+    if (signature !== undefined) {
+      computeFullKey(signature);
+    }
+  }
+}
+
+
+
+
+
+function computeFullKey(signature) {
+  if (signature.fullKey !== null) {
+    return signature.fullKey;
+  }
+
+  var fullKey = signature.ownKey;
+  var hooks;
+
+  try {
+    hooks = signature.getCustomHooks();
+  } catch (err) {
+    // This can happen in an edge case, e.g. if expression like Foo.useSomething
+    // depends on Foo which is lazily initialized during rendering.
+    // In that case just assume we'll have to remount.
+    signature.forceReset = true;
+    signature.fullKey = fullKey;
+    return fullKey;
+  }
+
+  for (var i = 0; i < hooks.length; i++) {
+    var hook = hooks[i];
+
+    if (typeof hook !== 'function') {
+      // Something's wrong. Assume we need to remount.
+      signature.forceReset = true;
+      signature.fullKey = fullKey;
+      return fullKey;
+    }
+
+    var nestedHookSignature = allSignaturesByType.get(hook);
+
+    if (nestedHookSignature === undefined) {
+      // No signature means Hook wasn't in the source code, e.g. in a library.
+      // We'll skip it because we can assume it won't change during this session.
+      continue;
+    }
+
+    var nestedHookKey = computeFullKey(nestedHookSignature);
+
+    if (nestedHookSignature.forceReset) {
+      signature.forceReset = true;
+    }
+
+    fullKey += '\n---\n' + nestedHookKey;
+  }
+
+  signature.fullKey = fullKey;
+  return fullKey;
+}
 
 
 
@@ -10569,17 +11299,12 @@ function isListeningToAllDependencies(registrationName, mountAt) {
 
 
 function constructSelectEvent(nativeEvent, nativeEventTarget) {
-  // Ensure we have the right element, and that the user is not dragging a
-  // selection (this matches native `select` event behavior). In HTML5, select
-  // fires only on input and textarea thus if there's no focused element we
-  // won't dispatch.
   var doc = getEventTargetDocument(nativeEventTarget);
 
   if (mouseDown || activeElement$1 == null || activeElement$1 !== getActiveElement(doc)) {
     return null;
   }
 
-  // Only fire when selection has actually changed.
   var currentSelection = getSelection(activeElement$1);
   if (!lastSelection || !shallowEqual(lastSelection, currentSelection)) {
     lastSelection = currentSelection;
