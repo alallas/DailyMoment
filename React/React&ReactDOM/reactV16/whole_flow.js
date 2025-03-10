@@ -5554,6 +5554,7 @@ function renderWithHooks(current, workInProgress, Component, props, refOrContext
   renderedWork.updateQueue = componentUpdateQueue;
 
   // （4）变成有副作用的effectTag，后续会在提交阶段执行副作用并调度
+  // 注意，这里的sideEffectTag默认是0，只有在有且执行effect相关的钩子才会把sideEffectTag改掉
   renderedWork.effectTag |= sideEffectTag;
 
 
@@ -6000,6 +6001,7 @@ function mountLayoutEffect(create, deps) {
 // 这个于useEffect的区别在于：
 // useLayoutEffect是用的Update的fiber副作用，是在commitAllHostEffect那里就执行了，是同步操作
 // 而useEffect用的是passive的fiber副作用，passive是在绘制页面完成之后才进行操作，且是异步操作
+// （此外，useLayoutEffect的hookEffectTag也变成了UnmountMutation或者MountLayout）
 
 // useLayoutEffect: 这个钩子的副作用会在浏览器绘制前同步执行。
 // 这意味着它会在 DOM 更新后立即执行，浏览器在完成这些副作用后才会开始渲染。
@@ -7692,12 +7694,23 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     }
   }
 
+  // 从navigator函数进来的
   function push(to, state) {
     action = Action.Push;
+
+    // 创建一个location对象
+    // 包括：
+    // 当前的所在的url的路径部分三剑客location对象里面的pathname，
+    // 以及目标路径对象的全部属性
     let location = createLocation(history.location, to, state);
+
+    // 验证一下
     if (validateLocation) validateLocation(location, to);
 
+    // 拿到globalHistory.state里面的idx，没有的话就是null
     index = getIndex() + 1;
+
+    // 
     let historyState = getHistoryState(location, index);
     let url = history.createHref(location);
 
@@ -7753,6 +7766,7 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     get location() {
       return getLocation(window, globalHistory);
     },
+    // 从browerRouter的绘制页面之前的layoutEffect进来的
     listen(fn) {
       if (listener) {
         throw new Error("A history only accepts one active listener");
@@ -8678,15 +8692,21 @@ function Navigate({to, replace, state, relative}) {
   // 3. 拿到跳转函数（跳转钩子）
   let navigate = useNavigate();
 
-  // 第一个参数是目标路径，第二个参数是匹配上的route里面的base类型的路径，用数组包裹["/"]，第三个参数是当前的url路径，是字符串"/"
+
+  // 4. 拿到目标路径的包装对象（三剑客）的字符化结果
+  // hash = ''
+  // pathname = '/users/login'
+  // search = ''
   let path = resolveTo(to, getResolveToMatches(matches, future.v7_relativeSplatPath), locationPathname, relative === "path");
   let jsonPath = JSON.stringify(path);
 
+  // 5. 在页面显示之后才跳转
   React.useEffect(
     () => navigate(JSON.parse(jsonPath), { replace, state, relative }),
     [navigate, jsonPath, relative, replace, state]
   );
 
+  // 返回的大孩子是null
   return null;
 }
 
@@ -8728,17 +8748,26 @@ function useNavigateUnstable() {
   });
 
   let navigate = React.useCallback((to, options = {}) => {
-  // 确保在页面绘制之前跳转！
+    // 确保在页面绘制之后跳转！
+    // activeRef.current在页面绘制之前就已经设置为true了
     if (!activeRef.current) return;
     if (typeof to === "number") {
       navigator.go(to);
       return;
     }
+
+    // 拿到目标路径的包装对象（三剑客）的字符化结果
+    // hash = ''
+    // pathname = '/users/login'
+    // search = ''
     let path = resolveTo(to, JSON.parse(routePathnamesJson), locationPathname, options.relative === "path");
+
+    // 下面不会走，basename为/，dataRouterContext是null
     if (dataRouterContext == null && basename !== "/") {
       path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
     }
-    // 
+
+    // options.replace一般来说是不存在的，没有给navigare组件加props的话，执行push方法
     (!!options.replace ? navigator.replace : navigator.push)(path, options.state, options);
 
   }, [basename, navigator, routePathnamesJson, locationPathname, dataRouterContext]);
@@ -8808,6 +8837,7 @@ function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = fal
   } else {
     // toPathname不为空走下面
     let routePathnameIndex = routePathnames.length - 1;
+
     if (!isPathRelative && toPathname.startsWith("..")) {
       // 如果路径是两个点开头的，把所有开头的点去掉（两个点两个点得去掉）
       let toSegments = toPathname.split("/");
@@ -8827,21 +8857,23 @@ function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = fal
     from = routePathnameIndex >= 0 ? routePathnames[routePathnameIndex] : "/";
   }
 
+  // 返回to路径的包装对象
   let path = resolvePath(to, from);
 
-  // Ensure the pathname has a trailing slash if the original "to" had one
-  let hasExplicitTrailingSlash =
-    toPathname && toPathname !== "/" && toPathname.endsWith("/");
-  // Or if this was a link to the current path which has a trailing slash
-  let hasCurrentTrailingSlash =
-    (isEmptyPath || toPathname === ".") && locationPathname.endsWith("/");
-  if (
-    !path.pathname.endsWith("/") &&
-    (hasExplicitTrailingSlash || hasCurrentTrailingSlash)
-  ) {
+  // 目标路径 toPathname 不是根路径且以斜杠 / 结尾，则标记为有显式的尾部斜杠。
+  let hasExplicitTrailingSlash = toPathname && toPathname !== "/" && toPathname.endsWith("/");
+
+  // 目标路径为空或 toPathname 是 "."（表示当前路径），
+  // 且当前路径 locationPathname 以斜杠结尾，则标记为当前路径有尾部斜杠
+  let hasCurrentTrailingSlash = (isEmptyPath || toPathname === ".") && locationPathname.endsWith("/");
+  
+  // 如果目标路径的最终 pathname 没有尾部斜杠，且目标路径或当前路径有尾部斜杠的要求，
+  // 则在 path.pathname 上添加尾部斜杠。
+  if (!path.pathname.endsWith("/") && (hasExplicitTrailingSlash || hasCurrentTrailingSlash)) {
     path.pathname += "/";
   }
 
+  // 返回to路径的包装对象
   return path;
 }
 
@@ -8884,6 +8916,7 @@ function resolvePath(to, fromPathname = "/") {
     hash = "",
   } = typeof to === "string" ? parsePath(to) : to;
 
+  // 拿到目标路径
   let pathname = toPathname
     ? toPathname.startsWith("/")
       ? toPathname
@@ -8908,7 +8941,7 @@ function resolvePathname(relativePath, fromPathname) {
 
   relativeSegments.forEach((segment) => {
     if (segment === "..") {
-      // 假设【目标路径分割对象】被分割出来..，【来源路径分割对象】需要把最后一项删掉
+      // 假设【目标路径分割对象】被分割出来.. 【来源路径分割对象】需要把最后一项删掉
       if (segments.length > 1) segments.pop();
     } else if (segment !== ".") {
       // 假设【目标路径分割对象】被分割出来一个正常的文字，往【来源路径分割对象】里面加
@@ -8928,6 +8961,11 @@ function resolvePathname(relativePath, fromPathname) {
 
   return segments.length > 1 ? segments.join("/") : "/";
 }
+
+
+
+
+
 
 
 
@@ -9527,24 +9565,25 @@ function completeWork(current, workInProgress, renderExpirationTime) {
       break;
     case SuspenseComponent:
       {
-        var nextState = workInProgress.memoizedState;
+        // 如果有错误的话，更新一下此时WIP的时间，直接return本次的WIP
         if ((workInProgress.effectTag & DidCapture) !== NoEffect) {
-          // Something suspended. Re-render with the fallback children.
           workInProgress.expirationTime = renderExpirationTime;
-          // Do not reset the effect list.
           return workInProgress;
         }
 
+        // 如果WIP的memoizedState有值的话，说明已经超时了，显示的是fallback里面的内容
+        var nextState = workInProgress.memoizedState;
         var nextDidTimeout = nextState !== null;
         var prevDidTimeout = current !== null && current.memoizedState !== null;
 
         if (current !== null && !nextDidTimeout && prevDidTimeout) {
-          // We just switched from the fallback to the normal children. Delete
-          // the fallback.
-          // Would it be better to store the fallback fragment on
+          // 更新 且 上一次显示fallback内容，本次没超时，需要显示真实孩子
+
+          // 拿到替身的孩子的兄弟，也就是上次fallback的内容
           var currentFallbackChild = current.child.sibling;
+
+          // 把替身的孩子的兄弟加到WIP的副作用链条的头部
           if (currentFallbackChild !== null) {
-            // Deletions go at the beginning of the return fiber's effect list
             var first = workInProgress.firstEffect;
             if (first !== null) {
               workInProgress.firstEffect = currentFallbackChild;
@@ -9553,14 +9592,14 @@ function completeWork(current, workInProgress, renderExpirationTime) {
               workInProgress.firstEffect = workInProgress.lastEffect = currentFallbackChild;
               currentFallbackChild.nextEffect = null;
             }
+            // 然后把替身的孩子的兄弟赋予一个副作用就是删除
             currentFallbackChild.effectTag = Deletion;
           }
         }
 
+        // 首次渲染走下面
+        // 只要之前之后有一次超时了（显示fallback的内容），就需要标记更新
         if (nextDidTimeout || prevDidTimeout) {
-          // If the children are hidden, or if they were previous hidden, schedule
-          // an effect to toggle their visibility. This is also used to attach a
-          // retry listener to the promise.
           workInProgress.effectTag |= Update;
         }
         break;
@@ -13886,7 +13925,12 @@ var beginFiberMark = function (fiber, phase) {
 
 function commitHookEffectList(unmountTag, mountTag, finishedWork) {
   // 处理副作用链上每个fiber的挂载（mount）和卸载（unmount）时的副作用
-  // 也就是执行useEffect函数，挂载和卸载
+  // 也就是执行useEffect或者useLayoutEffect函数，挂载和卸载
+
+  // 注意，这里的unmountTag或者mountTag有可能是以下两者情况：
+  // useLayoutEffect函数的UnmountMutation和MountMutation
+  // useEffect函数的UnmountLayout和MountLayout
+
   var updateQueue = finishedWork.updateQueue;
   // 这个就是componentUpdateQueue，长这样 { lastEffect: effect对象的链表的最后一个 }
   var lastEffect = updateQueue !== null ? updateQueue.lastEffect : null;
@@ -14273,10 +14317,8 @@ function commitWork(current$$1, finishedWork) {
       case ForwardRef:
       case MemoComponent:
       case SimpleMemoComponent:
-        {
-          commitHookEffectList(UnmountMutation, MountMutation, finishedWork);
-          return;
-        }
+        commitHookEffectList(UnmountMutation, MountMutation, finishedWork);
+        return;
     }
     commitContainer(finishedWork);
     return;
@@ -14289,6 +14331,12 @@ function commitWork(current$$1, finishedWork) {
     case SimpleMemoComponent:
       commitHookEffectList(UnmountMutation, MountMutation, finishedWork);
       return;
+
+    // 注意上面！会发生fall-through：
+    // 如果一个case不满足条件但是又没有break或return，代码会“掉到”下一个 case，直到遇到 break、return 或 switch 语句结束。
+    // 因此函数组件和memo组件都会进去执行commitHookEffectList函数
+    // 而commitHookEffectList函数里面会判断effect对象的tag是否是传入的参数（UnmountMutation和MountMutation）
+    // 只要使用了effect的函数组件都进去了，使用useEffect的进入这个函数很快就出来了，因为effect对象的tag对不上参数，但是使用了useLayoutEffect的就会进去执行
     case ClassComponent:
       {
         return;
