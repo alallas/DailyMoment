@@ -1198,7 +1198,6 @@ let RouteContext = React.createContext({
 })
 
 
-
 // 处理routes数组的时候，需要给路由设置优先级
 const paramRe = /^:[\w-]+$/;
 const dynamicSegmentValue = 3;
@@ -1209,13 +1208,23 @@ const splatPenalty = -2;
 
 
 
-
-
 // renderedRoute里面用到的一个上下文，有点像一个工具集
 var DataRouterContext = React.createContext({
   router,
   staticContext,
 })
+
+
+
+// <navigate>组件用到的
+// 在使用工具箱的listen函数时，监听这个事件
+const PopStateEventType = "popstate";
+
+
+
+
+
+
 
 
 
@@ -2341,13 +2350,6 @@ function enqueueUpdate(fiber, update) {
         (queue2 !== null && currentlyProcessingQueue === queue2)) &&
       !didWarnUpdateInsideUpdate
     ) {
-      warningWithoutStack$1(
-        false,
-        "An update (setState, replaceState, or forceUpdate) was scheduled " +
-        "from inside an update function. Update functions should be pure, " +
-        "with zero side-effects. Consider using componentDidUpdate or a " +
-        "callback."
-      );
       didWarnUpdateInsideUpdate = true;
     }
   }
@@ -2773,15 +2775,6 @@ function findHighestPriorityRoot() {
 
       // 如果这个root的时间优先级最低走下面的逻辑
       if (remainingExpirationTime === NoWork) {
-        // This root no longer has work. Remove it from the scheduler.
-        // below where we set lastScheduledRoot to null, even though we break
-        // from the loop right after.
-        !(previousScheduledRoot !== null && lastScheduledRoot !== null)
-          ? invariant(
-            false,
-            "Should have a previous and last root. This error is likely caused by a bug in React. Please file an issue."
-          )
-          : void 0;
         if (root === root.nextScheduledRoot) {
           // This is the only root in the list.
           root.nextScheduledRoot = null;
@@ -2817,8 +2810,6 @@ function findHighestPriorityRoot() {
           break;
         }
         if (highestPriorityWork === Sync) {
-          // Sync is highest priority by definition so
-          // we can stop searching.
           break;
         }
         previousScheduledRoot = root;
@@ -3594,16 +3585,23 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
             workInProgress.effectTag |= Update;
           }
           break;
+
+        // 第二次更新时的suspenseComponent走这里
         case SuspenseComponent: {
+          // 拿到之前的state，有值说明之前是超时的（显示的是fallback）
           var state = workInProgress.memoizedState;
           var didTimeout = state !== null;
+
+          // 之前超时了（显示的是fallback），现在需要显示真正的孩子组件了
           if (didTimeout) {
+            // 拿到真实的孩子，更新组件
             var primaryChildFragment = workInProgress.child;
-            var primaryChildExpirationTime =
-              primaryChildFragment.childExpirationTime;
+            var primaryChildExpirationTime = primaryChildFragment.childExpirationTime;
             if (primaryChildExpirationTime !== NoWork && primaryChildExpirationTime >= renderExpirationTime) {
               return updateSuspenseComponent(current$$1, workInProgress, renderExpirationTime);
+            
             } else {
+              // 如果孩子的eT已经过期了，就拿到替身（新建或复用），找到sibling，显示fallback的内容
               var child = bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
               if (child !== null) {
                 return child.sibling;
@@ -3612,6 +3610,9 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
               }
             }
           }
+
+          // 之前没有超时（显示的是真实的孩子）
+          // 不管，去下面的bailoutOnAlreadyFinishedWork，拿到（新建或复用）孩子的替身
           break;
         }
         case DehydratedSuspenseComponent: {
@@ -3623,7 +3624,8 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       }
 
       // 注意！！！看这里
-      // 二更且WIP为root或文本节点时，执行这个函数就好了，就直接return了，不走下面的分发
+      // 二更且WIP为【root】或【文本节点】或者【root下面的一个函数/类组件（props没有children属性）】时，
+      // 执行这个函数就好了，就直接return了，不走下面的分发
       return bailoutOnAlreadyFinishedWork(current$$1, workInProgress, renderExpirationTime);
 
     }
@@ -5994,23 +5996,22 @@ function mountRef(initialValue) {
 function mountLayoutEffect(create, deps) {
   return mountEffectImpl(Update, UnmountMutation | MountLayout, create, deps);
 }
+// 此外，useLayoutEffect的hookEffectTag变成UnmountMutation或者MountLayout
+
+
 // function mountEffect(create, deps) {
 //   return mountEffectImpl(Update | Passive, UnmountPassive | MountPassive, create, deps);
 // }
 
+
 // 这个于useEffect的区别在于：
-// useLayoutEffect是用的Update的fiber副作用，是在commitAllHostEffect那里就执行了，是同步操作
-// 而useEffect用的是passive的fiber副作用，passive是在绘制页面完成之后才进行操作，且是异步操作
-// （此外，useLayoutEffect的hookEffectTag也变成了UnmountMutation或者MountLayout）
+// useLayoutEffect是用的Update的fiber副作用
+// 是在commitAllHostEffect那里执行卸载函数，在commitLifeCycles那里执行挂载函数（页面绘制之后）
+// 是同步操作
 
-// useLayoutEffect: 这个钩子的副作用会在浏览器绘制前同步执行。
-// 这意味着它会在 DOM 更新后立即执行，浏览器在完成这些副作用后才会开始渲染。
-// 这对于需要在 DOM 更新后立即进行测量或调整的场景非常有用，例如读取 DOM 布局并触发 DOM 更新。
-
-// useEffect: 这个钩子的副作用会在浏览器绘制之后异步执行。
-// React 会先渲染出页面，然后才会执行副作用，确保不会阻塞渲染。
-// 通常情况下，useEffect 用于执行对 UI 不会产生阻塞或影响的副作用，如数据获取、订阅、手动 DOM 操作等。
-
+// 而useEffect用的是passive的fiber副作用，
+// passive是在绘制页面完成之后才进行操作
+// 是异步操作
 
 
 
@@ -7576,6 +7577,7 @@ function BrowserRouter({ basename, children, future, window, }) {
   // 1. 拿出历史栈相关的工具箱
   // 使用ref来记录东西，把关于历史栈的一些工具放到historyRef.current里面，相当于historyRef就是一个工具箱
   let historyRef = React.useRef();
+  // 这个工具箱才建立一次！！！，只有在初始的时候才建立，用ref来记录，永远存到同一个内存地址
   if (historyRef.current == null) {
     historyRef.current = createBrowserHistory({ window, v5Compat: true });
   }
@@ -7610,6 +7612,7 @@ function BrowserRouter({ basename, children, future, window, }) {
   // diapatchAction一般是一直保存在useState的，内存地址不会变
   React.useLayoutEffect(() => history.listen(setState), [history, setState]);
 
+  // logV6DeprecationWarnings函数里面都是警告的逻辑
   React.useEffect(() => logV6DeprecationWarnings(future), [future]);
 
   // 再包裹一层是因为这个Router是【最后的包装者】
@@ -7659,6 +7662,17 @@ function createBrowserHistory(options) {
 
 
 
+function createPath({pathname = "/", search = "", hash = ""}) {
+  if (search && search !== "?")
+    pathname += search.charAt(0) === "?" ? search : "?" + search;
+  if (hash && hash !== "#")
+    pathname += hash.charAt(0) === "#" ? hash : "#" + hash;
+  return pathname;
+}
+
+
+
+
 function getUrlBasedHistory(getLocation, createHref, validateLocation, options) {
 
   // 入参长这样
@@ -7672,11 +7686,16 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
   let action = Action.Pop;
   let listener = null;
 
+
+  // （一）：初始化历史栈的索引
   // 拿到当前历史栈里面的state（也就是索引）
-  // 一开始拿到的是null
+  // 一开始拿到的是null，于是改为0
   let index = getIndex();
   if (index == null) {
+    // 将 index 初始化为 0，表示当前页面是历史记录栈中的第一个条目。
     index = 0;
+    // 通过 replaceState 更新当前历史记录的状态，
+    // 保留原有 state 的其他字段，并添加 idx: index 字段。
     globalHistory.replaceState({ ...globalHistory.state, idx: index }, "");
   }
   function getIndex() {
@@ -7684,50 +7703,111 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     return state.idx;
   }
 
+
+  // （二）设置监听页面变化的函数，更新当前在BrowserRouter函数组件里面维护的当前的url相关信息
+  // 处理浏览器历史记录的 popstate 事件
+  // （例如用户点击前进/后退按钮或调用 history.go(delta) 、history.back()、history.forward()触发的导航）
   function handlePop() {
+    // 表示当前是由浏览器的前进/后退触发的导航。
+    // Push 表示主动跳转，Pop 表示浏览器历史栈变化
     action = Action.Pop;
+
+    // idx 是在历史记录栈中跟踪页面位置的字段（例如首次加载时为 0，跳转后递增为 1，回退后可能变回 0）
+    // delta是导航步数差（向前或向后多少步），例如：
+    //   用户点击 后退：delta 为 -1（如从 index=1 变为 nextIndex=0）。
+    //   用户点击 前进：delta 为 +1（如从 index=0 变为 nextIndex=1）。
     let nextIndex = getIndex();
     let delta = nextIndex == null ? null : nextIndex - index;
     index = nextIndex;
+
+    // 执行listen函数，也就是经过useCallback包装的setState函数
+    // 把当前的loaction对象（记录路由信息），以及本次的东西和导航步数差三个数据进行更新
     if (listener) {
       listener({ action, location: history.location, delta });
     }
+
+    // 示例流程：
+    // 用户点击后退按钮 → 触发 popstate 事件。
+    // 调用 handlePop：
+    // 更新 action 为 Action.Pop。
+    // 获取最新的 nextIndex（例如从 1 变为 0）。
+    // 计算 delta = 0 - 1 = -1。
+    // 更新 index = 0。
+    // 调用 listener，传递 delta=-1。
+    // 监听器根据 delta 更新 UI（如回退到上一个页面）。
   }
 
-  // 从navigator函数进来的
+
+  // （三）不刷新页面，改变url的工具！
+  // 从navigate组件的useEffect函数进来的
   function push(to, state) {
+    // 参数：
+    // to是三剑客对象，state为undefined（如果<naviagte>没有其他props的话）
+
     action = Action.Push;
 
-    // 创建一个location对象
-    // 包括：
-    // 当前的所在的url的路径部分三剑客location对象里面的pathname，
-    // 以及目标路径对象的全部属性
+    // 1. 创建一个目标路径的location对象，包括：
+    // 当前的所在的url的路径部分三剑客location对象里面的pathname，以及目标路径对象的全部属性
+    // 一般来说是目标路径的对象（三剑客及key，state等属性），因为第二参数会覆盖第一参数
     let location = createLocation(history.location, to, state);
 
     // 验证一下
     if (validateLocation) validateLocation(location, to);
 
-    // 拿到globalHistory.state里面的idx，没有的话就是null
-    index = getIndex() + 1;
+    // 2. 收集所有当前位于历史栈的何处的相关信息
+    // {
+    //   usr: location.state,
+    //   key: location.key,
+    //   idx: index,
+    // }
 
-    // 
+    // 拿到globalHistory.state里面的idx，初始是0
+    // 给栈索引加一，表示进一步跳转到别的地方了
+    index = getIndex() + 1;
     let historyState = getHistoryState(location, index);
+
+
+    // 3. 创建一个url（目标路径的url），例如'/users/login'，就是和在routes数组里面写的url是一样的
+    // 就是去createBrowserHref函数
     let url = history.createHref(location);
 
+    
+    // 4. 更新当前页面的实际状态和url：
+    // 把当前的状态（历史栈的何处的相关信息）与目标路径的url放入栈里面，不会触发页面刷新，仅更新 URL 和状态（State）
+    // 第三个参数的 URL需符合同源策略，不传则使用当前 URL。
+
+    // 调用原生的window.history方法（允许在不刷新页面的情况下直接操作浏览器历史记录，为单页应用（SPA）的路由管理提供了底层支持）
+    // 不会触发 popstate 事件（也就是页面刷新），需要手动触发
+    // 传统方法window.location.href会触发页面更新，history.pushState()不会
     try {
       globalHistory.pushState(historyState, "", url);
     } catch (error) {
       if (error instanceof DOMException && error.name === "DataCloneError") {
         throw error;
       }
+      // 有错误的话，使用原生的方法（assign 与 location.href 等效）
+      // assign() 会卸载当前页面资源，重新加载新 URL 的内容。（给历史栈添加了信息，用户能通过“后退”返回）
+      // 若新页面与原页面同源，会触发完整的页面生命周期（如 beforeunload、unload 事件）。
       window.location.assign(url);
     }
 
+    // 5. 更新BrowserRouter里面维护的当前路由的信息
+    // 然后执行之前在（BrowserRouter里面用useLayoutEffect监听的setState函数），更新跳转之后的路由信息
+    // delta为1表示是跳转到别的页面，location是当前的所在的url的路径部分三剑客location对象
+    // (注意，这个时候的history的state已经变了，因为之前执行过pushState，这里保存的是跳转之后的路由信息)
     if (v5Compat && listener) {
       listener({ action, location: history.location, delta: 1 });
     }
+
+    // 这里进入dispatchAction，
+    // 此时的fiber是BrowserRouter函数组件，queue是当前这个setState新建的hook的queue属性
+    // 然后进入scheduleWork，在requestWork那里因为处于isRendering所以退出了
+    // ?!为什么这个时候是isRending，按道理这个副作用是异步的，应该等到当前栈为空才执行的宏任务，isRendering在performWorkOnRoot的最末尾改为了false
+    // 回答：因为这个函数是通过commitPassiveEffects进来的，而这个时候在里面把renderding改为了true
   }
 
+
+  // （四）
   function replace(to, state) {
     action = Action.Replace;
     let location = createLocation(history.location, to, state);
@@ -7742,6 +7822,7 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
       listener({ action, location: history.location, delta: 0 });
     }
   }
+
 
   function createURL(to) {
     // 拿到基础的host和协议和端口号的地址
@@ -7766,14 +7847,21 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     get location() {
       return getLocation(window, globalHistory);
     },
-    // 从browerRouter的绘制页面之前的layoutEffect进来的
+
+    // （五）开启监听页面变化
+    // 从browerRouter的useLayoutEffect钩子（绘制页面之后执行生函过程中）进来的
+    // 这个时候的fn就是经过useCallback包装的setState函数
     listen(fn) {
       if (listener) {
         throw new Error("A history only accepts one active listener");
       }
+
+      // 给顶层加上一个监听事件！事件名为'popstate'，执行函数handlePop实际上是执行listener
       window.addEventListener(PopStateEventType, handlePop);
+      // 同步立刻赋予listener一个函数
       listener = fn;
 
+      // 返回一个卸载函数（摧毁函数）
       return () => {
         window.removeEventListener(PopStateEventType, handlePop);
         listener = null;
@@ -7784,7 +7872,7 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     },
     createURL,
     encodeLocation(to) {
-      // 拿到一个包含路径和origin形式的路由的对象
+      // 拿到一个包含路径和origin形式（协议加host加端口号）的路由的对象
       let url = createURL(to);
       // 返回一个三剑客的对象（路径，查询参数以及哈希值）
       return {
@@ -7795,6 +7883,8 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     },
     push,
     replace,
+
+    // 调用原生的window.history的go方法，去到相对于当前页面的差数的页面
     go(n) {
       return globalHistory.go(n);
     },
@@ -7806,12 +7896,15 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
 
 
 
+
+
+
 function createLocation(current, to, state, key) {
 
   // 从createBrowserLocation过来是
   // 入参：
   // current是‘’
-  // to是当前所在位置：pathname，search，hash
+  // to是当前所在位置（三剑客对象）pathname，search，hash
   // state是globalHistory.state.usr
   // key是globalHistory.state.key
 
@@ -7824,6 +7917,21 @@ function createLocation(current, to, state, key) {
     key: (to && to.key) || key || createKey(),
   };
   return location;
+}
+
+function createKey() {
+  return Math.random().toString(36).substr(2, 8);
+}
+
+
+
+
+function getHistoryState(location, index) {
+  return {
+    usr: location.state,
+    key: location.key,
+    idx: index,
+  };
 }
 
 
@@ -7984,6 +8092,8 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
   }
 
   // 4. 拿到【当前url的路径部分】和【routes数组里面任意一个path】对应上的匹配结果
+  // 第一次执行的时候，这个时候的路由有可能是/，然后去到navigate组件，在其useEffect函数内部直接改了url
+  // 第二次执行的时候，再次匹配url，就能拿到匹配好的结果了
   let matches =
     !isStatic &&
     dataRouterState &&
@@ -7992,7 +8102,8 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
       ? dataRouterState.matches
       : matchRoutes(routes, { pathname: remainingPathname });
 
-  // 5. 
+  // 5. 拿到RenderedRoute的函数组件
+  // 这个RenderedRoute函数组件是把匹配上的match对象，以及提取其孩子作为props传递给RouteContent.Provider
   let renderedMatches = _renderMatches(
     matches && matches.map((match) =>
       Object.assign({}, match, {
@@ -8020,9 +8131,8 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
     future
   );
 
-  // 6. 
+  // useRoutes没有第二个参数，就不走下面
   if (locationArg && renderedMatches) {
-    // useRoutes没有第二个参数，就不走下面
     return (
       <LocationContext.Provider
         value={{
@@ -8042,6 +8152,7 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
     );
   }
 
+  // 6. 直接返回孩子
   return renderedMatches;
 }
 
@@ -8700,9 +8811,9 @@ function Navigate({to, replace, state, relative}) {
   let path = resolveTo(to, getResolveToMatches(matches, future.v7_relativeSplatPath), locationPathname, relative === "path");
   let jsonPath = JSON.stringify(path);
 
+
   // 5. 在页面显示之后才跳转
-  React.useEffect(
-    () => navigate(JSON.parse(jsonPath), { replace, state, relative }),
+  React.useEffect(() => navigate(JSON.parse(jsonPath), { replace, state, relative }),
     [navigate, jsonPath, relative, replace, state]
   );
 
@@ -8748,15 +8859,23 @@ function useNavigateUnstable() {
   });
 
   let navigate = React.useCallback((to, options = {}) => {
+    // 在commitHookEffectList里面进来的
+    // 参数：
+    // to对象包括以下属性
+      // hash = ''
+      // pathname = '/users/login'
+      // search = ''
+
     // 确保在页面绘制之后跳转！
     // activeRef.current在页面绘制之前就已经设置为true了
     if (!activeRef.current) return;
+    // to如果是页面跳转数之差，就可以直接用浏览器的history属性的go方法去到历史栈里面对应的页面
     if (typeof to === "number") {
       navigator.go(to);
       return;
     }
 
-    // 拿到目标路径的包装对象（三剑客）的字符化结果
+    // 拿到目标路径的包装对象（三剑客），内含以下属性：
     // hash = ''
     // pathname = '/users/login'
     // search = ''
@@ -8768,6 +8887,7 @@ function useNavigateUnstable() {
     }
 
     // options.replace一般来说是不存在的，没有给navigare组件加props的话，执行push方法
+    // push方法是不刷新页面，但是把url改了（历史栈里面对应位置的信息（state和url）），同时更新之前在BrowserRouter维护的信息
     (!!options.replace ? navigator.replace : navigator.push)(path, options.state, options);
 
   }, [basename, navigator, routePathnamesJson, locationPathname, dataRouterContext]);
@@ -14334,9 +14454,9 @@ function commitWork(current$$1, finishedWork) {
 
     // 注意上面！会发生fall-through：
     // 如果一个case不满足条件但是又没有break或return，代码会“掉到”下一个 case，直到遇到 break、return 或 switch 语句结束。
-    // 因此函数组件和memo组件都会进去执行commitHookEffectList函数
-    // 而commitHookEffectList函数里面会判断effect对象的tag是否是传入的参数（UnmountMutation和MountMutation）
-    // 只要使用了effect的函数组件都进去了，使用useEffect的进入这个函数很快就出来了，因为effect对象的tag对不上参数，但是使用了useLayoutEffect的就会进去执行
+
+    // 因此标记了update副作用（使用了useLayoutEffect）的函数组件和memo组件都会进去执行commitHookEffectList函数
+    // 这里只能对上useLayoutEffect的destory函数的副作用（UnmountMutation），也就是说，他的卸载是在页面绘制的同时卸载的
     case ClassComponent:
       {
         return;
@@ -14598,9 +14718,11 @@ function commitLifeCycles(finishedRoot, current$$1, finishedWork, committedExpir
     case FunctionComponent:
     case ForwardRef:
     case SimpleMemoComponent:
-      // 第二个节点（root下面的大组件）是这个类型
       commitHookEffectList(UnmountLayout, MountLayout, finishedWork);
       break;
+
+    // 注意，函数组件和简单memo组件都走上面这个函数，
+    // 也就是说，useLayoutEffect钩子的create函数是在页面绘制完之后执行的（mount的时候使用MountLayout副作用）
     case ClassComponent:
       {
         var instance = finishedWork.stateNode;
@@ -15167,17 +15289,42 @@ function animationTick(rafTime) {
 
 
 var requestAnimationFrameWithTimeout = function (callback) {
-  // 这里为什么要设两个宏任务，是为了防止有些浏览器不存在requestAnimationFrame这个API嘛
+  // 这里为什么要设两个宏任务？？
+  // !为了确保回调函数 callback 在合理时间内被调用，即使在浏览器因某些原因（如页面隐藏、帧率限制）未及时触发
+
+  // requestAnimationFrame期望在下一帧渲染前执行。
   rAFID = requestAnimationFrame(function (timestamp) {
     // cancel the setTimeout
     clearTimeout(rAFTimeoutID);
     callback(timestamp);
   });
+
+  // 在 ANIMATION_FRAME_TIMEOUT 毫秒后执行。
   rAFTimeoutID = setTimeout(function () {
     // cancel the requestAnimationFrame
     cancelAnimationFrame(rAFID);
     callback(now());
   }, ANIMATION_FRAME_TIMEOUT);
+
+
+  // 虽然 requestAnimationFrame 优先级更高，但在以下场景中，setTimeout 的回调会优先触发：
+
+  // 1. 页面处于非激活状态（如后台标签页），requestAnimationFrame 会被浏览器暂停，rAF 回调无法触发。
+  // 即使页面隐藏，setTimeout 仍会计时并触发
+  
+  // 2. 帧率低于 ANIMATION_FRAME_TIMEOUT（ANIMATION_FRAME_TIMEOUT 设置过短）
+  // 若浏览器帧率极低（如 10Hz，每帧 100ms），而 ANIMATION_FRAME_TIMEOUT 设置为更短时间（如 50ms），则 setTimeout 会先触发。
+  
+  // 3. 主线程长时间阻塞：
+  // 若主线程被同步任务阻塞超过 ANIMATION_FRAME_TIMEOUT，则 setTimeout 回调会在空闲后立即执行，而 rAF 需等待下一帧。
+
+
+  // 总结：
+  // 正常情况（页面激活且帧率稳定）：
+  // requestAnimationFrame 回调触发：在下一帧渲染前执行，取消 setTimeout，回调参数为 timestamp（精确帧时间）。
+  // 异常情况（页面隐藏或主线程阻塞）：
+  // setTimeout 计时器到期：触发回调，取消 rAF，回调参数为 unstable_now()（当前时间）。
+
 };
 
 
@@ -15349,6 +15496,7 @@ function commitPassiveEffects(root, firstEffect) {
   passiveEffectCallback = null;
 
   // 设置正在render，防止再次进入构建树的过程
+  // 万一useEffect函数里面有setState函数，可以防止通过dispatchAction进入scheduleWork
   var previousIsRendering = isRendering;
   isRendering = true;
 
@@ -15384,16 +15532,22 @@ function commitPassiveEffects(root, firstEffect) {
   isRendering = previousIsRendering;
 
 
-  // 执行完副作用之后，进入循环
-  // 如果 rootExpirationTime 不等于 NoWork，说明有工作需要执行，就会调用 requestWork 来调度这些工作
+  // 执行完副作用之后，isRendering恢复为false，重新进入调度循环
+  // 情况一：如果 rootExpirationTime 不等于 NoWork，说明有工作需要执行
+  // 之前在dispatchAction那里进入了scheduleWork(fiber, _expirationTime)，其中_expirationTime是当前计算的时间为Sync
+  // 在scheduleWorkToRoot中，首先根据入参改变了自己的fiber的时间，然后往上攀岩到root，使得root的ChildET为Sync，
+  // 然后在markPendingPriorityLevel把root.earliestPendingTime改成Sync，
+  // 然后在findNextExpirationTimeToWorkOn的最后，把root的ET改为earliestPendingTime，也就是Sync
+  
+  // 情况二：root的eT为0：
   // !疑问：首次渲染这里是0，但是root的eT什么时候变为0了？？？？
   var rootExpirationTime = root.expirationTime;
   if (rootExpirationTime !== NoWork) {
     requestWork(root, rootExpirationTime);
   }
 
-  // isBatchingUpdates 是一个标志，表示是否处于批处理更新状态。
-  // 如果没有在批量更新模式下（!isBatchingUpdates），且不在渲染过程中（!isRendering），那么执行同步工作。
+  // 当前是非批量更新，且isRendering已经恢复为false了
+  // 一般都会往下走
   if (!isBatchingUpdates && !isRendering) {
     performSyncWork();
   }
