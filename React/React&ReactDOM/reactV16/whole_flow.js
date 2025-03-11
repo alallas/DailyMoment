@@ -1223,7 +1223,13 @@ const PopStateEventType = "popstate";
 
 
 
+// 18. lazy加载组件相关
 
+
+
+var Pending = 0;
+var Resolved = 1;
+var Rejected = 2;
 
 
 
@@ -3002,12 +3008,17 @@ function renderRoot(root, isYieldy) {
   do {
     try {
       workLoop(isYieldy);
+
     } catch (thrownValue) {
+      // 一般什么情况会进来这里？
+      // 当lazyComponent组件在beginWork派发后执行import()函数拿到一个promise对象时，最后throw这个promise对象出来
+
+      // 把上下文和hooks链表全部恢复为null
       resetContextDependences();
       resetHooks();
 
-      // Reset in case completion throws.
-      // This is only used in DEV and when replaying is on.
+      // replayFailedUnitOfWorkWithInvokeGuardedCallback默认为true，进入下面if逻辑
+      // 把mayReplay设置为true（mayReplayFailedUnitOfWork之前在completeUnitOfWork里面设为了true）
       var mayReplay = void 0;
       if (true && replayFailedUnitOfWorkWithInvokeGuardedCallback) {
         mayReplay = mayReplayFailedUnitOfWork;
@@ -3015,22 +3026,20 @@ function renderRoot(root, isYieldy) {
       }
 
       if (nextUnitOfWork === null) {
-        // This is a fatal error.
         didFatal = true;
         onUncaughtError(thrownValue);
+
       } else {
+        // 因为lazy组件抛出promise而来到这里，此时的nextUnitOfWork是有值的
+
+        // 1.停止一些性能的计算
         if (enableProfilerTimer && nextUnitOfWork.mode & ProfileMode) {
-          // Record the time spent rendering before an error was thrown.
-          // This avoids inaccurate Profiler durations in the case of a suspended render.
           stopProfilerTimerIfRunningAndRecordDelta(nextUnitOfWork, true);
         }
+        currentlyProcessingQueue = null
 
-        {
-          // Reset global debug state
-          // We assume this is defined in DEV
-          resetCurrentlyProcessingQueue();
-        }
-
+        // 2.进入修复工作
+        // 下面这个修复函数很快就退出来了
         if (true && replayFailedUnitOfWorkWithInvokeGuardedCallback) {
           if (mayReplay) {
             var failedUnitOfWork = nextUnitOfWork;
@@ -3038,26 +3047,18 @@ function renderRoot(root, isYieldy) {
           }
         }
 
+        // 找到这个懒加载组件的父亲节点
         var sourceFiber = nextUnitOfWork;
         var returnFiber = sourceFiber.return;
         if (returnFiber === null) {
-          // This is the root. The root could capture its own errors. However,
-          // we don't know if it errors before or after we pushed the host
-          // context. This information is needed to avoid a stack mismatch.
-          // Because we're not sure, treat this as a fatal error. We could track
-          // which phase it fails in, but doesn't seem worth it. At least
-          // for now.
           didFatal = true;
           onUncaughtError(thrownValue);
+
         } else {
-          throwException(
-            root,
-            returnFiber,
-            sourceFiber,
-            thrownValue,
-            nextRenderExpirationTime
-          );
+          // 一般来说都是能找到父节点的
+          throwException(root, returnFiber, sourceFiber, thrownValue, nextRenderExpirationTime);
           nextUnitOfWork = completeUnitOfWork(sourceFiber);
+          // continue表示再一次进入本while循环，再一次进入workLoop
           continue;
         }
       }
@@ -3649,10 +3650,13 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       var elementType = workInProgress.elementType;
       return mountIndeterminateComponent(current$$1, workInProgress, elementType, renderExpirationTime);
     }
+
+    // 使用了React.lazy(()=>import())包裹的组件走这里！
     case LazyComponent: {
       var _elementType = workInProgress.elementType;
       return mountLazyComponent(current$$1, workInProgress, _elementType, updateExpirationTime, renderExpirationTime);
     }
+
     // 【二更】时的函数组件走这里：
     // mountIndeterminateComponent函数里面改了WIP的tag是函数组件还是类组件
     case FunctionComponent: {
@@ -3662,6 +3666,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       // renderExpirationTime是nextRenderExpirationTime，为Sync的值
       return updateFunctionComponent(current$$1, workInProgress, _Component, resolvedProps, renderExpirationTime);
     }
+
     // 【首渲和二更】时的类组件走这里
     case ClassComponent: {
       var _Component2 = workInProgress.type;
@@ -3670,12 +3675,13 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       return updateClassComponent(current$$1, workInProgress, _Component2, _resolvedProps, renderExpirationTime);
     }
 
-    // 首次渲染走这里
+    // 根节点首次渲染走这里
     case HostRoot:
       // 这里分发完之后就没事了！！回到【performUnitOfWork】函数
       return updateHostRoot(current$$1, workInProgress, renderExpirationTime);
+
+    // 普通原生节点走这里
     case HostComponent:
-      // 普通原生节点走这里
       return updateHostComponent(current$$1, workInProgress, renderExpirationTime);
     case HostText:
       return updateHostText(current$$1, workInProgress);
@@ -3702,18 +3708,21 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       return updateMode(current$$1, workInProgress, renderExpirationTime);
     case Profiler:
       return updateProfiler(current$$1, workInProgress, renderExpirationTime);
+
+    // 函数组件和类组件的provider都来这里
     case ContextProvider:
-      // 函数组件和类组件的provider都来这里
       return updateContextProvider(current$$1, workInProgress, renderExpirationTime);
+    
+    // 使用了<Context.Consumer>以及(value) => {...}的组件来这里
     case ContextConsumer:
       // 这个对应的$$typeof就是REACT_CONTEXT_TYPE，<Context.Consumer>就会来到这里
       // 类组件的consumer来到这里，里面是一个函数(value) => {...}
       // 为什么函数组件的consumer不来这里
       // 也可以来，只是函数组件可以用useContext，不需要写<Context.Comsumer>(value) => {...}</Context.Comsumer>
       return updateContextConsumer(current$$1, workInProgress, renderExpirationTime);
-    case MemoComponent: {
-      // 【memo(() => (<></>))】的类型的【首渲】走这里
 
+    // 【memo(() => (<></>))】的类型的【首渲】走这里  
+    case MemoComponent: {
       // 拿到memo整个函数本身
       var _type2 = workInProgress.type;
       var _unresolvedProps3 = workInProgress.pendingProps;
@@ -3726,8 +3735,9 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       // 上面好像都不会走，走下面
       return updateMemoComponent(current$$1, workInProgress, _type2, _resolvedProps3, updateExpirationTime, renderExpirationTime);
     }
+
+    // 【memo(() => (<></>))】的类型的【更新】走这里
     case SimpleMemoComponent: {
-      // 【memo(() => (<></>))】的类型的【更新】走这里
       // 之前在MemoComponent明确了这个是一个函数式的memo组件，因此改了tag为SimpleMemoComponent
       return updateSimpleMemoComponent(current$$1, workInProgress, workInProgress.type, workInProgress.pendingProps, updateExpirationTime, renderExpirationTime);
     }
@@ -5227,6 +5237,8 @@ function resetHydrationState() {
   isHydrating = false;
 }
 
+
+
 function stopProfilerTimerIfRunningAndRecordDelta(fiber, overrideBaseTime) {
   if (!enableProfilerTimer) {
     return;
@@ -5242,6 +5254,8 @@ function stopProfilerTimerIfRunningAndRecordDelta(fiber, overrideBaseTime) {
     profilerStartTime = -1;
   }
 }
+
+
 
 function resetCurrentFiber() {
   {
@@ -9093,6 +9107,148 @@ function resolvePathname(relativePath, fromPathname) {
 // REVIEW - 下面是经过beginWork分发后来到【memo(() => { return (<></>) })】的更新函数
 
 
+// 注意memo函数是在render方法执行之前就执行了的
+
+
+
+// !下面这个是【包裹着memo(() => ())的函数】
+// 作用是处理和管理 React 组件中的签名和自定义 hooks
+
+function createSignatureFunctionForTransform() {
+  var savedType;
+  var hasCustomHooks;
+  var didCollectHooks = false;
+
+  // 下面返回的闭包函数是需要执行的，是包裹memo的函数
+  return function (type, key, forceReset, getCustomHooks) {
+    // 如果已经有了签名，把函数本身和一个工具保存在这个作用域里面
+    if (typeof key === 'string') {
+      if (!savedType) {
+        savedType = type;
+        hasCustomHooks = typeof getCustomHooks === 'function';
+      }
+      // 执行签名函数
+      if (type != null && (typeof type === 'function' || typeof type === 'object')) {
+        setSignature(type, key, forceReset, getCustomHooks);
+      }
+      // 最后返回这个参数（对象）本身
+      return type;
+
+    } else {
+      // 如果没有签名，根据每个自定义hooks去签名（实际上拿的是所有的ownKey，中间用换行符号连接）
+      if (!didCollectHooks && hasCustomHooks) {
+        didCollectHooks = true;
+        collectCustomHooksForSignature(savedType);
+      }
+    }
+  };
+}
+
+
+function setSignature(type, key) {
+  // 如果有传入forceReset作为第三个参数，说明forceReset是对的
+  var forceReset = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+  var getCustomHooks = arguments.length > 3 ? arguments[3] : undefined;
+
+  // 这里在签名
+  // 保存一下这个类型的虚拟DOM（节点）到签名库中
+  if (!allSignaturesByType.has(type)) {
+    allSignaturesByType.set(type, {
+      forceReset: forceReset,
+      ownKey: key,
+      fullKey: null,
+      getCustomHooks: getCustomHooks || function () {
+        return [];
+      }
+    });
+  }
+
+  // 为不同的组件，递归签名，
+  if (typeof type === 'object' && type !== null) {
+    switch (getProperty(type, '$$typeof')) {
+      case REACT_FORWARD_REF_TYPE:
+        setSignature(type.render, key, forceReset, getCustomHooks);
+        break;
+
+      case REACT_MEMO_TYPE:
+        setSignature(type.type, key, forceReset, getCustomHooks);
+        break;
+    }
+  }
+}
+
+
+// 从签名库里面拿出签名对象，并计算完整的签名
+function collectCustomHooksForSignature(type) {
+  var signature = allSignaturesByType.get(type);
+  if (signature !== undefined) {
+    computeFullKey(signature);
+  }
+}
+
+
+function computeFullKey(signature) {
+  if (signature.fullKey !== null) {
+    return signature.fullKey;
+  }
+
+  var fullKey = signature.ownKey;
+  var hooks;
+
+  // 拿到自定义hooks数组
+  try {
+    hooks = signature.getCustomHooks();
+  } catch (err) {
+    signature.forceReset = true;
+    signature.fullKey = fullKey;
+    return fullKey;
+  }
+
+  // 遍历自定义数组
+  for (var i = 0; i < hooks.length; i++) {
+    var hook = hooks[i];
+    if (typeof hook !== 'function') {
+      signature.forceReset = true;
+      signature.fullKey = fullKey;
+      return fullKey;
+    }
+    // 如果这个hook有嵌套的hook，递归执行，然后返回fullKey
+    var nestedHookSignature = allSignaturesByType.get(hook);
+    if (nestedHookSignature === undefined) {
+      continue;
+    }
+    var nestedHookKey = computeFullKey(nestedHookSignature);
+    if (nestedHookSignature.forceReset) {
+      signature.forceReset = true;
+    }
+    // 用换行符号连接
+    fullKey += '\n---\n' + nestedHookKey;
+  }
+  // 最后放回签名对象里面
+  signature.fullKey = fullKey;
+  return fullKey;
+}
+
+
+
+
+// !下面是【memo函数】本身：
+
+
+function memo(type, compare) {
+  // 直接返回一个对象
+  return {
+    $$typeof: REACT_MEMO_TYPE,
+    type: type,
+    compare: compare === undefined ? null : compare
+  };
+}
+
+
+
+
+// !下面才是memo组件在【beginWork之后分发】的函数：
+
 
 
 function resolveDefaultProps(Component, baseProps) {
@@ -9256,96 +9412,534 @@ var hasOwnProperty$1 = Object.prototype.hasOwnProperty;
 
 
 
-function createSignatureFunctionForTransform() {
-  {
-    var savedType;
-    var hasCustomHooks;
-    var didCollectHooks = false;
-    return function (type, key, forceReset, getCustomHooks) {
-      if (typeof key === 'string') {
-        if (!savedType) {
-          savedType = type;
-          hasCustomHooks = typeof getCustomHooks === 'function';
-        }
-        if (type != null && (typeof type === 'function' || typeof type === 'object')) {
-          setSignature(type, key, forceReset, getCustomHooks);
-        }
-        return type;
 
-      } else {
-        if (!didCollectHooks && hasCustomHooks) {
-          didCollectHooks = true;
-          collectCustomHooksForSignature(savedType);
+
+
+
+
+
+// REVIEW - 下面是懒加载的组件经过beginWork分发后来到LazyComponent的更新函数
+
+// 懒加载组件长这样：
+// <Login />
+// const Login = React.lazy(() => import("../views/login"));
+
+
+
+// PS：React.lazy()这个函数在进入render函数的时候就已经执行了，为什么？
+// !以下是【React.lazy()】的函数
+
+
+// 直接返回一个lazy对象（把里面的懒函数保存起来！！）
+
+function lazy(ctor) {
+  var lazyType = {
+    $$typeof: REACT_LAZY_TYPE,
+    _ctor: ctor,
+    _status: -1,
+    _result: null
+  };
+
+  {
+    var defaultProps = void 0;
+    var propTypes = void 0;
+    Object.defineProperties(lazyType, {
+      defaultProps: {
+        configurable: true,
+        get: function () {
+          return defaultProps;
+        },
+        set: function (newDefaultProps) {
+          defaultProps = newDefaultProps;
+          Object.defineProperty(lazyType, 'defaultProps', {
+            enumerable: true
+          });
+        }
+      },
+      propTypes: {
+        configurable: true,
+        get: function () {
+          return propTypes;
+        },
+        set: function (newPropTypes) {
+          propTypes = newPropTypes;
+          Object.defineProperty(lazyType, 'propTypes', {
+            enumerable: true
+          });
         }
       }
-    };
+    });
   }
-}
 
-
-function collectCustomHooksForSignature(type) {
-  {
-    var signature = allSignaturesByType.get(type);
-
-    if (signature !== undefined) {
-      computeFullKey(signature);
-    }
-  }
+  return lazyType;
 }
 
 
 
 
 
-function computeFullKey(signature) {
-  if (signature.fullKey !== null) {
-    return signature.fullKey;
+
+// !下面才是lazy组件在【beginWork之后分发】的函数：
+
+
+function mountLazyComponent(_current, workInProgress, elementType, updateExpirationTime, renderExpirationTime) {
+  if (_current !== null) {
+    // 更新走下面
+    // 把替身恢复为null
+    _current.alternate = null;
+    workInProgress.alternate = null;
+    // 标记为新插入的副作用
+    workInProgress.effectTag |= Placement;
   }
 
-  var fullKey = signature.ownKey;
-  var hooks;
+  var props = workInProgress.pendingProps;
+  cancelWorkTimer(workInProgress);
 
-  try {
-    hooks = signature.getCustomHooks();
-  } catch (err) {
-    // This can happen in an edge case, e.g. if expression like Foo.useSomething
-    // depends on Foo which is lazily initialized during rendering.
-    // In that case just assume we'll have to remount.
-    signature.forceReset = true;
-    signature.fullKey = fullKey;
-    return fullKey;
+  // 读取组件的类型
+  // 为什么要读取WIP的类型？
+  // 回答：一开始创建虚拟DOM时，因为是一个lazy对象（里面保存了懒函数），所以还没定义WIP的type，此时的type是null
+  var Component = readLazyComponentType(elementType);
+
+  // 如果懒加载的代码传过来很慢的时候，下面的函数是不会执行的
+  workInProgress.type = Component;
+  var resolvedTag = workInProgress.tag = resolveLazyComponentTag(Component);
+  startWorkTimer(workInProgress);
+  var resolvedProps = resolveDefaultProps(Component, props);
+  var child = void 0;
+  switch (resolvedTag) {
+    case FunctionComponent:
+      {
+        {
+          validateFunctionComponentInDev(workInProgress, Component);
+        }
+        child = updateFunctionComponent(null, workInProgress, Component, resolvedProps, renderExpirationTime);
+        break;
+      }
+    case ClassComponent:
+      {
+        child = updateClassComponent(null, workInProgress, Component, resolvedProps, renderExpirationTime);
+        break;
+      }
+    case ForwardRef:
+      {
+        child = updateForwardRef(null, workInProgress, Component, resolvedProps, renderExpirationTime);
+        break;
+      }
+    case MemoComponent:
+      {
+        {
+          if (workInProgress.type !== workInProgress.elementType) {
+            var outerPropTypes = Component.propTypes;
+            if (outerPropTypes) {
+              checkPropTypes(outerPropTypes, resolvedProps, // Resolved for outer only
+              'prop', getComponentName(Component), getCurrentFiberStackInDev);
+            }
+          }
+        }
+        child = updateMemoComponent(null, workInProgress, Component, resolveDefaultProps(Component.type, resolvedProps), // The inner type can have defaults too
+        updateExpirationTime, renderExpirationTime);
+        break;
+      }
+    default:
+      {
+        var hint = '';
+        {
+          if (Component !== null && typeof Component === 'object' && Component.$$typeof === REACT_LAZY_TYPE) {
+            hint = ' Did you wrap a component in React.lazy() more than once?';
+          }
+        }
+        // This message intentionally doesn't mention ForwardRef or MemoComponent
+        // because the fact that it's a separate type of work is an
+        // implementation detail.
+        invariant(false, 'Element type is invalid. Received a promise that resolves to: %s. Lazy element type must resolve to a class or function.%s', Component, hint);
+      }
   }
-
-  for (var i = 0; i < hooks.length; i++) {
-    var hook = hooks[i];
-
-    if (typeof hook !== 'function') {
-      // Something's wrong. Assume we need to remount.
-      signature.forceReset = true;
-      signature.fullKey = fullKey;
-      return fullKey;
-    }
-
-    var nestedHookSignature = allSignaturesByType.get(hook);
-
-    if (nestedHookSignature === undefined) {
-      // No signature means Hook wasn't in the source code, e.g. in a library.
-      // We'll skip it because we can assume it won't change during this session.
-      continue;
-    }
-
-    var nestedHookKey = computeFullKey(nestedHookSignature);
-
-    if (nestedHookSignature.forceReset) {
-      signature.forceReset = true;
-    }
-
-    fullKey += '\n---\n' + nestedHookKey;
-  }
-
-  signature.fullKey = fullKey;
-  return fullKey;
+  return child;
 }
+
+
+
+
+
+
+function readLazyComponentType(lazyComponent) {
+  // 一开始的status是-1
+  var status = lazyComponent._status;
+  var result = lazyComponent._result;
+
+  // 一开始的status为-1，只能走默认的那一项
+  switch (status) {
+    case Resolved:
+      {
+        var Component = result;
+        return Component;
+      }
+    case Rejected:
+      {
+        var error = result;
+        throw error;
+      }
+    case Pending:
+      {
+        var thenable = result;
+        throw thenable;
+      }
+    default:
+      {
+        // 把status改成pending状态
+        lazyComponent._status = Pending;
+        // 拿到这个懒加载函数() => import('xxxx')
+        var ctor = lazyComponent._ctor;
+        // 在这里立刻执行这个函数，因为import('xxx')得到的是一个promise对象，是异步执行
+        var _thenable = ctor();
+
+        // 然后先给他定义好then之后要干嘛，相当于先把后面的回调函数先保存起来
+        _thenable.then(function (moduleObject) {
+          // 如果当前的lazy虚拟DOM的状态为pending，把他改为resolved，并且把结果缓存起来！
+          // （注意：这里的结果是保存在then的结果的default属性里面（类似于webpack的export的导出结果））
+          if (lazyComponent._status === Pending) {
+            var defaultExport = moduleObject.default;
+            lazyComponent._status = Resolved;
+            // 缓存组件（这里的result保存的通常是 React 组件）
+            lazyComponent._result = defaultExport;
+          }
+        }, function (error) {
+          if (lazyComponent._status === Pending) {
+            lazyComponent._status = Rejected;
+            lazyComponent._result = error;
+          }
+        });
+
+        // 然后先执行下面的函数，处理同步 thenable（极少数情况）
+        // 如果状态还是-1的话，result一直都是null的状态
+        switch (lazyComponent._status) {
+          case Resolved:
+            return lazyComponent._result;
+          case Rejected:
+            throw lazyComponent._result;
+        }
+
+        // 先把保存这个promise对象保存起来，然后抛出这个promise对象，
+        // 使得调用者继续等待 Promise 完成！！！！
+        lazyComponent._result = _thenable;
+        throw _thenable;
+      }
+
+    // 抛出Promise后，当前的函数会立刻中断，
+    // 在workLoop的catch部分会捕获这个抛出的Promise对象，
+    // 显示Suspense的fallback内容
+    // 直到 thenable（即一个 Promise）完成。重新【调度渲染】，此时会再次调用 readLazyComponentType
+
+  }
+}
+
+
+
+
+
+// 这个ctor()函数（实际上是() => import()）就是下面这个e方法
+// 去看webpack懒加载那边的函数
+
+function e (chunkId) {
+  return Promise.all(Object.keys(__webpack_require__.f).reduce((promises, key) => {
+    __webpack_require__.f[key](chunkId, promises);
+    return promises;
+  }, []));
+}
+
+
+
+
+
+
+// 下面是throw出一个promise对象之后，
+// 来到renderRoot函数里面的workLoop函数下面的catch模块，进行修复工作
+
+function replayUnitOfWork (failedUnitOfWork, thrownValue, isYieldy) {
+  // 入参：
+  // failedUnitOfWork就是nextUnitOfWork，此时就是lazy组件的fiber
+  // thrownValue是抛出来的promise对象
+
+  // 懒加载组件抛出的promise在这里都满足条件，直接return出去了
+  if (thrownValue !== null && typeof thrownValue === 'object' && typeof thrownValue.then === 'function') {
+    return;
+  }
+
+  // Restore the original state of the work-in-progress
+  if (stashedWorkInProgressProperties === null) {
+    // This should never happen. Don't throw because this code is DEV-only.
+    warningWithoutStack$1(false, 'Could not replay rendering after an error. This is likely a bug in React. ' + 'Please file an issue.');
+    return;
+  }
+  assignFiberPropertiesInDEV(failedUnitOfWork, stashedWorkInProgressProperties);
+
+  switch (failedUnitOfWork.tag) {
+    case HostRoot:
+      popHostContainer(failedUnitOfWork);
+      popTopLevelContextObject(failedUnitOfWork);
+      break;
+    case HostComponent:
+      popHostContext(failedUnitOfWork);
+      break;
+    case ClassComponent:
+      {
+        var Component = failedUnitOfWork.type;
+        if (isContextProvider(Component)) {
+          popContext(failedUnitOfWork);
+        }
+        break;
+      }
+    case HostPortal:
+      popHostContainer(failedUnitOfWork);
+      break;
+    case ContextProvider:
+      popProvider(failedUnitOfWork);
+      break;
+  }
+
+  isReplayingFailedUnitOfWork = true;
+  originalReplayError = thrownValue;
+  invokeGuardedCallback(null, workLoop, null, isYieldy);
+  isReplayingFailedUnitOfWork = false;
+  originalReplayError = null;
+
+  if (hasCaughtError()) {
+    var replayError = clearCaughtError();
+    if (replayError != null && thrownValue != null) {
+      try {
+        if (replayError._suppressLogging) {
+          thrownValue._suppressLogging = true;
+        }
+      } catch (inner) {
+      }
+    }
+  } else {
+    nextUnitOfWork = failedUnitOfWork;
+  }
+};
+
+
+
+
+
+
+
+function throwException(root, returnFiber, sourceFiber, value, renderExpirationTime) {
+  // 入参：
+  // root是根节点fiber
+  // returnFiber是懒加载组件的父亲节点fiber
+  // sourceFiber是懒加载组件自己的fiber（type为null，一直想要读取type来着）
+  // value是抛出的promise对象
+  // renderET一般是Sync
+
+  // 给这个fiber标记为未完成，后面在commitWork那边会处理
+  sourceFiber.effectTag |= Incomplete;
+  // 把她的副作用链条也消除了
+  sourceFiber.firstEffect = sourceFiber.lastEffect = null;
+
+  if (value !== null && typeof value === 'object' && typeof value.then === 'function') {
+    // 抛出的是一个promise，进来这里
+    var thenable = value;
+    var _workInProgress = returnFiber;
+    var earliestTimeoutMs = -1;
+    var startTimeMs = -1;
+    do {
+      // 一直往上找suspenseComponent，直到找到为止
+      if (_workInProgress.tag === SuspenseComponent) {
+        var current$$1 = _workInProgress.alternate;
+        if (current$$1 !== null) {
+          // 更新走下面
+          var currentState = current$$1.memoizedState;
+          if (currentState !== null) {
+            // suspense过去的state有值，超时了（之前显示的是fallback的内容）
+            // 记录当前的开始时间（timedOutAt初始为0）
+            var timedOutAt = currentState.timedOutAt;
+            startTimeMs = expirationTimeToMs(timedOutAt);
+            break;
+          }
+        }
+
+        // 【首渲】以及【更新但是之前显示的不是fallback的内容】走下面
+        // 拿到suspense组件的props里面的maxDuration，没有maxDuration的话不走下面
+        // 这是什么意思？
+        var timeoutPropMs = _workInProgress.pendingProps.maxDuration;
+        if (typeof timeoutPropMs === 'number') {
+          if (timeoutPropMs <= 0) {
+            earliestTimeoutMs = 0;
+          } else if (earliestTimeoutMs === -1 || timeoutPropMs < earliestTimeoutMs) {
+            earliestTimeoutMs = timeoutPropMs;
+          }
+        }
+      }
+      
+      _workInProgress = _workInProgress.return;
+    } while (_workInProgress !== null);
+
+    // 此时的_workInProgress改为懒组件的父亲节点returnFiber
+    _workInProgress = returnFiber;
+
+    do {
+      if (_workInProgress.tag === SuspenseComponent && shouldCaptureSuspense(_workInProgress)) {
+        // Found the nearest boundary.
+
+        // Stash the promise on the boundary fiber. If the boundary times out, we'll
+        var thenables = _workInProgress.updateQueue;
+        if (thenables === null) {
+          var updateQueue = new Set();
+          updateQueue.add(thenable);
+          _workInProgress.updateQueue = updateQueue;
+        } else {
+          thenables.add(thenable);
+        }
+
+        // If the boundary is outside of concurrent mode, we should *not*
+        // suspend the commit. Pretend as if the suspended component rendered
+        // null and keep rendering. In the commit phase, we'll schedule a
+        // subsequent synchronous update to re-render the Suspense.
+        //
+        // Note: It doesn't matter whether the component that suspended was
+        // inside a concurrent mode tree. If the Suspense is outside of it, we
+        // should *not* suspend the commit.
+        if ((_workInProgress.mode & ConcurrentMode) === NoEffect) {
+          _workInProgress.effectTag |= DidCapture;
+
+          // We're going to commit this fiber even though it didn't complete.
+          // But we shouldn't call any lifecycle methods or callbacks. Remove
+          // all lifecycle effect tags.
+          sourceFiber.effectTag &= ~(LifecycleEffectMask | Incomplete);
+
+          if (sourceFiber.tag === ClassComponent) {
+            var currentSourceFiber = sourceFiber.alternate;
+            if (currentSourceFiber === null) {
+              // This is a new mount. Change the tag so it's not mistaken for a
+              // completed class component. For example, we should not call
+              // componentWillUnmount if it is deleted.
+              sourceFiber.tag = IncompleteClassComponent;
+            } else {
+              // When we try rendering again, we should not reuse the current fiber,
+              // since it's known to be in an inconsistent state. Use a force updte to
+              // prevent a bail out.
+              var update = createUpdate(Sync);
+              update.tag = ForceUpdate;
+              enqueueUpdate(sourceFiber, update);
+            }
+          }
+
+          // The source fiber did not complete. Mark it with Sync priority to
+          // indicate that it still has pending work.
+          sourceFiber.expirationTime = Sync;
+
+          // Exit without suspending.
+          return;
+        }
+
+        // Confirmed that the boundary is in a concurrent mode tree. Continue
+        // with the normal suspend path.
+
+        attachPingListener(root, renderExpirationTime, thenable);
+
+        var absoluteTimeoutMs = void 0;
+        if (earliestTimeoutMs === -1) {
+          // If no explicit threshold is given, default to an arbitrarily large
+          // value. The actual size doesn't matter because the threshold for the
+          // whole tree will be clamped to the expiration time.
+          absoluteTimeoutMs = maxSigned31BitInt;
+        } else {
+          if (startTimeMs === -1) {
+            // This suspend happened outside of any already timed-out
+            // placeholders. We don't know exactly when the update was
+            // scheduled, but we can infer an approximate start time from the
+            // expiration time. First, find the earliest uncommitted expiration
+            // time in the tree, including work that is suspended. Then subtract
+            // the offset used to compute an async update's expiration time.
+            // This will cause high priority (interactive) work to expire
+            // earlier than necessary, but we can account for this by adjusting
+            // for the Just Noticeable Difference.
+            var earliestExpirationTime = findEarliestOutstandingPriorityLevel(root, renderExpirationTime);
+            var earliestExpirationTimeMs = expirationTimeToMs(earliestExpirationTime);
+            startTimeMs = earliestExpirationTimeMs - LOW_PRIORITY_EXPIRATION;
+          }
+          absoluteTimeoutMs = startTimeMs + earliestTimeoutMs;
+        }
+
+        // Mark the earliest timeout in the suspended fiber's ancestor path.
+        // After completing the root, we'll take the largest of all the
+        // suspended fiber's timeouts and use it to compute a timeout for the
+        // whole tree.
+        renderDidSuspend(root, absoluteTimeoutMs, renderExpirationTime);
+
+        _workInProgress.effectTag |= ShouldCapture;
+        _workInProgress.expirationTime = renderExpirationTime;
+        return;
+      } else if (enableSuspenseServerRenderer && _workInProgress.tag === DehydratedSuspenseComponent) {
+        attachPingListener(root, renderExpirationTime, thenable);
+
+        // Since we already have a current fiber, we can eagerly add a retry listener.
+        var retryCache = _workInProgress.memoizedState;
+        if (retryCache === null) {
+          retryCache = _workInProgress.memoizedState = new PossiblyWeakSet();
+          var _current = _workInProgress.alternate;
+          !_current ? invariant(false, 'A dehydrated suspense boundary must commit before trying to render. This is probably a bug in React.') : void 0;
+          _current.memoizedState = retryCache;
+        }
+        // Memoize using the boundary fiber to prevent redundant listeners.
+        if (!retryCache.has(thenable)) {
+          retryCache.add(thenable);
+          var retry = retryTimedOutBoundary.bind(null, _workInProgress, thenable);
+          if (enableSchedulerTracing) {
+            retry = tracing.unstable_wrap(retry);
+          }
+          thenable.then(retry, retry);
+        }
+        _workInProgress.effectTag |= ShouldCapture;
+        _workInProgress.expirationTime = renderExpirationTime;
+        return;
+      }
+      // This boundary already captured during this render. Continue to the next
+      // boundary.
+      _workInProgress = _workInProgress.return;
+    } while (_workInProgress !== null);
+
+    value = new Error((getComponentName(sourceFiber.type) || 'A React component') + ' suspended while rendering, but no fallback UI was specified.\n' + '\n' + 'Add a <Suspense fallback=...> component higher in the tree to ' + 'provide a loading indicator or placeholder to display.' + getStackByFiberInDevAndProd(sourceFiber));
+  }
+
+  renderDidError();
+  value = createCapturedValue(value, sourceFiber);
+  var workInProgress = returnFiber;
+
+  do {
+    switch (workInProgress.tag) {
+      case HostRoot:
+        {
+          var _errorInfo = value;
+          workInProgress.effectTag |= ShouldCapture;
+          workInProgress.expirationTime = renderExpirationTime;
+          var _update = createRootErrorUpdate(workInProgress, _errorInfo, renderExpirationTime);
+          enqueueCapturedUpdate(workInProgress, _update);
+          return;
+        }
+      case ClassComponent:
+        // Capture and retry
+        var errorInfo = value;
+        var ctor = workInProgress.type;
+        var instance = workInProgress.stateNode;
+        if ((workInProgress.effectTag & DidCapture) === NoEffect && (typeof ctor.getDerivedStateFromError === 'function' || instance !== null && typeof instance.componentDidCatch === 'function' && !isAlreadyFailedLegacyErrorBoundary(instance))) {
+          workInProgress.effectTag |= ShouldCapture;
+          workInProgress.expirationTime = renderExpirationTime;
+          // Schedule the error boundary to re-render using updated state
+          var _update2 = createClassErrorUpdate(workInProgress, errorInfo, renderExpirationTime);
+          enqueueCapturedUpdate(workInProgress, _update2);
+          return;
+        }
+        break;
+      default:
+        break;
+    }
+    workInProgress = workInProgress.return;
+  } while (workInProgress !== null);
+
+}
+
 
 
 
@@ -9531,7 +10125,6 @@ function completeUnitOfWork(workInProgress) {
       }
     }
   }
-
 }
 
 
