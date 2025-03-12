@@ -475,7 +475,7 @@ var currentlyProcessingQueue = void 0;
 
 // 9. proceedUpdateQueue阶段
 
-// 副作用链的标识
+// 副作用链effectTag的标识
 var Placement = /*             */ 2;     // “新插入”
 var Update = /*                */ 4;     // 更新 state 或 props
 var PlacementAndUpdate = /*    */ 6;     // 新插入 + 更新，也就是Placement 和 Update 的组合（2 | 4）
@@ -1137,6 +1137,10 @@ var mountedRoots = new Set(); // If a root captures an error, we remember it so 
 var failedRoots = new Set(); // In environments that support WeakMap, we also remember the last element for every root.
 
 
+var supportsMutation = true;
+
+
+var enableSuspenseServerRenderer = false;
 
 
 
@@ -3013,7 +3017,7 @@ function renderRoot(root, isYieldy) {
       // 一般什么情况会进来这里？
       // 当lazyComponent组件在beginWork派发后执行import()函数拿到一个promise对象时，最后throw这个promise对象出来
 
-      // 把上下文和hooks链表全部恢复为null
+      // 1.把上下文和hooks链表全部恢复为null
       resetContextDependences();
       resetHooks();
 
@@ -3032,14 +3036,16 @@ function renderRoot(root, isYieldy) {
       } else {
         // 因为lazy组件抛出promise而来到这里，此时的nextUnitOfWork是有值的
 
-        // 1.停止一些性能的计算
+        // 2.停止一些性能的计算
         if (enableProfilerTimer && nextUnitOfWork.mode & ProfileMode) {
           stopProfilerTimerIfRunningAndRecordDelta(nextUnitOfWork, true);
         }
         currentlyProcessingQueue = null
 
-        // 2.进入修复工作
-        // 下面这个修复函数很快就退出来了
+        // 3.进入修复工作
+        // 如果是第一次抛出的promise对象，下面这个修复函数很快就退出来了
+        // 如果是promise失败了，抛出了一个错误的东西，下面这个函数执行到底
+        // （且在里面重新调度进入workLoop，但还是失败的，还是去到了下面）
         if (true && replayFailedUnitOfWorkWithInvokeGuardedCallback) {
           if (mayReplay) {
             var failedUnitOfWork = nextUnitOfWork;
@@ -3056,9 +3062,14 @@ function renderRoot(root, isYieldy) {
 
         } else {
           // 一般来说都是能找到父节点的
+          // 1）给suspense组件标记DidCapture，并且把promise对象保存到suspense组件的uQ里面
           throwException(root, returnFiber, sourceFiber, thrownValue, nextRenderExpirationTime);
+          
+          // 2）在这个懒加载的组件这里直接进入completeUnitOfWork，然后返回suspense组件本身
           nextUnitOfWork = completeUnitOfWork(sourceFiber);
-          // continue表示再一次进入本while循环，再一次进入workLoop
+
+          // 3）continue表示再一次进入本while循环，再一次进入workLoop
+          // nextUnitOfWork正常来说是返回suspense组件本身
           continue;
         }
       }
@@ -3119,7 +3130,6 @@ function renderRoot(root, isYieldy) {
   // 6. 渲染完毕，相关标志变量继续更新一下
   var didCompleteRoot = true;
   stopWorkLoopTimer(interruptedBy, didCompleteRoot);
-
 
   // `nextRoot`指向正在进行的根。非空值表示我们正处于异步渲染中。
   // 将其设置为null表示当前批次中没有更多工作要做。
@@ -4137,8 +4147,6 @@ function processUpdateQueue(workInProgress, queue, props, instance, renderExpira
 function ensureWorkInProgressQueueIsAClone(workInProgress, queue) {
   var current = workInProgress.alternate;
   if (current !== null) {
-    // If the work-in-progress queue is equal to the current queue,
-    // we need to clone it first.
     if (queue === current.updateQueue) {
       queue = workInProgress.updateQueue = cloneUpdateQueue(queue);
     }
@@ -4238,7 +4246,15 @@ function getStateFromUpdate(workInProgress, queue, update, prevState, nextProps,
   return prevState;
 }
 
+
+
+
+
+
 // REVIEW - beginWork分发之后，对根节点已经进行处理（整合state）了，然后开始对孩子进行调度！！！！
+
+
+
 
 function reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime) {
   // 这里的current$$1是WIP的替身，
@@ -4248,7 +4264,7 @@ function reconcileChildren(current$$1, workInProgress, nextChildren, renderExpir
     // 下面的函数也就是ChildReconciler(false);也就是reconcileChildFibers
     workInProgress.child = mountChildFibers(workInProgress, null, nextChildren, renderExpirationTime);
   } else {
-    // 首次渲染走下面的逻辑，current$$1.child将会是null，nextChildren就是root的大儿子（唯一的儿子）
+    // 首次渲染且WIP为root时走下面的逻辑，current$$1.child将会是null，nextChildren就是root的大儿子（唯一的儿子）
     // 开始处理fiber的大儿子！！！！
     // 得到处理好的大儿子之后给到child属性
     workInProgress.child = reconcileChildFibers(workInProgress, current$$1.child, nextChildren, renderExpirationTime);
@@ -4744,7 +4760,6 @@ function ChildReconciler(shouldTrackSideEffects) {
     // 2.1 （旧数组多出来的）删除数组之外的旧节点
     // 到了新数组的最后，把现有的（旧fiber）以及剩下的都删掉
     if (newIdx === newChildren.length) {
-      // We've reached the end of the new children. We can delete the rest.
       deleteRemainingChildren(returnFiber, oldFiber);
       return resultingFirstChild;
     }
@@ -4958,18 +4973,16 @@ function ChildReconciler(shouldTrackSideEffects) {
 
   function deleteRemainingChildren(returnFiber, currentFirstChild) {
 
-    // 从reconcileChildFibers过来的
     // returnFiber是父亲fiber
-    // currentFirstChild是父亲fiber的替身的大儿子（应该也是一个fiber），也就是当前页面显示的对应的节点
+    // currentFirstChild是父亲fiber的替身的大儿子（也是一个fiber），也就是当前页面显示的对应的节点
 
-    // shouldTrackSideEffects为true的话（从更新过来的），就不用删掉，因为只是标记
-    // 而这个函数的逻辑是要删掉
     if (!shouldTrackSideEffects) {
-      // Noop.
       return null;
     }
 
-    // 把这个fiber删掉，因为newChild(新的虚拟DOM)为null，才来到这里
+    // 标记这个fiber为删掉，
+    // 一种情况是：因为newChild(新的虚拟DOM)为null，来到这里
+    // 另一种情况是：在更新的时候，对比两个单独的fiber之间，发现 类型 不一样，把替身的这个fiber删掉
     var childToDelete = currentFirstChild;
     while (childToDelete !== null) {
       deleteChild(returnFiber, childToDelete);
@@ -4978,9 +4991,9 @@ function ChildReconciler(shouldTrackSideEffects) {
     return null;
   }
 
+
   function deleteChild(returnFiber, childToDelete) {
     if (!shouldTrackSideEffects) {
-      // Noop.
       return;
     }
 
@@ -4996,8 +5009,8 @@ function ChildReconciler(shouldTrackSideEffects) {
     // 标记删除！！
     childToDelete.nextEffect = null;
     childToDelete.effectTag = Deletion;
-
   }
+
 
   function useFiber(fiber, pendingProps, expirationTime) {
     // 拿到当前的更新过的WIP（拿的是替身的）
@@ -7373,17 +7386,24 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
 
 
   // 首先判断当前的WIP是否捕获到错误？即是否超时？？
+  // 根据标志修改nextState和nextDidTimeout（人为显式地修改）
   if ((workInProgress.effectTag & DidCapture) === NoEffect) {
-    // 首渲走下面，没有超时
+    // 首渲走下面，没有DidCapture的标记
     nextState = null;
     nextDidTimeout = false;
   } else {
-    // 已经超时了，需要显示fallback
+    // 有DidCapture的标记，需要显示fallback
     // 记录标识（nextState用于比较下一次，nextDidTimeout用于比较本次）
+
+    // 提问，什么时候走这里？
+    // 在懒加载组件抛出promise对象之后，在catch部分处理suspense组件的副作用标志，
+    // 执行到continue，再一次从suspense组件开始进入workLoop
+
     nextState = {
       timedOutAt: nextState !== null ? nextState.timedOutAt : NoWork
     };
     nextDidTimeout = true;
+
     // 清除副作用
     workInProgress.effectTag &= ~DidCapture;
   }
@@ -7435,12 +7455,13 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
 
     } else {
       // 如果没有超时，直接显示真实的孩子，往下创造fiber，直接忽略fallback的属性内容
+      // child和next都是正常的孩子树
       var nextPrimaryChildren = nextProps.children;
       child = next = mountChildFibers(workInProgress, null, nextPrimaryChildren, renderExpirationTime);
     }
 
   } else {
-    // 更新走下面
+    // 更新走下面（使用了【lazy】组件的都算更新，走下面！）
 
     // 通过替身的 memoizedState 判断之前是否处于超时状态
     // 替身的state有值，说明过去是超时的
@@ -7450,18 +7471,19 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
     if (prevDidTimeout) {
       // 之前超时了，之前显示的是fallback
 
-      // 替身的大孩子是真实的孩子节点，二孩子是fallback的内容
+      // 替身的大孩子要么是一个真实的孩子节点，要么是一个空fiber，后面跟着真实的孩子节点
+      // 二孩子是fallback的内容
       var currentPrimaryChildFragment = current$$1.child;
       var currentFallbackChildFragment = currentPrimaryChildFragment.sibling;
 
       if (nextDidTimeout) {
-        // （之前显示的是fallback）现在超时了，现在需要显示fallback
+        // 现在超时了，现在需要显示fallback（之前显示的是fallback）
         // 旧:fallback，新:fallback
 
         // 复用以前的真实的孩子
         var _primaryChildFragment = createWorkInProgress(currentPrimaryChildFragment, currentPrimaryChildFragment.pendingProps, NoWork);
 
-        // 如果不是并发模式走下面
+        // 如果不是并发模式走下面，跳过空fiber拿到真实的孩子树
         if ((workInProgress.mode & ConcurrentMode) === NoContext) {
           var _progressedState = workInProgress.memoizedState;
           var _progressedPrimaryChild = _progressedState !== null ? workInProgress.child.child : workInProgress.child;
@@ -7492,11 +7514,11 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
         child.return = next.return = workInProgress;
 
       } else {
-        // （之前显示的是fallback）现在没超时，现在直接显示真实的孩子
+        // 现在没超时，现在直接显示真实的孩子（之前显示的是fallback）
         // 旧:fallback，新:真实的孩子
 
         // 复用替身的真实孩子
-        // currentPrimaryChild是替身的大孩子（即替身的真实孩子节点）的孩子？？？
+        // currentPrimaryChild是替身的大孩子（空fiber）的大孩子（真实的孩子树）
         var _nextPrimaryChildren = nextProps.children;
         var currentPrimaryChild = currentPrimaryChildFragment.child;
         var primaryChild = reconcileChildFibers(workInProgress, currentPrimaryChild, _nextPrimaryChildren, renderExpirationTime);
@@ -7508,15 +7530,21 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
       var _currentPrimaryChild = current$$1.child;
 
       if (nextDidTimeout) {
-        // （之前显示的是真实的子树）现在超时了，现在需要显示fallback
+        // 现在超时了，现在需要显示fallback（之前显示的是真实的子树）
         // 旧:真实的孩子，新:fallback
+        // （使用了【lazy】都会进来这里这里！）
 
-        // 创造一个空的fiber，让 替身的真实孩子树 附在这个 空fiber的child属性 上面
+        // 1）处理真实的孩子树
+        // 新创造一个空的fiber，让 替身的真实孩子树 附在这个 空fiber的child属性 上面
         var _primaryChildFragment2 = createFiberFromFragment(null, mode, NoWork, null);
         _primaryChildFragment2.child = _currentPrimaryChild;
 
-        // 如果不是并发模式走下面
+        // 非并发模式（同步模式）走下面，更新孩子树!!
         if ((workInProgress.mode & ConcurrentMode) === NoContext) {
+          // 拿到的是之前的state，看有无值
+          // 有值：说明之前显示的是fallback，中间有一个空fiber（suspense->空fiber->孩子树），因此会有.child.child
+          // 没有值（在lazy组件抛出之后重新进入的loop这里是没有值的）：拿到当前的孩子树，更新空fiber的孩子
+          // （这次这个树的底层孩子的type是null了，因为是一个lazy组件，替身的树的底层孩子是navigate或别的）
           var _progressedState2 = workInProgress.memoizedState;
           var _progressedPrimaryChild2 = _progressedState2 !== null ? workInProgress.child.child : workInProgress.child;
           _primaryChildFragment2.child = _progressedPrimaryChild2;
@@ -7533,20 +7561,22 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
           _primaryChildFragment2.treeBaseDuration = _treeBaseDuration;
         }
 
-        // 复用fallback的fiber，并且给予新增的副作用
+        // 2）处理fallback树
+        // 为fallback新建一个fiber，并且给予新增的副作用标识
         var _nextFallbackChildren2 = nextProps.fallback;
         var _fallbackChildFragment2 = _primaryChildFragment2.sibling = createFiberFromFragment(_nextFallbackChildren2, mode, renderExpirationTime, null);
         _fallbackChildFragment2.effectTag |= Placement;
 
-        // 更新变量
+        // 3）更新变量
         child = _primaryChildFragment2;
         _primaryChildFragment2.childExpirationTime = NoWork;
         next = _fallbackChildFragment2;
         child.return = next.return = workInProgress;
 
       } else {
-        // （之前显示的是真实的子树）现在没超时，现在需要显示真实的子树
+        // 现在没超时，现在需要显示真实的子树（之前显示的是真实的子树）
         // 旧:真实的孩子，新:真实的子树
+
         var _nextPrimaryChildren2 = nextProps.children;
         // 直接进入孩子层更新孩子
         next = child = reconcileChildFibers(workInProgress, _currentPrimaryChild, _nextPrimaryChildren2, renderExpirationTime);
@@ -7555,9 +7585,21 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
     workInProgress.stateNode = current$$1.stateNode;
   }
 
+  // 更新state的值
   workInProgress.memoizedState = nextState;
   workInProgress.child = child;
+
+  // 返回的是fallback的fiber/真实孩子树
+  // （如果返回fallback，注意是fragment类型的fiber，然后再继续进入孩子分发的时候，来到updateFragment）
   return next;
+}
+
+
+// fragment类型的fiber的特点是type为null，pendingProps保存的是虚拟DOM的内容
+function updateFragment(current$$1, workInProgress, renderExpirationTime) {
+  var nextChildren = workInProgress.pendingProps;
+  reconcileChildren(current$$1, workInProgress, nextChildren, renderExpirationTime);
+  return workInProgress.child;
 }
 
 
@@ -7566,7 +7608,140 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
 
 
 
+// ?!提交阶段【commitWork】里面的suspense组件的函数
+
+
+function hideOrUnhideAllChildren(finishedWork, isHidden) {
+  if (supportsMutation) {
+    // 如果在commitWork那边：
+    // state有值，这个传入的node就是suspense组件的孩子，也就是空fiber
+    // state没值，传入的node就是suspense组件本身
+    // isHidden等于newDidTimeout，超时了（需要显示fallback）传入的就是true
+    var node = finishedWork;
+    while (true) {
+      if (node.tag === HostComponent) {
+        // 原生节点走这里
+        var instance = node.stateNode;
+        if (isHidden) {
+          // 拿到真实DOM，设置display为none
+          hideInstance(instance);
+        } else {
+          unhideInstance(node.stateNode, node.memoizedProps);
+        }
+        // 之后直接开始往右或上找，这个节点不显示下面的子树都不会显示
+
+      } else if (node.tag === HostText) {
+        // 文本节点走这里
+        var _instance3 = node.stateNode;
+        if (isHidden) {
+          hideTextInstance(_instance3);
+        } else {
+          unhideTextInstance(_instance3, node.memoizedProps);
+        }
+
+      } else if (node.tag === SuspenseComponent && node.memoizedState !== null) {
+        // suspense组件且需要显示fallback的走这里
+
+        var fallbackChildFragment = node.child.sibling;
+        fallbackChildFragment.return = node;
+        node = fallbackChildFragment;
+        continue;
+
+      } else if (node.child !== null) {
+        // 继续往下走
+        node.child.return = node;
+        node = node.child;
+        continue;
+      }
+
+      // 当前节点回到初始位置，直接退出
+      if (node === finishedWork) {
+        return;
+      }
+
+      // 没有兄弟姐妹就往上找
+      while (node.sibling === null) {
+        if (node.return === null || node.return === finishedWork) {
+          // 找到原本的空fiber的下一个节点就直接退出了！
+          return;
+        }
+        node = node.return;
+      }
+      // 有兄弟姐妹就往右边找
+      node.sibling.return = node.return;
+      node = node.sibling;
+    }
+  }
+}
+
+
+
+function hideInstance(instance) {
+  instance = instance;
+  instance.style.display = 'none';
+}
+
+
+
+
+
+// 这是在readLazyComponentType里面的then函数调用之后，才调用的retryTimedOutBoundary
+function retryTimedOutBoundary(boundaryFiber, thenable) {
+  // 入参：
+  // boundaryFiber就是suspense组件的fiber
+  // thenable就是promise对象
+
+  // 1. 拿到之前在commitWork创建的缓存
+  var retryCache = void 0;
+  // 下面的enableSuspenseServerRenderer默认是false，不走这个
+  if (enableSuspenseServerRenderer) {
+    switch (boundaryFiber.tag) {
+      case SuspenseComponent:
+        retryCache = boundaryFiber.stateNode;
+        break;
+      case DehydratedSuspenseComponent:
+        retryCache = boundaryFiber.memoizedState;
+        break;
+      default:
+        invariant(false, 'Pinged unknown suspense boundary type. This is probably a bug in React.');
+    }
+
+  } else {
+    // 从suspense组件的fiber里面拿出缓存（里面存着promise对象）
+    retryCache = boundaryFiber.stateNode;
+  }
+
+  // 因为已经解决了这个promise，就可以从内存里面删掉了
+  if (retryCache !== null) {
+    retryCache.delete(thenable);
+  }
+
+  // 2. 计算过期时间，改变root的过期时间
+  var currentTime = requestCurrentTime();
+  var retryTime = computeExpirationForFiber(currentTime, boundaryFiber);
+  var root = scheduleWorkToRoot(boundaryFiber, retryTime);
+
+  // 3. 最后拿到root对象（是对象不是fiber），如果这个时间不为0，再次进入调度流程
+  // 进入调度流程之后，在lazy组件那边执行readLazyComponentType，已经可以拿到promise对象的result了
+  if (root !== null) {
+    markPendingPriorityLevel(root, retryTime);
+    var rootExpirationTime = root.expirationTime;
+    if (rootExpirationTime !== NoWork) {
+      requestWork(root, rootExpirationTime);
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
 // REVIEW - 下面是经过beginWork分发后来到【BrowserRouters组件】的更新函数
+
 
 // !这里还包括：【useRoutes的钩子函数】
 
@@ -9485,7 +9660,7 @@ function lazy(ctor) {
 function mountLazyComponent(_current, workInProgress, elementType, updateExpirationTime, renderExpirationTime) {
   if (_current !== null) {
     // 更新走下面
-    // 把替身恢复为null
+    // 把替身恢复为null，因为这个是一个懒加载的组件，每次更新都要重新加载一个<script>
     _current.alternate = null;
     workInProgress.alternate = null;
     // 标记为新插入的副作用
@@ -9495,17 +9670,24 @@ function mountLazyComponent(_current, workInProgress, elementType, updateExpirat
   var props = workInProgress.pendingProps;
   cancelWorkTimer(workInProgress);
 
-  // 读取组件的类型
+  // 1. 读取组件的类型
   // 为什么要读取WIP的类型？
   // 回答：一开始创建虚拟DOM时，因为是一个lazy对象（里面保存了懒函数），所以还没定义WIP的type，此时的type是null
+
+  // 经过再次调度之后，这个时候的异步promise被解决了，可以从里面拿到
   var Component = readLazyComponentType(elementType);
 
-  // 如果懒加载的代码传过来很慢的时候，下面的函数是不会执行的
+  // 1）如果懒加载的代码传过来很慢的时候，下面的函数是不会执行的
+  // 2）经过再次调度，拿到这个虚拟DOM，开始根据她修改当前的这个lazy节点的fiber的信息（type、tag和props都要修改）
   workInProgress.type = Component;
+  // 组件的类型辨别
   var resolvedTag = workInProgress.tag = resolveLazyComponentTag(Component);
   startWorkTimer(workInProgress);
+  // 组件的props合并
   var resolvedProps = resolveDefaultProps(Component, props);
   var child = void 0;
+
+  // 2. 根据tag分发到相应的地方处理！
   switch (resolvedTag) {
     case FunctionComponent:
       {
@@ -9536,23 +9718,12 @@ function mountLazyComponent(_current, workInProgress, elementType, updateExpirat
             }
           }
         }
-        child = updateMemoComponent(null, workInProgress, Component, resolveDefaultProps(Component.type, resolvedProps), // The inner type can have defaults too
+        // memo组件把虚拟DOM的type也保存到props里面
+        child = updateMemoComponent(null, workInProgress, Component, resolveDefaultProps(Component.type, resolvedProps),
         updateExpirationTime, renderExpirationTime);
         break;
       }
     default:
-      {
-        var hint = '';
-        {
-          if (Component !== null && typeof Component === 'object' && Component.$$typeof === REACT_LAZY_TYPE) {
-            hint = ' Did you wrap a component in React.lazy() more than once?';
-          }
-        }
-        // This message intentionally doesn't mention ForwardRef or MemoComponent
-        // because the fact that it's a separate type of work is an
-        // implementation detail.
-        invariant(false, 'Element type is invalid. Received a promise that resolves to: %s. Lazy element type must resolve to a class or function.%s', Component, hint);
-      }
   }
   return child;
 }
@@ -9595,10 +9766,11 @@ function readLazyComponentType(lazyComponent) {
 
         // 然后先给他定义好then之后要干嘛，相当于先把后面的回调函数先保存起来
         _thenable.then(function (moduleObject) {
-          // 如果当前的lazy虚拟DOM的状态为pending，把他改为resolved，并且把结果缓存起来！
+          // 如果当前的lazy虚拟DOM的状态为pending，把他改为resolved，并且把结果保存到虚拟DOM身上！
           // （注意：这里的结果是保存在then的结果的default属性里面（类似于webpack的export的导出结果））
           if (lazyComponent._status === Pending) {
             var defaultExport = moduleObject.default;
+            // 改变状态，后续直接通过这个虚拟DOM的状态判断
             lazyComponent._status = Resolved;
             // 缓存组件（这里的result保存的通常是 React 组件）
             lazyComponent._result = defaultExport;
@@ -9628,7 +9800,8 @@ function readLazyComponentType(lazyComponent) {
     // 抛出Promise后，当前的函数会立刻中断，
     // 在workLoop的catch部分会捕获这个抛出的Promise对象，
     // 显示Suspense的fallback内容
-    // 直到 thenable（即一个 Promise）完成。重新【调度渲染】，此时会再次调用 readLazyComponentType
+    // 直到 thenable（即一个 Promise）完成，此时会再次调用 readLazyComponentType
+    // 然后调用retryTimedOutBoundary
 
   }
 }
@@ -9658,21 +9831,22 @@ function e (chunkId) {
 function replayUnitOfWork (failedUnitOfWork, thrownValue, isYieldy) {
   // 入参：
   // failedUnitOfWork就是nextUnitOfWork，此时就是lazy组件的fiber
-  // thrownValue是抛出来的promise对象
+  // thrownValue是抛出来的promise对象或者promise执行失败的结果对象
 
   // 懒加载组件抛出的promise在这里都满足条件，直接return出去了
   if (thrownValue !== null && typeof thrownValue === 'object' && typeof thrownValue.then === 'function') {
     return;
   }
 
-  // Restore the original state of the work-in-progress
+  // 1. 恢复这个WIP（lazy fiber）的属性为之前的原始信息
+  // stashedWorkInProgressProperties记录着当前的出错的fiber在performUniOfWork那里记录的原始信息（lazy fiber）
   if (stashedWorkInProgressProperties === null) {
-    // This should never happen. Don't throw because this code is DEV-only.
     warningWithoutStack$1(false, 'Could not replay rendering after an error. This is likely a bug in React. ' + 'Please file an issue.');
     return;
   }
   assignFiberPropertiesInDEV(failedUnitOfWork, stashedWorkInProgressProperties);
 
+  // 2. 如果有下面这些类型的，需要弹出当前的上下文
   switch (failedUnitOfWork.tag) {
     case HostRoot:
       popHostContainer(failedUnitOfWork);
@@ -9697,6 +9871,8 @@ function replayUnitOfWork (failedUnitOfWork, thrownValue, isYieldy) {
       break;
   }
 
+  // 3. 重新调度workLoop函数，起点是lazy节点
+  // 但肯定还是失败的，因为lazy虚拟DOM本身存的status就是失败的标识
   isReplayingFailedUnitOfWork = true;
   originalReplayError = thrownValue;
   invokeGuardedCallback(null, workLoop, null, isYieldy);
@@ -9732,17 +9908,21 @@ function throwException(root, returnFiber, sourceFiber, value, renderExpirationT
   // value是抛出的promise对象
   // renderET一般是Sync
 
-  // 给这个fiber标记为未完成，后面在commitWork那边会处理
+  // 给这个懒加载组件fiber标记为未完成，如果能够找到suspense组件的话，标记suspense就好，不需要这个标记
+  // 后面在commitWork那边会处理
   sourceFiber.effectTag |= Incomplete;
   // 把她的副作用链条也消除了
   sourceFiber.firstEffect = sourceFiber.lastEffect = null;
 
   if (value !== null && typeof value === 'object' && typeof value.then === 'function') {
     // 抛出的是一个promise，进来这里
+
     var thenable = value;
     var _workInProgress = returnFiber;
     var earliestTimeoutMs = -1;
     var startTimeMs = -1;
+
+    // 1）向上遍历祖先节点，找到最近的 SuspenseComponent，并计算其超时时间。
     do {
       // 一直往上找suspenseComponent，直到找到为止
       if (_workInProgress.tag === SuspenseComponent) {
@@ -9761,7 +9941,11 @@ function throwException(root, returnFiber, sourceFiber, value, renderExpirationT
 
         // 【首渲】以及【更新但是之前显示的不是fallback的内容】走下面
         // 拿到suspense组件的props里面的maxDuration，没有maxDuration的话不走下面
-        // 这是什么意思？
+        // maxDuration是设置suspense组件在展示之前所能容忍的最大等待时间，也就是这个时间之内页面是空白的
+
+        // 如果maxDuration小于等于 0，表示该Suspense组件不允许等待异步操作，应该立即超时。
+        // 如果 maxDuration 大于 0，则选择记录最小的超时时间。
+        // 通过这种方式，多个 Suspense 组件的超时会被合并，选择最短的超时时间。
         var timeoutPropMs = _workInProgress.pendingProps.maxDuration;
         if (typeof timeoutPropMs === 'number') {
           if (timeoutPropMs <= 0) {
@@ -9778,11 +9962,13 @@ function throwException(root, returnFiber, sourceFiber, value, renderExpirationT
     // 此时的_workInProgress改为懒组件的父亲节点returnFiber
     _workInProgress = returnFiber;
 
+    // 2）再次遍历祖先节点，寻找 Suspense 组件，标记DidCapture，保存promise数据
     do {
       if (_workInProgress.tag === SuspenseComponent && shouldCaptureSuspense(_workInProgress)) {
-        // Found the nearest boundary.
+        // 这种情况是当前suspense组件没超时（用了navigate组件开始首次更新时进来这里）
 
-        // Stash the promise on the boundary fiber. If the boundary times out, we'll
+        // 给suspense组件的uQ加一个更新对象（实际上是promise）
+        // 相当于把promise对象保存到suspense组件的uQ里面，后续会用到
         var thenables = _workInProgress.updateQueue;
         if (thenables === null) {
           var updateQueue = new Set();
@@ -9792,69 +9978,41 @@ function throwException(root, returnFiber, sourceFiber, value, renderExpirationT
           thenables.add(thenable);
         }
 
-        // If the boundary is outside of concurrent mode, we should *not*
-        // suspend the commit. Pretend as if the suspended component rendered
-        // null and keep rendering. In the commit phase, we'll schedule a
-        // subsequent synchronous update to re-render the Suspense.
-        //
-        // Note: It doesn't matter whether the component that suspended was
-        // inside a concurrent mode tree. If the Suspense is outside of it, we
-        // should *not* suspend the commit.
+        // 非并发模式（同步模式）
         if ((_workInProgress.mode & ConcurrentMode) === NoEffect) {
+          // 标记suspense组件的didCapture的错误，并取消懒加载组件的Incomplete副作用
           _workInProgress.effectTag |= DidCapture;
-
-          // We're going to commit this fiber even though it didn't complete.
-          // But we shouldn't call any lifecycle methods or callbacks. Remove
-          // all lifecycle effect tags.
           sourceFiber.effectTag &= ~(LifecycleEffectMask | Incomplete);
 
+          // 懒加载组件fiber的tag不可能是classComponent，是LazyComponent
+          // 如果是类组件，首渲阶段就更新tag，更新阶段创造一个ForceUpdate类型的update对象并放进入队列
           if (sourceFiber.tag === ClassComponent) {
             var currentSourceFiber = sourceFiber.alternate;
             if (currentSourceFiber === null) {
-              // This is a new mount. Change the tag so it's not mistaken for a
-              // completed class component. For example, we should not call
-              // componentWillUnmount if it is deleted.
               sourceFiber.tag = IncompleteClassComponent;
             } else {
-              // When we try rendering again, we should not reuse the current fiber,
-              // since it's known to be in an inconsistent state. Use a force updte to
-              // prevent a bail out.
               var update = createUpdate(Sync);
               update.tag = ForceUpdate;
               enqueueUpdate(sourceFiber, update);
             }
           }
 
-          // The source fiber did not complete. Mark it with Sync priority to
-          // indicate that it still has pending work.
+          // 【改eT】懒加载组件fiber的eT设置为同步执行
           sourceFiber.expirationTime = Sync;
 
-          // Exit without suspending.
+          // 直接退出了！
           return;
         }
 
-        // Confirmed that the boundary is in a concurrent mode tree. Continue
-        // with the normal suspend path.
-
+        // 非同步模式走下面
         attachPingListener(root, renderExpirationTime, thenable);
 
+        // 计算超时的绝对时间
         var absoluteTimeoutMs = void 0;
         if (earliestTimeoutMs === -1) {
-          // If no explicit threshold is given, default to an arbitrarily large
-          // value. The actual size doesn't matter because the threshold for the
-          // whole tree will be clamped to the expiration time.
           absoluteTimeoutMs = maxSigned31BitInt;
         } else {
           if (startTimeMs === -1) {
-            // This suspend happened outside of any already timed-out
-            // placeholders. We don't know exactly when the update was
-            // scheduled, but we can infer an approximate start time from the
-            // expiration time. First, find the earliest uncommitted expiration
-            // time in the tree, including work that is suspended. Then subtract
-            // the offset used to compute an async update's expiration time.
-            // This will cause high priority (interactive) work to expire
-            // earlier than necessary, but we can account for this by adjusting
-            // for the Just Noticeable Difference.
             var earliestExpirationTime = findEarliestOutstandingPriorityLevel(root, renderExpirationTime);
             var earliestExpirationTimeMs = expirationTimeToMs(earliestExpirationTime);
             startTimeMs = earliestExpirationTimeMs - LOW_PRIORITY_EXPIRATION;
@@ -9862,19 +10020,20 @@ function throwException(root, returnFiber, sourceFiber, value, renderExpirationT
           absoluteTimeoutMs = startTimeMs + earliestTimeoutMs;
         }
 
-        // Mark the earliest timeout in the suspended fiber's ancestor path.
-        // After completing the root, we'll take the largest of all the
-        // suspended fiber's timeouts and use it to compute a timeout for the
-        // whole tree.
+        // 开始准备显示fallback的内容
         renderDidSuspend(root, absoluteTimeoutMs, renderExpirationTime);
 
         _workInProgress.effectTag |= ShouldCapture;
         _workInProgress.expirationTime = renderExpirationTime;
-        return;
-      } else if (enableSuspenseServerRenderer && _workInProgress.tag === DehydratedSuspenseComponent) {
-        attachPingListener(root, renderExpirationTime, thenable);
 
-        // Since we already have a current fiber, we can eagerly add a retry listener.
+        // 退出
+        return;
+
+      } else if (enableSuspenseServerRenderer && _workInProgress.tag === DehydratedSuspenseComponent) {
+        // 水化走下面
+
+        attachPingListener(root, renderExpirationTime, thenable);
+        
         var retryCache = _workInProgress.memoizedState;
         if (retryCache === null) {
           retryCache = _workInProgress.memoizedState = new PossiblyWeakSet();
@@ -9893,31 +10052,51 @@ function throwException(root, returnFiber, sourceFiber, value, renderExpirationT
         }
         _workInProgress.effectTag |= ShouldCapture;
         _workInProgress.expirationTime = renderExpirationTime;
+
+        // 直接退出了！
         return;
       }
-      // This boundary already captured during this render. Continue to the next
-      // boundary.
+
       _workInProgress = _workInProgress.return;
     } while (_workInProgress !== null);
 
     value = new Error((getComponentName(sourceFiber.type) || 'A React component') + ' suspended while rendering, but no fallback UI was specified.\n' + '\n' + 'Add a <Suspense fallback=...> component higher in the tree to ' + 'provide a loading indicator or placeholder to display.' + getStackByFiberInDevAndProd(sourceFiber));
   }
 
-  renderDidError();
-  value = createCapturedValue(value, sourceFiber);
-  var workInProgress = returnFiber;
 
+  // 这种情况是
+  // 1. 抛出的错误不是一个promise，说明promise执行失败了，抛出了一个error。或者别的组件有误
+  // 2. 是懒加载组件，但是当前suspense组件超时了（之前的nextState有值），且不是水化
+
+  nextRenderDidError = true;
+  // 包装一下错误信息
+  value = {
+    value: value, // promise的错误对象
+    source: sourceFiber, // 懒加载组件自己的fiber
+    stack: getStackByFiberInDevAndProd(source) // fiber的描述信息
+  };
+
+  // 开始从当前的lazy节点向上遍历，直到找到根fiber，然后保存一下CapturedUpdate对象到队列里面
+  // 接着去到completeUnitOfWork，在执行到suspense组件的时候，因为组件本身没有didcapture的副作用，因此只是标记了删除和更新
+  // 接着重新调度，发现
+  var workInProgress = returnFiber;
   do {
     switch (workInProgress.tag) {
       case HostRoot:
         {
+          // 记录错误信息，给这个根节点标记副作用链
           var _errorInfo = value;
           workInProgress.effectTag |= ShouldCapture;
           workInProgress.expirationTime = renderExpirationTime;
+
+          // 创建一个update对象，保存错误信息
           var _update = createRootErrorUpdate(workInProgress, _errorInfo, renderExpirationTime);
+
+          // 把错误保存在queue的CapturedUpdate的队列里面
           enqueueCapturedUpdate(workInProgress, _update);
           return;
         }
+
       case ClassComponent:
         // Capture and retry
         var errorInfo = value;
@@ -9943,6 +10122,106 @@ function throwException(root, returnFiber, sourceFiber, value, renderExpirationT
 
 
 
+function shouldCaptureSuspense(workInProgress) {
+  // 保证suspense必须有fallbcak属性
+  if (workInProgress.memoizedProps.fallback === undefined) {
+    return false;
+  }
+  // 如果当前的state没有值，也就是没超时，返回true
+  var nextState = workInProgress.memoizedState;
+  return nextState === null;
+}
+
+
+
+function getStackByFiberInDevAndProd(workInProgress) {
+  var info = '';
+  var node = workInProgress;
+  do {
+    info += describeFiber(node);
+    node = node.return;
+  } while (node);
+  return info;
+}
+
+
+
+function createRootErrorUpdate(fiber, errorInfo, expirationTime) {
+  // 创建一个update对象
+  var update = createUpdate(expirationTime);
+  update.tag = CaptureUpdate;
+  update.payload = { element: null };
+  var error = errorInfo.value;
+
+  // 给这个对象的callback赋予一个处理错误的函数
+  update.callback = function () {
+    onUncaughtError(error);
+    logError(fiber, errorInfo);
+  };
+  return update;
+}
+
+
+
+function enqueueCapturedUpdate(workInProgress, update) {
+  var workInProgressQueue = workInProgress.updateQueue;
+  if (workInProgressQueue === null) {
+    workInProgressQueue = workInProgress.updateQueue = createUpdateQueue(workInProgress.memoizedState);
+  } else {
+    workInProgressQueue = ensureWorkInProgressQueueIsAClone(workInProgress, workInProgressQueue);
+  }
+
+  if (workInProgressQueue.lastCapturedUpdate === null) {
+    workInProgressQueue.firstCapturedUpdate = workInProgressQueue.lastCapturedUpdate = update;
+  } else {
+    workInProgressQueue.lastCapturedUpdate.next = update;
+    workInProgressQueue.lastCapturedUpdate = update;
+  }
+}
+
+
+
+
+// !【恢复正常之后】，在readLazyComponentType之后执行的函数
+
+// 看这个组件是什么类型
+function resolveLazyComponentTag(Component) {
+  if (typeof Component === 'function') {
+    return shouldConstruct(Component) ? ClassComponent : FunctionComponent;
+  } else if (Component !== undefined && Component !== null) {
+    var $$typeof = Component.$$typeof;
+    if ($$typeof === REACT_FORWARD_REF_TYPE) {
+      return ForwardRef;
+    }
+    if ($$typeof === REACT_MEMO_TYPE) {
+      return MemoComponent;
+    }
+  }
+  return IndeterminateComponent;
+}
+
+
+
+
+function resolveDefaultProps(Component, baseProps) {
+  if (Component && Component.defaultProps) {
+    // Resolve default props. Taken from ReactElement
+    var props = _assign({}, baseProps);
+    var defaultProps = Component.defaultProps;
+    for (var propName in defaultProps) {
+      if (props[propName] === undefined) {
+        props[propName] = defaultProps[propName];
+      }
+    }
+    return props;
+  }
+  return baseProps;
+}
+
+
+
+
+
 
 
 
@@ -9957,10 +10236,11 @@ function throwException(root, returnFiber, sourceFiber, value, renderExpirationT
 
 function completeUnitOfWork(workInProgress) {
   // 试图complete当前的fiber，然后往右边走，不然就返回父亲
-  while (true) {
+  // 如果是懒加载组件在catch部分进来的，懒加载组件本身在这个函数里面没干啥，
+  // 但是会一直返回父节点，然后当来到suspendse组件的时候（之前在throwException给她赋予了didCapture的副作用）
+  // 在completeWork里面返回suspense组件本身，再在本函数退出去，return suspense组件
 
-    // 目前的flushed状态的fiber就是替身。
-    // 理想情况下，任何东西都不应该依赖于此，但在这里依赖它意味着我们不需要在正在进行的工作上增加额外的字段。
+  while (true) {
     var current$$1 = workInProgress.alternate;
 
     // 把全局变量current改为当前的fiber
@@ -9969,9 +10249,7 @@ function completeUnitOfWork(workInProgress) {
     var returnFiber = workInProgress.return;
     var siblingFiber = workInProgress.sibling;
 
-    // 第一种情况是： fiber 当前还没有完成渲染工作，并且没有标记为“没有副作用”
-    // NoEffect表示没有副作用，Incomplete表示该fiber没有完成其渲染工作。
-    // WIP包含 Incomplete 但不包含 NoEffect，说明这个 fiber 当前还没有完成渲染工作，并且没有标记为“没有副作用”
+    // 第一种情况是：fiber当前没有Incomplete的副作用
     // 首次渲染的时候进入到这里面
     if ((workInProgress.effectTag & Incomplete) === NoEffect) {
 
@@ -9982,7 +10260,8 @@ function completeUnitOfWork(workInProgress) {
 
       nextUnitOfWork = workInProgress;
 
-      // 1.1 在当前停下来的fiber处建立真实的DOM
+      // 1.1 在当前停下来的fiber处建立真实的DOM（completeWork）
+      // 注意，如果是懒加载组件在catch部分进来的，completeWork里面没有懒加载组件的逻辑，直接退出了
       if (enableProfilerTimer) {
         // 时间暂停，表明从上往下遍历的阶段结束，开始向右向上遍历
         if (workInProgress.mode & ProfileMode) {
@@ -10000,18 +10279,22 @@ function completeUnitOfWork(workInProgress) {
         nextUnitOfWork = completeWork(current$$1, workInProgress, nextRenderExpirationTime);
       }
 
+      // 因为已经走完了comleteWork，所以可以replay
       if (true && replayFailedUnitOfWorkWithInvokeGuardedCallback) {
-        // 因为已经走完了comleteWork，所以可以replay
         mayReplayFailedUnitOfWork = true;
       }
       stopWorkTimer(workInProgress);
 
+
       // 1.2 更新WIP的孩子eT
       resetChildExpirationTime(workInProgress, nextRenderExpirationTime);
-
       resetCurrentFiber();
 
-      // 这个情况貌似不会走，因为completeWork返回的都是null
+
+      // 【特殊情况】
+      // 正常渲染的话这个情况貌似不会走，因为completeWork返回的都是null
+      // 如果有懒加载组件，那么在遍历到suspense组件的时候，completeWork会返回suspense组件本身
+      // 然后直接退出去到catch部分，继续continue，回到workLoop里面
       if (nextUnitOfWork !== null) {
         return nextUnitOfWork;
       }
@@ -10197,10 +10480,9 @@ function completeWork(current, workInProgress, renderExpirationTime) {
         var rootContainerInstance = getRootHostContainer();
         var type = workInProgress.type;
 
-        // 更新的时候走这里
         if (current !== null && workInProgress.stateNode != null) {
+          // 更新的时候走这里
           updateHostComponent$1(current, workInProgress, type, newProps, rootContainerInstance);
-
           if (current.ref !== workInProgress.ref) {
             markRef$1(workInProgress);
           }
@@ -10210,12 +10492,11 @@ function completeWork(current, workInProgress, renderExpirationTime) {
           if (!newProps) {
             break;
           }
-
           // 这里拿到的上下文不是之前那个fiber节点的上下文吗，因为在前面已经pop出去了
           var currentHostContext = getHostContext();
 
-          var wasHydrated = popHydrationState(workInProgress);
           // 水化走下面
+          var wasHydrated = popHydrationState(workInProgress);
           if (wasHydrated) {
             if (prepareToHydrateHostInstance(workInProgress, rootContainerInstance, currentHostContext)) {
               markUpdate(workInProgress);
@@ -10279,16 +10560,20 @@ function completeWork(current, workInProgress, renderExpirationTime) {
     case SuspenseComponent:
       {
         // 如果有错误的话，更新一下此时WIP的时间，直接return本次的WIP
+        // 在懒加载组件进入到catch的throwException里面，给suspense组件加了DidCapture的副作用
+        // 这是completeWork唯一一次返回的不是null，而是有值的情况，目的是回退到catch的continue那儿
         if ((workInProgress.effectTag & DidCapture) !== NoEffect) {
+          // 把同步的时间给到suspense组件
           workInProgress.expirationTime = renderExpirationTime;
           return workInProgress;
         }
 
-        // 如果WIP的memoizedState有值的话，说明已经超时了，显示的是fallback里面的内容
+        // 如果WIP的memoizedState有值的话，说明接下来显示的是fallback里面的内容
         var nextState = workInProgress.memoizedState;
         var nextDidTimeout = nextState !== null;
         var prevDidTimeout = current !== null && current.memoizedState !== null;
 
+        // 1）要删除的情况
         if (current !== null && !nextDidTimeout && prevDidTimeout) {
           // 更新 且 上一次显示fallback内容，本次没超时，需要显示真实孩子
 
@@ -10310,8 +10595,9 @@ function completeWork(current, workInProgress, renderExpirationTime) {
           }
         }
 
+        // 2）要更新的情况
         // 首次渲染走下面
-        // 只要之前之后有一次超时了（显示fallback的内容），就需要标记更新
+        // 只要之前之后有一次超时了（显示fallback的内容），就需要标记更新（在原来的副作用标志基础上添加！）
         if (nextDidTimeout || prevDidTimeout) {
           workInProgress.effectTag |= Update;
         }
@@ -10337,8 +10623,6 @@ function completeWork(current, workInProgress, renderExpirationTime) {
       break;
     case IncompleteClassComponent:
       {
-        // Same as class component case. I put it down here so that the tags are
-        // sequential to ensure this switch is compiled to a jump table.
         var _Component = workInProgress.type;
         if (isContextProvider(_Component)) {
           popContext(workInProgress);
@@ -10353,9 +10637,6 @@ function completeWork(current, workInProgress, renderExpirationTime) {
             !_wasHydrated2 ? invariant(false, 'A dehydrated suspense component was completed without a hydrated node. This is probably a bug in React.') : void 0;
             skipPastDehydratedSuspenseInstance(workInProgress);
           } else if ((workInProgress.effectTag & DidCapture) === NoEffect) {
-            // This boundary did not suspend so it's now hydrated.
-            // To handle any future suspense cases, we're going to now upgrade it
-            // to a Suspense component. We detach it from the existing current fiber.
             current.alternate = null;
             workInProgress.alternate = null;
             workInProgress.tag = SuspenseComponent;
@@ -10402,14 +10683,9 @@ function popHydrationState(fiber) {
     return false;
   }
   if (fiber !== hydrationParentFiber) {
-    // We're deeper than the current hydration context, inside an inserted
-    // tree.
     return false;
   }
   if (!isHydrating) {
-    // If we're not currently hydrating but we're in a hydration context, then
-    // we were an insertion and now need to pop up reenter hydration of our
-    // siblings.
     popToNextHostParent(fiber);
     isHydrating = true;
     return false;
@@ -10417,11 +10693,6 @@ function popHydrationState(fiber) {
 
   var type = fiber.type;
 
-  // If we have any remaining hydratable nodes, we need to delete them now.
-  // We only do this deeper than head and body since they tend to have random
-  // other nodes in them. We also ignore components with pure text content in
-  // side of them.
-  // Better heuristic.
   if (fiber.tag !== HostComponent || type !== 'head' && type !== 'body' && !shouldSetTextContent(type, fiber.memoizedProps)) {
     var nextInstance = nextHydratableInstance;
     while (nextInstance) {
@@ -10586,10 +10857,6 @@ function isCustomComponent(tagName, props) {
     return typeof props.is === 'string';
   }
   switch (tagName) {
-    // These are reserved SVG and MathML elements.
-    // We don't mind this whitelist too much because we expect it to never grow.
-    // The alternative is to track the namespace in a few places which is convoluted.
-    // https://w3c.github.io/webcomponents/spec/custom/#custom-elements-core-concepts
     case 'annotation-xml':
     case 'color-profile':
     case 'font-face':
@@ -10890,6 +11157,10 @@ function updateHostText$1(current, workInProgress, oldText, newText) {
     markUpdate(workInProgress);
   }
 };
+
+
+
+
 
 
 // REVIEW - 为真正的DOM赋予props属性和填充children的内容
@@ -15051,9 +15322,7 @@ function commitWork(current$$1, finishedWork) {
     // 因此标记了update副作用（使用了useLayoutEffect）的函数组件和memo组件都会进去执行commitHookEffectList函数
     // 这里只能对上useLayoutEffect的destory函数的副作用（UnmountMutation），也就是说，他的卸载是在页面绘制的同时卸载的
     case ClassComponent:
-      {
-        return;
-      }
+      return;
     case HostComponent:
       // 原生节点
       {
@@ -15092,50 +15361,66 @@ function commitWork(current$$1, finishedWork) {
         return;
       }
     case SuspenseComponent:
+      // 
       {
+        // 1. 根据state判断是否超时，拿到对应内容（WIP或WIP的孩子即空fiber）
+        // 拿到过去的state，有值说明超时了，需要显示fallback内容
         var newState = finishedWork.memoizedState;
-
         var newDidTimeout = void 0;
         var primaryChildParent = finishedWork;
+
+        // 拿到要显示的孩子
         if (newState === null) {
+          // 没超时走下面
+          // primaryChildParent还是suspense组件本身，他的孩子是正常的孩子
           newDidTimeout = false;
         } else {
+          // 超时走下面
+          // primaryChildParent是当前节点的孩子，就是一个空fiber
           newDidTimeout = true;
           primaryChildParent = finishedWork.child;
+          // 更新newState的时间（这个时间是提交时刻的时间）
           if (newState.timedOutAt === NoWork) {
-            // If the children had not already timed out, record the time.
-            // This is used to compute the elapsed time during subsequent
-            // attempts to render the children.
             newState.timedOutAt = requestCurrentTime();
           }
         }
 
+        // 2. 把当前节点以下的所有节点都改成不显示（/显示）
+        // 即：超时则不显示真实孩子树！！
         if (primaryChildParent !== null) {
           hideOrUnhideAllChildren(primaryChildParent, newDidTimeout);
         }
 
-        // If this boundary just timed out, then it will have a set of thenables.
-        // For each thenable, attach a listener so that when it resolves, React
-        // attempts to re-render the boundary in the primary (pre-timeout) state.
+        // 3. 缓存promise对象，添加回调函数，无论异步操作成功或失败均触发重试
+        // 之前的uQ是用的set来存的，可遍历！
         var thenables = finishedWork.updateQueue;
         if (thenables !== null) {
           finishedWork.updateQueue = null;
+
+          // 构建缓存，把这个缓存保存到WIP的stateNode里面！优先使用弱引用的set避免内存泄漏
           var retryCache = finishedWork.stateNode;
           if (retryCache === null) {
             retryCache = finishedWork.stateNode = new PossiblyWeakSet$1();
           }
+
+          // 缓存promise对象，并为其添加回调函数，无论异步操作成功或失败均触发重试
           thenables.forEach(function (thenable) {
-            // Memoize using the boundary fiber to prevent redundant listeners.
+            // 定义一个过期函数，包装起来
             var retry = retryTimedOutBoundary.bind(null, finishedWork, thenable);
             if (enableSchedulerTracing) {
               retry = unstable_wrap(retry);
             }
+
+            // 把promise对象放到缓存里面，无论异步操作成功或失败均触发重试
             if (!retryCache.has(thenable)) {
               retryCache.add(thenable);
               thenable.then(retry, retry);
             }
           });
         }
+
+        // 自此之后，等待加载一个<script>，
+        // 加载成功之后，执行readLazyComponentType里面的then函数和上面的retryTimedOutBoundary函数
 
         return;
       }
@@ -15144,6 +15429,7 @@ function commitWork(current$$1, finishedWork) {
     default:
   }
 }
+
 
 
 function commitUpdate(domElement, updatePayload, type, oldProps, newProps, internalInstanceHandle) {
@@ -15211,8 +15497,6 @@ function restoreSelection(priorSelectionInformation) {
     if (priorSelectionRange !== null && hasSelectionCapabilities(priorFocusedElem)) {
       setSelection(priorFocusedElem, priorSelectionRange);
     }
-
-    // Focusing a node can change the scroll position, which is undesirable
     var ancestors = [];
     var ancestor = priorFocusedElem;
     while (ancestor = ancestor.parentNode) {
@@ -15260,8 +15544,240 @@ function commitTextUpdate(textInstance, oldText, newText) {
 
 
 
+
+
+
+function commitDeletion(current$$1) {
+  // supportsMutation一般都是true
+  if (supportsMutation) {
+    // 走这里，操作原生节点，真实地删掉这个节点及往下的所有节点
+    unmountHostComponents(current$$1);
+  } else {
+    commitNestedUnmounts(current$$1);
+  }
+  // 
+  detachFiber(current$$1);
+}
+
+
+
+
+
+function unmountHostComponents(current$$1) {
+  // current$$1是要删除的节点fiber
+  var node = current$$1;
+
+  var currentParentIsValid = false;
+
+  var currentParent = void 0;
+  var currentParentIsContainer = void 0;
+
+  while (true) {
+
+    // 1. 拿到距离自己最近的一个原生祖上节点
+    if (!currentParentIsValid) {
+      // 拿到当前节点的父节点
+      var parent = node.return;
+      // 直到找到一个原生的祖上节点（HostComponent）
+      findParent: while (true) {
+        switch (parent.tag) {
+          case HostComponent:
+            currentParent = parent.stateNode;
+            currentParentIsContainer = false;
+            break findParent;
+          case HostRoot:
+            currentParent = parent.stateNode.containerInfo;
+            currentParentIsContainer = true;
+            break findParent;
+          case HostPortal:
+            currentParent = parent.stateNode.containerInfo;
+            currentParentIsContainer = true;
+            break findParent;
+        }
+        parent = parent.return;
+      }
+      currentParentIsValid = true;
+    }
+
+    // 2. 往下遍历，把这个节点的下面所有节点都删掉！
+    // （1）如果不是原生节点就执行清理函数
+    // （2）如果是原生节点就操作真实的DOM直接删掉
+    if (node.tag === HostComponent || node.tag === HostText) {
+      // 这个节点fiber本身是一个原生的节点，走下面
+
+      commitNestedUnmounts(node);
+
+      // 操作真实的DOM，把节点删掉
+      if (currentParentIsContainer) {
+        removeChildFromContainer(currentParent, node.stateNode);
+      } else {
+        removeChild(currentParent, node.stateNode);
+      }
+
+    } else if (enableSuspenseServerRenderer && node.tag === DehydratedSuspenseComponent) {
+      // 这个节点fiber本身不是一个原生的节点，且是一个水化的节点
+      
+      if (currentParentIsContainer) {
+        clearSuspenseBoundaryFromContainer(currentParent, node.stateNode);
+      } else {
+        clearSuspenseBoundary(currentParent, node.stateNode);
+      }
+
+    } else if (node.tag === HostPortal) {
+      // 这个节点fiber本身是HostPortal类型的节点
+
+      if (node.child !== null) {
+        currentParent = node.stateNode.containerInfo;
+        currentParentIsContainer = true;
+        node.child.return = node;
+        node = node.child;
+        continue;
+      }
+    } else {
+      // 这个这个节点fiber本身不是一个原生的节点，并且也不是一个水化的节点
+      // 1）首先执行这个节点上面的uQ的effect链条的destroy函数，进行清理！
+      commitUnmount(node);
+
+      // 然后往下执行
+      if (node.child !== null) {
+        node.child.return = node;
+        node = node.child;
+        continue;
+      }
+    }
+
+    // 如果回到了当前的节点，直接退出
+    if (node === current$$1) {
+      return;
+    }
+
+    // 没有兄弟姐妹就往上找，直到有兄弟姐妹为止
+    while (node.sibling === null) {
+      // 到顶了直接退出
+      if (node.return === null || node.return === current$$1) {
+        return;
+      }
+      node = node.return;
+      if (node.tag === HostPortal) {
+        currentParentIsValid = false;
+      }
+    }
+
+    // 往右手边的兄弟姐妹开始遍历
+    node.sibling.return = node.return;
+    node = node.sibling;
+  }
+}
+
+
+
+function commitUnmount(current$$1) {
+  // 下面暂时不知道在干嘛
+  onCommitUnmount(current$$1);
+
+  switch (current$$1.tag) {
+    case FunctionComponent:
+    case ForwardRef:
+    case MemoComponent:
+    case SimpleMemoComponent:
+      // 函数组件、memo组件都走下面的这个！
+      {
+        // 拿到uQ里面的effect对象，执行清理函数
+        var updateQueue = current$$1.updateQueue;
+        if (updateQueue !== null) {
+          var lastEffect = updateQueue.lastEffect;
+          if (lastEffect !== null) {
+            var firstEffect = lastEffect.next;
+            var effect = firstEffect;
+            do {
+              var destroy = effect.destroy;
+              if (destroy !== undefined) {
+                safelyCallDestroy(current$$1, destroy);
+              }
+              effect = effect.next;
+            } while (effect !== firstEffect);
+          }
+        }
+        break;
+      }
+    case ClassComponent:
+      {
+        safelyDetachRef(current$$1);
+        var instance = current$$1.stateNode;
+        if (typeof instance.componentWillUnmount === 'function') {
+          safelyCallComponentWillUnmount(current$$1, instance);
+        }
+        return;
+      }
+    case HostComponent:
+      {
+        safelyDetachRef(current$$1);
+        return;
+      }
+    case HostPortal:
+      {
+        if (supportsMutation) {
+          unmountHostComponents(current$$1);
+        } else if (supportsPersistence) {
+          emptyPortalContainer(current$$1);
+        }
+        return;
+      }
+  }
+}
+
+
+
+function onCommitUnmount(fiber) {
+  catchErrors(function (fiber) {
+    return hook.onCommitFiberUnmount(rendererID, fiber);
+  });
+}
+
+
+
+
+function removeChild(parentInstance, child) {
+  parentInstance.removeChild(child);
+}
+
+function removeChildFromContainer(container, child) {
+  if (container.nodeType === COMMENT_NODE) {
+    container.parentNode.removeChild(child);
+  } else {
+    container.removeChild(child);
+  }
+}
+
+
+
+
+
+function detachFiber(current$$1) {
+  // 把这个节点和别人的联系全部删掉！这样就可以被垃圾回收了！！！
+  current$$1.return = null;
+  current$$1.child = null;
+  current$$1.memoizedState = null;
+  current$$1.updateQueue = null;
+  var alternate = current$$1.alternate;
+  if (alternate !== null) {
+    alternate.return = null;
+    alternate.child = null;
+    alternate.memoizedState = null;
+    alternate.updateQueue = null;
+  }
+}
+
+
+
+
+
+
+
+
+
 // REVIEW - commitRoot函数中的【提交】的第三步：执行其他生命周期函数
-// 包括
+// 包括componentDidUpdate/Mount、getSnapshotBeforeUpdate
 
 
 
@@ -17147,8 +17663,8 @@ function diffProperties(domElement, tag, lastRawProps, nextRawProps, rootContain
       continue;
     }
 
-    // 如果是style
     if (propKey === STYLE$1) {
+      // 1）如果是style
       {
         if (nextProp) {
           Object.freeze(nextProp);
@@ -17185,7 +17701,9 @@ function diffProperties(domElement, tag, lastRawProps, nextRawProps, rootContain
         // 直接把最新的props对象赋予给styleUpdates
         styleUpdates = nextProp;
       }
+
     } else if (propKey === DANGEROUSLY_SET_INNER_HTML) {
+      // 2）如果是内置HTML
       var nextHtml = nextProp ? nextProp[HTML] : undefined;
       var lastHtml = lastProp ? lastProp[HTML] : undefined;
       if (nextHtml != null) {
@@ -17196,16 +17714,18 @@ function diffProperties(domElement, tag, lastRawProps, nextRawProps, rootContain
       } else {
         // inserted already.
       }
+
     } else if (propKey === CHILDREN) {
-      // 如果是孩子
+      // 3）如果是孩子
       // 【存】文本有改变，把数据（key及其内容）加到updatePayload里面
       if (lastProp !== nextProp && (typeof nextProp === 'string' || typeof nextProp === 'number')) {
         (updatePayload = updatePayload || []).push(propKey, '' + nextProp);
       }
     } else if (propKey === SUPPRESS_CONTENT_EDITABLE_WARNING || propKey === SUPPRESS_HYDRATION_WARNING$1) {
       // Noop
+
     } else if (registrationNameModules.hasOwnProperty(propKey)) {
-      // 如果是事件名称！
+      // 4）如果是事件名称！
       if (nextProp != null) {
         if (true && typeof nextProp !== 'function') {
           warnForInvalidEventListener(propKey, nextProp);
@@ -17216,8 +17736,10 @@ function diffProperties(domElement, tag, lastRawProps, nextRawProps, rootContain
       if (!updatePayload && lastProp !== nextProp) {
         updatePayload = [];
       }
+
     } else {
-      // 【存】剩下的属性，把数据（key及其内容）加到updatePayload里面
+      // 5）剩下的属性！
+      // 【存】把数据（key及其内容）加到updatePayload里面
       (updatePayload = updatePayload || []).push(propKey, nextProp);
     }
   }
