@@ -3733,7 +3733,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
 
     // 【memo(() => (<></>))】的类型的【首渲】走这里  
     case MemoComponent: {
-      // 拿到memo整个函数本身
+      // 拿到memo这个对象
       var _type2 = workInProgress.type;
       var _unresolvedProps3 = workInProgress.pendingProps;
 
@@ -7434,7 +7434,7 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
       // 如果不是并发模式
       if ((workInProgress.mode & ConcurrentMode) === NoContext) {
         // 拿到WIP的state，这里面存的是：{ timedOutAt: NoWork }（超时）或者null（没超时）
-        // 如果超时了，让空fiber的大儿子为当前WIP的大孩子的大孩子？？？
+        // 如果超时了，说明之前创建的树中有空fiber，让这个新的空fiber的大儿子为：当前WIP的大孩子的大孩子（即旧空fiber的大儿子即真正的孩子）
         var progressedState = workInProgress.memoizedState;
         var progressedPrimaryChild = progressedState !== null ? workInProgress.child.child : workInProgress.child;
         primaryChildFragment.child = progressedPrimaryChild;
@@ -7480,7 +7480,7 @@ function updateSuspenseComponent(current$$1, workInProgress, renderExpirationTim
         // 现在超时了，现在需要显示fallback（之前显示的是fallback）
         // 旧:fallback，新:fallback
 
-        // 复用以前的真实的孩子
+        // 复用空fiber（以前的真实的孩子）
         var _primaryChildFragment = createWorkInProgress(currentPrimaryChildFragment, currentPrimaryChildFragment.pendingProps, NoWork);
 
         // 如果不是并发模式走下面，跳过空fiber拿到真实的孩子树
@@ -7626,6 +7626,8 @@ function hideOrUnhideAllChildren(finishedWork, isHidden) {
           // 拿到真实DOM，设置display为none
           hideInstance(instance);
         } else {
+          // 拿到过去的props，把display的属性本身设置为空，相当于把display属性去掉
+          // （一般来说，fiber上面的props是不会被设置了有style属性的）
           unhideInstance(node.stateNode, node.memoizedProps);
         }
         // 之后直接开始往右或上找，这个节点不显示下面的子树都不会显示
@@ -7662,7 +7664,9 @@ function hideOrUnhideAllChildren(finishedWork, isHidden) {
       // 没有兄弟姐妹就往上找
       while (node.sibling === null) {
         if (node.return === null || node.return === finishedWork) {
-          // 找到原本的空fiber的下一个节点就直接退出了！
+          // 找到原本的空fiber或者suspense组件的下一个节点（开发者写出来的<suspense>的下一个<>）就直接退出了！
+          // 【开发者写出来的<suspense>的下一个<>】实际上没有兄弟姐妹
+          // 【空fiber】这一层的兄弟姐妹是不处理的
           return;
         }
         node = node.return;
@@ -7682,8 +7686,32 @@ function hideInstance(instance) {
 }
 
 
+function unhideInstance(instance, props) {
+  // instance是真实的DOM
+  // props是fiber上面的style属性
+  instance = instance;
+  var styleProp = props[STYLE];
+
+  // 一般来说，fiber上面的props是不会被设置了有style属性的
+  // 因此下面把display的属性本身设置为空“”，相当于把display属性去掉
+  var display = styleProp !== undefined && styleProp !== null && styleProp.hasOwnProperty('display') ? styleProp.display : null;
+  instance.style.display = dangerousStyleValue('display', display);
+}
 
 
+
+function dangerousStyleValue(name, value, isCustomProperty) {
+  var isEmpty = value == null || typeof value === 'boolean' || value === '';
+  if (isEmpty) {
+    return '';
+  }
+
+  if (!isCustomProperty && typeof value === 'number' && value !== 0 && !(isUnitlessNumber.hasOwnProperty(name) && isUnitlessNumber[name])) {
+    return value + 'px';
+  }
+
+  return ('' + value).trim();
+}
 
 // 这是在readLazyComponentType里面的then函数调用之后，才调用的retryTimedOutBoundary
 function retryTimedOutBoundary(boundaryFiber, thenable) {
@@ -8045,7 +8073,7 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
         throw new Error("A history only accepts one active listener");
       }
 
-      // 给顶层加上一个监听事件！事件名为'popstate'，执行函数handlePop实际上是执行listener
+      // 给顶层加上一个监听事件！事件名为'popstate'，执行函数handlePop实际上是执行fn（即listener），也就是
       window.addEventListener(PopStateEventType, handlePop);
       // 同步立刻赋予listener一个函数
       listener = fn;
@@ -9279,7 +9307,7 @@ function resolvePathname(relativePath, fromPathname) {
 
 
 
-// REVIEW - 下面是经过beginWork分发后来到【memo(() => { return (<></>) })】的更新函数
+// REVIEW - 下面是经过beginWork分发后来到memo类型【memo(() => { return (<></>) })】的更新函数
 
 
 // 注意memo函数是在render方法执行之前就执行了的
@@ -9426,30 +9454,11 @@ function memo(type, compare) {
 
 
 
-function resolveDefaultProps(Component, baseProps) {
-  // 把默认的prop和自定义的prop融合到一起，并且返回一个新的内存地址的对象
-
-  if (Component && Component.defaultProps) {
-    var props = _assign({}, baseProps);
-    var defaultProps = Component.defaultProps;
-    for (var propName in defaultProps) {
-      if (props[propName] === undefined) {
-        props[propName] = defaultProps[propName];
-      }
-    }
-    return props;
-  }
-  return baseProps;
-}
-
-
-
-
 function updateMemoComponent(current$$1, workInProgress, Component, nextProps, updateExpirationTime, renderExpirationTime) {
   if (current$$1 === null) {
     // 首渲走这里
     
-    // component是WIP的type属性，也是memo整个函数本身
+    // component是WIP的type属性，也是memo的一个对象，见上面的memo函数
     // 在此基础上又拿了一个type属性，这个type还是memo函数本身
     var type = Component.type;
     if (isSimpleFunctionComponent(type) && Component.compare === null && Component.defaultProps === undefined) {
@@ -9593,7 +9602,7 @@ var hasOwnProperty$1 = Object.prototype.hasOwnProperty;
 
 
 
-// REVIEW - 下面是懒加载的组件经过beginWork分发后来到LazyComponent的更新函数
+// REVIEW - 下面是懒加载的组件经过beginWork分发后来到Lazy类型组件的更新函数
 
 // 懒加载组件长这样：
 // <Login />
@@ -10204,8 +10213,8 @@ function resolveLazyComponentTag(Component) {
 
 
 function resolveDefaultProps(Component, baseProps) {
+  // 把默认的prop和自定义的prop融合到一起，并且返回一个新的内存地址的对象
   if (Component && Component.defaultProps) {
-    // Resolve default props. Taken from ReactElement
     var props = _assign({}, baseProps);
     var defaultProps = Component.defaultProps;
     for (var propName in defaultProps) {
@@ -15386,7 +15395,12 @@ function commitWork(current$$1, finishedWork) {
         }
 
         // 2. 把当前节点以下的所有节点都改成不显示（/显示）
-        // 即：超时则不显示真实孩子树！！
+        // 即：超时则不显示【空fiber】往下所有的孩子树，不超时则显示【<suspense>】往下的所有孩子树
+        // （下面的函数在遍历到【开发者写出来的<suspense>的下一个<>】就退出了，这个节点实际上没有兄弟姐妹，她的父节点要么是【空fiber】，要么是【<suspense>】）
+
+        // !问：但是要显示正确的内容呀？都不显示或都显示怎么可以呢？！
+        // 回答：超时的时候，传入的起始节点是【空fiber】，在其大孩子处退出了，没处理【空fiber】的兄弟姐妹
+        // 不超时的时候，传入的起始节点是【<suspense>】，此时不显示的节点是fallback的节点（已经在这个链的effect之前被真实操作DOM删掉了），其他都要显示
         if (primaryChildParent !== null) {
           hideOrUnhideAllChildren(primaryChildParent, newDidTimeout);
         }
@@ -15395,6 +15409,7 @@ function commitWork(current$$1, finishedWork) {
         // 之前的uQ是用的set来存的，可遍历！
         var thenables = finishedWork.updateQueue;
         if (thenables !== null) {
+          // 处理完了，恢复原状
           finishedWork.updateQueue = null;
 
           // 构建缓存，把这个缓存保存到WIP的stateNode里面！优先使用弱引用的set避免内存泄漏
@@ -15909,7 +15924,6 @@ function commitLifeCycles(finishedRoot, current$$1, finishedWork, committedExpir
     case Profiler:
       if (enableProfilerTimer) {
         var onRender = finishedWork.memoizedProps.onRender;
-
         if (enableSchedulerTracing) {
           onRender(finishedWork.memoizedProps.id, current$$1 === null ? 'mount' : 'update', finishedWork.actualDuration, finishedWork.treeBaseDuration, finishedWork.actualStartTime, getCommitTime(), finishedRoot.memoizedInteractions);
         } else {
