@@ -7768,7 +7768,7 @@ function retryTimedOutBoundary(boundaryFiber, thenable) {
 
 
 
-// REVIEW - 下面是经过beginWork分发后来到【BrowserRouters组件】的更新函数
+// REVIEW - 下面是经过beginWork分发后来到router相关的【BrowserRouters组件】的更新函数
 
 
 // !这里还包括：【useRoutes的钩子函数】
@@ -8258,6 +8258,24 @@ function stripBasename(pathname, basename) {
 
 
 // !下面是【useRoutes的钩子函数】相关
+
+// 其中的routes数组长下面这样，这个需要自己定义！！！
+// const routes = [
+//   {
+//     path: "/",
+//     element: <Navigate to="/users/login" />,
+//   },
+//   {
+//     path: "/users/login",
+//     element: <Login />,
+//   },
+//   {
+//     path: "/users/home",
+//     element: <Home />,
+//   }
+// ]
+
+
 
 
 function useRoutes(routes, locationArg) {

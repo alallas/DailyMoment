@@ -11,6 +11,7 @@ const ZipPlugin = require('./plugins/ZipPlugin.js')
 const AutoExternalPlugin = require('./plugins/AutoExternalPlugin_CDN.js')
 const HashPlugin = require('./plugins/HashPlugin.js')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+const nodeExternal = require('webpack-node-externals')
 
 
 module.exports = {
@@ -63,14 +64,33 @@ module.exports = {
     modules: ['node_modules', path.join(__dirname, 'loaders')]
   },
 
-
-  // 外链设置（不用cdn外链插件的时候要写这个，同时在html里面用script引入外链的url）
-  // 把cdn的库变成window的内置对象
+  
+  // 不需要打包的某些模块设置（即：哪些模块不需要被打包到最终的输出文件中，而是在运行时从外部环境获取）
+  // 1. 用到CDN的浏览器端打包 ——> 手动指定某些库为外部依赖，并通过全局window访问它们
+  // 把cdn的库变成window的内置对象（不用cdn外链插件的时候要写这个，同时在html里面用script引入外链的url）
   externals: {
-    // key是模块的名称，值是window上面的全局变量
+    // key是模块的名称，值是window上面的全局变量名字
     'jquery': 'jQuery',
     'lodash': '_',
+    // 还可以写一个函数，生成一个动态变量
+    'xxx': (context, request, callback) => {
+      callback(null, 'MY_CUSTOM_WINDOW_VAR');
+    },
   },
+  // 2. Node服务端打包 ——> 自动排除所有node核心模块的依赖
+  // nodeExternal函数执行的作用是检查代码所有引用的【核心模块】，提供一份不需要打包的列表
+  // nodeExternal()得到的是一个函数
+  externals:[nodeExternal()],
+  // 3. 两者合起来写就是
+  externals: [
+    nodeExternal(),
+    {
+      'jquery': 'jQuery',
+      'lodash': (context, request, callback) => {
+        callback(null, 'MY_CUSTOM_WINDOW_VAR');
+      },
+    }
+  ],
 
 
   // loader设置
