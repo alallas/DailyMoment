@@ -1,9 +1,16 @@
+
+// 在combineReducers里面的[ 检测reducer函数 ]写对没有时用到了
 const randomString = () => Math.random().toString(36).substring(7).split('').join('.')
 const ActionTypes = {
   INIT: `@@redux/INIT${randomString()}`,
   REPLACE: `@@redux/REPLACE${randomString()}`,
   PROBE_UNKNOWN_ACTION: () => `@@redux/PROBE_UNKNOWN_ACTION${randomString()}`
 }
+
+
+// 在observable函数里面用到了
+const $$observable = (() =>
+  (typeof Symbol === 'function' && Symbol.observable) || '@@observable')()
 
 
 
@@ -45,7 +52,7 @@ function combineReducers(reducers) {
     shapeAssertionError = e
   }
 
-  // 返回用于执行说有reducers函数的函数
+  // 返回用于执行所有reducers函数的函数
   return function combination(state = {}, action) {
     // 1. 相关信息检测
     if (shapeAssertionError) {
@@ -155,7 +162,13 @@ function assertReducerShape(reducers) {
 
 function applyMiddleware(...middlewares) {
   return createStore => (reducer, preloadedState) => {
+
+    // 在createStore那边如果传递了第二个参数, 来到这执行的就是下面的函数
+    // [ 相当于包裹了createStore函数本身, 加入了"中间件"的参数, 但是外部却可以只用一个函数名字, 因为是自己包裹了自己 ]
+    // 执行createStore函数 (dispatch指挥函数执行 (所有reducer函数以及listener函数) )
     const store = createStore(reducer, preloadedState)
+
+    // 重置一下dispatch的值
     let dispatch = () => {
       throw new Error(
         'Dispatching while constructing your middleware is not allowed. ' +
@@ -163,11 +176,17 @@ function applyMiddleware(...middlewares) {
       )
     }
 
+    // 封装一个工具,提供getState信息和dispatch指挥者(假的! 只会抛出错误! )的工具
     const middlewareAPI = {
       getState: store.getState,
       dispatch: (action, ...args) => dispatch(action, ...args)
     }
+
+    // 遍历所有的中间件, 执行所有的中间件函数, 得到中间件函数的返回值(也是函数)数组
     const chain = middlewares.map(middleware => middleware(middlewareAPI))
+
+    // 逐渐整合!
+    // 最后得到的函数是：函数4（函数3（函数2（函数1（dispatch函数））））
     dispatch = compose(...chain)(store.dispatch)
 
     return {
@@ -180,30 +199,23 @@ function applyMiddleware(...middlewares) {
 
 
 function compose(...funcs) {
+  // 空值返回空函数
   if (funcs.length === 0) {
-    // infer the argument type so it is usable in inference down the line
     return (arg) => arg
   }
-
+  // 只有一个中间件直接返回她本身
   if (funcs.length === 1) {
     return funcs[0]
   }
 
-  return funcs.reduce(
-    (a, b) =>
-      (...args) =>
-        a(b(...args))
-  )
+  return funcs.reduce((a, b) => (...args) => a(b(...args)))
 }
-
-
-
 
 
 
 function createStore(reducer, preloadedState, enhancer) {
   // 入参：
-  // reducer是一个函数，就上面combineReducer函数的返回值
+  // reducer是一个函数，就上面combineReducer函数的返回值 (相当于包装过的reducer函数, 执行所有reducer的)
   // preloadedState是applyMiddleware的返回值
   // （一个二重嵌套函数）createStore => (reducer, preState) => {}
   // enhancer还不知道是什么？？？
@@ -245,7 +257,7 @@ function createStore(reducer, preloadedState, enhancer) {
     }
 
     // 如果入参传入了二重嵌套函数：
-    // 那么首先运行这个二嵌函数，传入本函数，然后再给予reducer函数和undefined的第二个参数
+    // 那么首先运行这个二嵌函数，传入本函数，然后再给予reducer函数(包装过的,执行所有reducer的)和undefined的第二个参数
     // 返回的是一个正常函数，也就是“二嵌函数”的最后一层
     return enhancer(createStore)(
       reducer,
@@ -256,7 +268,8 @@ function createStore(reducer, preloadedState, enhancer) {
 
   // 2. 如果这个createStore没有传入第二个参数：
   // 那么就说明他是一个普通的同步仓库，不涉及中间件（没有异步操作）
-  // (1)先定义一些中间变量!
+
+  // (1) 先定义一些中间变量!
   let currentReducer = reducer
   let currentState = preloadedState
   // currentListeners是当前正在使用的监听器列表
@@ -267,7 +280,7 @@ function createStore(reducer, preloadedState, enhancer) {
   let isDispatching = false
 
   
-  // (2)一些关键函数的定义
+  // (2) 一些关键函数的定义
   function ensureCanMutateNextListeners() {
     // 如果两者是同一个内存(在初始的时候是这样)
     // nextListeners指定一个新的内存映射表,并复制currentListeners里面的所有listen函数
@@ -380,8 +393,8 @@ function createStore(reducer, preloadedState, enhancer) {
     }
 
 
-    // 2. 执行这个reducer函数,也就是combineReducers的返回值
-    // 这个函数遍历所有的reducer函数, 执行之后获得 { home: {}, counter: {} }
+    // 2. 执行每个reducer执行者函数,也就是combineReducers的返回值
+    // 这个函数遍历所有的reducer函数, 执行之后获得 { home: {}, counter: {} }, 这个变量更新给currentState
     try {
       // 传入的参数是state和action:
       // 其中state指的是preloadedState,一开始执行是undefined
@@ -392,24 +405,19 @@ function createStore(reducer, preloadedState, enhancer) {
       isDispatching = false
     }
 
+    // 3. 执行listener被监听函数
     // 让下一次的nextListeners给到currentListeners, 此时两个人的内存地址是一样的
-    // 
+    // 这说明这个时候是要执行listener函数的时候了(按道理不能再subscribe了)
     const listeners = (currentListeners = nextListeners)
     listeners.forEach(listener => {
       listener()
     })
+
+    // 返回的是action, 这是一个纯函数!!仅仅执行了reducer函数和listener函数
     return action
   }
 
-  /**
-   * Replaces the reducer currently used by the store to calculate the state.
-   *
-   * You might need this if your app implements code splitting and you want to
-   * load some of the reducers dynamically. You might also need this if you
-   * implement a hot reloading mechanism for Redux.
-   *
-   * @param nextReducer The reducer for the store to use instead.
-   */
+
   function replaceReducer(nextReducer) {
     if (typeof nextReducer !== 'function') {
       throw new Error(
@@ -418,33 +426,14 @@ function createStore(reducer, preloadedState, enhancer) {
         )}`
       )
     }
-
     currentReducer = nextReducer
-
-    // This action has a similar effect to ActionTypes.INIT.
-    // Any reducers that existed in both the new and old rootReducer
-    // will receive the previous state. This effectively populates
-    // the new state tree with any relevant data from the old one.
     dispatch({ type: ActionTypes.REPLACE })
   }
 
-  /**
-   * Interoperability point for observable/reactive libraries.
-   * @returns A minimal observable of state changes.
-   * For more information, see the observable proposal:
-   * https://github.com/tc39/proposal-observable
-   */
+  
   function observable() {
     const outerSubscribe = subscribe
     return {
-      /**
-       * The minimal observable subscription method.
-       * @param observer Any object that can be used as an observer.
-       * The observer object should have a `next` method.
-       * @returns An object with an `unsubscribe` method that can
-       * be used to unsubscribe the observable from the store, and prevent further
-       * emission of values from the observable.
-       */
       subscribe(observer) {
         if (typeof observer !== 'object' || observer === null) {
           throw new TypeError(
@@ -461,20 +450,25 @@ function createStore(reducer, preloadedState, enhancer) {
           }
         }
 
+        // 执行入参里面的next函数, 传入最新的state, 应该是有某些逻辑
         observeState()
+
+        // 然后监听observeState函数,也就是一直执行的是observer的next函数
         const unsubscribe = outerSubscribe(observeState)
         return { unsubscribe }
       },
 
+      // 用Symbol里面的observable作为属性名字,返回这个observable对象
       [$$observable]() {
         return this
       }
     }
   }
 
-  // When a store is created, an "INIT" action is dispatched so that every
-  // reducer returns their initial state. This effectively populates
-  // the initial state tree.
+
+  // (3) 初始化执行
+  // 1)所有reducer函数 2)所有listener函数
+  // 更新的变量有1)currentState 2)currentListeners
   dispatch({ type: ActionTypes.INIT })
 
   const store = {
@@ -486,3 +480,20 @@ function createStore(reducer, preloadedState, enhancer) {
   }
   return store
 }
+
+
+
+
+
+
+
+
+
+
+
+// REVIEW - 中间件函数
+
+
+
+
+
