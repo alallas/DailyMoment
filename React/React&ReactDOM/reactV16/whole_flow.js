@@ -4303,6 +4303,7 @@ function ChildReconciler(shouldTrackSideEffects) {
 
     // 1. 用来处理这种情况 <>{[...]}</> 和 <>...</>
     // 在这种情况下，保证newChild除去了空的标签符号，剩下里面的所有孩子
+    // !因此用这个<></>可以不用渲染多一个div节点，可以减少树的遍历开支！！！!
     var isUnkeyedTopLevelFragment = typeof newChild === 'object' && newChild !== null && newChild.type === REACT_FRAGMENT_TYPE && newChild.key === null;
     if (isUnkeyedTopLevelFragment) {
       newChild = newChild.props.children;

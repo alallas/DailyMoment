@@ -9,14 +9,101 @@ const ActionTypes = {
 
 
 // 在observable函数里面用到了
-const $$observable = (() =>
-  (typeof Symbol === 'function' && Symbol.observable) || '@@observable')()
+const $$observable = (() => (typeof Symbol === 'function' && Symbol.observable) || '@@observable')()
+
+
+// connect函数用到的
+var ReactReduxContext = {
+  _calculateChangedBits: null,
+  _currentRenderer: null,
+  _currentRenderer2: null,
+  _currentValue: null,
+  _currentValue2: null,
+  _threadCount: 0,
+  $$typeof: Symbol(react.context),
+  Consumer: {
+    $$typeof: Symbol(react.context), 
+    _context: {}, 
+    _calculateChangedBits: null, 
+  },
+  displayName: 'ReactRedux',
+  Provider: {
+    $$typeof: Symbol(react.provider),
+    _context: {},
+  },
+}
+
+
+const _excluded = ["reactReduxForwardedRef"];
+
+
+// 执行高阶组件的第二个括号，即包裹的过程中使用到的
+
+var defineProperty = Object.defineProperty;
+var getOwnPropertyNames = Object.getOwnPropertyNames;
+var getOwnPropertySymbols = Object.getOwnPropertySymbols;
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var getPrototypeOf = Object.getPrototypeOf;
+var objectPrototype = Object.prototype;
+
+
+var TYPE_STATICS = {};
+TYPE_STATICS[reactIs.ForwardRef] = FORWARD_REF_STATICS;
+TYPE_STATICS[reactIs.Memo] = MEMO_STATICS;
+
+
+var REACT_STATICS = {
+  childContextTypes: true,
+  contextType: true,
+  contextTypes: true,
+  defaultProps: true,
+  displayName: true,
+  getDefaultProps: true,
+  getDerivedStateFromError: true,
+  getDerivedStateFromProps: true,
+  mixins: true,
+  propTypes: true,
+  type: true
+};
+var KNOWN_STATICS = {
+  name: true,
+  length: true,
+  prototype: true,
+  caller: true,
+  callee: true,
+  arguments: true,
+  arity: true
+};
+var FORWARD_REF_STATICS = {
+  '$$typeof': true,
+  render: true,
+  defaultProps: true,
+  displayName: true,
+  propTypes: true
+};
+var MEMO_STATICS = {
+  '$$typeof': true,
+  compare: true,
+  defaultProps: true,
+  displayName: true,
+  propTypes: true,
+  type: true
+};
+
+
+
+
+
 
 
 
 // reducer是指挥函数
 // 
 
+
+
+
+// REVIEW - 整合reducer函数，返回大reducer函数
 
 
 function combineReducers(reducers) {
@@ -156,6 +243,13 @@ function assertReducerShape(reducers) {
     }
   })
 }
+
+
+
+
+
+// REVIEW - 创建仓库函数
+
 
 
 
@@ -486,13 +580,781 @@ function createStore(reducer, preloadedState, enhancer) {
 
 
 
-
-
-
-
-
 // REVIEW - 中间件函数
 
+
+// thunk 中间件
+
+
+function createThunkMiddleware(extraArgument) {
+  const middleware = ({ dispatch, getState }) => (next) => (action) => {
+    if (typeof action === "function") {
+      return action(dispatch, getState, extraArgument);
+    }
+    return next(action);
+  };
+  return middleware;
+}
+
+
+
+
+
+
+
+
+
+
+// REVIEW - connect函数
+
+
+
+function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
+  pure,
+  areStatesEqual = strictEqual,
+  areOwnPropsEqual = shallowEqual,
+  areStatePropsEqual = shallowEqual,
+  areMergedPropsEqual = shallowEqual,
+  forwardRef = false,
+  context = ReactReduxContext
+} = {}) {
+
+  // 入参：
+  // mapStateToProps和mapDispatchToProps可以是一个函数，也可以是一个对象
+  // 前者
+  // 后者
+  // 最后一个参数是一个工具箱!!!
+
+
+  if (process.env.NODE_ENV !== 'production') {
+    if (pure !== undefined && !hasWarnedAboutDeprecatedPureOption) {
+      hasWarnedAboutDeprecatedPureOption = true;
+      warning('The `pure` option has been removed. `connect` is now always a "pure/memoized" component');
+    }
+  }
+
+
+  // 1. 初始化一些中间变量
+
+  // 其中context也就是ReactReduxContext是一个全局变量，长下面这样
+  // var ReactReduxContext = {
+  //   _calculateChangedBits: null,
+  //   _currentRenderer: null,
+  //   _currentRenderer2: null,
+  //   _currentValue: null,
+  //   _currentValue2: null,
+  //   _threadCount: 0,
+  //   $$typeof: Symbol(react.context),
+  //   Consumer: {
+  //     $$typeof: Symbol(react.context), 
+  //     _context: {}, 
+  //     _calculateChangedBits: null, 
+  //   },
+  //   displayName: 'ReactRedux',
+  //   Provider: {
+  //     $$typeof: Symbol(react.provider),
+  //     _context: {},
+  //   },
+  // }
+
+  const Context = context;
+
+  // 得到初始化的函数（仅仅只是函数，还没真正拿到里面的东西）！！
+  const initMapStateToProps = mapStateToPropsFactory(mapStateToProps);
+  const initMapDispatchToProps = mapDispatchToPropsFactory(mapDispatchToProps);
+  const initMergeProps = mergePropsFactory(mergeProps);
+  // 如果传递了mapStateToProps就说明要检测state是否有变化
+  const shouldHandleStateChanges = Boolean(mapStateToProps);
+
+
+  // 返回一个包裹函数
+  // !相当于外部的connect是用来整合传入的【】和【】参数的，第二个括号（Home组件）才是真正的包裹函数
+
+  const wrapWithConnect = WrappedComponent => {
+    // 入参：WrappedComponent一般是类组件！！（函数组件不用connect来连接！！）
+
+    if (process.env.NODE_ENV !== 'production' && !isValidElementType(WrappedComponent)) {
+      throw new Error(`You must pass a component to the function returned by connect. Instead received ${stringifyComponent(WrappedComponent)}`);
+    }
+
+    // 拿到所有的信息和工具
+    // 1）这个类组件的名字（类名字）
+    const wrappedComponentName = WrappedComponent.displayName || WrappedComponent.name || 'Component';
+    const displayName = `Connect(${wrappedComponentName})`;
+    const selectorFactoryOptions = {
+      shouldHandleStateChanges,
+      displayName,
+      wrappedComponentName,
+      WrappedComponent,
+      initMapStateToProps,
+      initMapDispatchToProps,
+      initMergeProps,
+      areStatesEqual,
+      areStatePropsEqual,
+      areOwnPropsEqual,
+      areMergedPropsEqual
+    };
+
+    function ConnectFunction(props) {
+
+      // 
+      const [propsContext, reactReduxForwardedRef, wrapperProps] = React.useMemo(() => {
+        // 拿不到这个reactReduxForwardedRef，因为一开始的props是空对象
+        const { reactReduxForwardedRef } = props,
+        // 删除掉props对象里面的一些属性键值对（参照_excluded数组删除）
+        wrapperProps = _objectWithoutPropertiesLoose(props, _excluded);
+        // 返回筛选过后的props，实际上这三个值都是undefined
+        return [props.context, reactReduxForwardedRef, wrapperProps];
+      }, [props]);
+
+
+      // 2. 拿到上下文以此拿到store本身和getState函数
+      // 如果props里面有上下文就直接用他的上下文，如果没有就用ReactReduxContext（也就是<Provider>那里传递的上下文）
+      const ContextToUse = React.useMemo(() => {
+        return propsContext && propsContext.Consumer && isContextConsumer(React.createElement(propsContext.Consumer, null))
+          ? propsContext
+          : Context;
+      }, [propsContext, Context]);
+
+      // 拿到上下文对象里面的_currentValue(同时给当前的fiber的contextDependencies属性保存了一个包装上下文对象)
+      const contextValue = React.useContext(ContextToUse);
+
+      // store一般来自于上下文，因此didStoreComeFromProps为false，didStoreComeFromContext为true
+      const didStoreComeFromProps = Boolean(props.store) && Boolean(props.store.getState) && Boolean(props.store.dispatch);
+      const didStoreComeFromContext = Boolean(contextValue) && Boolean(contextValue.store);
+      if (process.env.NODE_ENV !== 'production' && !didStoreComeFromProps && !didStoreComeFromContext) {
+        throw new Error(`Could not find "store" in the context of ` + `"${displayName}". Either wrap the root component in a <Provider>, ` + `or pass a custom React context provider to <Provider> and the corresponding ` + `React context consumer to ${displayName} in connect options.`);
+      }
+
+      // 拿到store本身和getState函数
+      const store = didStoreComeFromProps ? props.store : contextValue.store;
+      const getServerState = didStoreComeFromContext ? contextValue.getServerState : store.getState;
+      
+
+      // 3. 
+      const childPropsSelector = React.useMemo(() => {
+        return defaultSelectorFactory(store.dispatch, selectorFactoryOptions);
+      }, [store]);
+
+
+      const [subscription, notifyNestedSubs] = React.useMemo(() => {
+        if (!shouldHandleStateChanges) return NO_SUBSCRIPTION_ARRAY;
+        const subscription = createSubscription(store, didStoreComeFromProps ? undefined : contextValue.subscription);
+        const notifyNestedSubs = subscription.notifyNestedSubs.bind(subscription);
+        return [subscription, notifyNestedSubs];
+      }, [store, didStoreComeFromProps, contextValue]);
+
+      const overriddenContextValue = React.useMemo(() => {
+        if (didStoreComeFromProps) {
+          return contextValue;
+        }
+        return _extends({}, contextValue, { subscription });
+      }, [didStoreComeFromProps, contextValue, subscription]);
+
+      const lastChildProps = React.useRef();
+      const lastWrapperProps = React.useRef(wrapperProps);
+      const childPropsFromStoreUpdate = React.useRef();
+      const renderIsScheduled = React.useRef(false);
+      const isProcessingDispatch = React.useRef(false);
+      const isMounted = React.useRef(false);
+      const latestSubscriptionCallbackError = React.useRef();
+
+      useIsomorphicLayoutEffect(() => {
+        isMounted.current = true;
+        return () => {
+          isMounted.current = false;
+        };
+      }, []);
+
+      const actualChildPropsSelector = React.useMemo(() => {
+        const selector = () => {
+          if (childPropsFromStoreUpdate.current && wrapperProps === lastWrapperProps.current) {
+            return childPropsFromStoreUpdate.current;
+          }
+          return childPropsSelector(store.getState(), wrapperProps);
+        };
+        return selector;
+      }, [store, wrapperProps]);
+
+      const subscribeForReact = React.useMemo(() => {
+        const subscribe = reactListener => {
+          if (!subscription) {
+            return () => {};
+          }
+          return subscribeUpdates(shouldHandleStateChanges, store, subscription, // @ts-ignore
+          childPropsSelector, lastWrapperProps, lastChildProps, renderIsScheduled, isMounted, childPropsFromStoreUpdate, notifyNestedSubs, reactListener);
+        };
+        return subscribe;
+      }, [subscription]);
+      
+      useIsomorphicLayoutEffectWithArgs(captureWrapperProps, [lastWrapperProps, lastChildProps, renderIsScheduled, wrapperProps, childPropsFromStoreUpdate, notifyNestedSubs]);
+
+      let actualChildProps;
+      try {
+        actualChildProps = useSyncExternalStore(subscribeForReact, actualChildPropsSelector, getServerState ? () => childPropsSelector(getServerState(), wrapperProps) : actualChildPropsSelector);
+      } catch (err) {
+        if (latestSubscriptionCallbackError.current) {
+          err.message += `\nThe error may be correlated with this previous error:\n${latestSubscriptionCallbackError.current.stack}\n\n`;
+        }
+        throw err;
+      }
+
+      useIsomorphicLayoutEffect(() => {
+        latestSubscriptionCallbackError.current = undefined;
+        childPropsFromStoreUpdate.current = undefined;
+        lastChildProps.current = actualChildProps;
+      });
+
+      const renderedWrappedComponent = React.useMemo(() => {
+        return (
+          React.createElement(WrappedComponent, _extends({}, actualChildProps, {
+            ref: reactReduxForwardedRef
+          }))
+        );
+      }, [reactReduxForwardedRef, WrappedComponent, actualChildProps]);
+
+      const renderedChild = React.useMemo(() => {
+        if (shouldHandleStateChanges) {
+          return React.createElement(ContextToUse.Provider, {
+            value: overriddenContextValue
+          }, renderedWrappedComponent);
+        }
+        return renderedWrappedComponent;
+      }, [ContextToUse, renderedWrappedComponent, overriddenContextValue]);
+
+
+      return renderedChild;
+    }
+
+
+    // 创建一个memo的虚拟DOM组件！
+    const _Connect = React.memo(ConnectFunction);
+    const Connect = _Connect;
+    // 给这个memoe组件赋予一些属性
+    // 把这个被包裹的组件放到这个memo虚拟DOM的一个属性里面
+    Connect.WrappedComponent = WrappedComponent;
+    Connect.displayName = ConnectFunction.displayName = displayName;
+
+    // forwardRef默认是false，不走下面
+    if (forwardRef) {
+      const _forwarded = React.forwardRef(function forwardConnectRef(props, ref) {
+        return React.createElement(Connect, _extends({}, props, {
+          reactReduxForwardedRef: ref
+        }));
+      });
+      const forwarded = _forwarded;
+      forwarded.displayName = displayName;
+      forwarded.WrappedComponent = WrappedComponent;
+      return hoistStatics(forwarded, WrappedComponent);
+    }
+
+    // 给这个memo的虚拟DOM赋予 函数原型/通用类组件/自定义类组件 的属性，返回这个memo的虚拟DOM
+    // 在Home组件的js文件那边，用这个覆盖原来的Home，然后export的是一个包裹着home的memo虚拟DOM
+    // 那么相当于把Home用memo的fiber包裹起来的
+    return hoistStatics(Connect, WrappedComponent);
+  };
+
+  return wrapWithConnect;
+}
+
+
+function strictEqual(a, b) {
+  return a === b;
+}
+
+
+function mapStateToPropsFactory(mapStateToProps) {
+  return !mapStateToProps
+    ? wrapMapToPropsConstant(() => ({})) 
+    : typeof mapStateToProps === 'function' 
+      ? wrapMapToPropsFunc(mapStateToProps, 'mapStateToProps') 
+      : createInvalidArgFactory(mapStateToProps, 'mapStateToProps');
+}
+
+
+
+function wrapMapToPropsFunc(mapToProps, methodName) {
+  // 入参：mapToProps要么是mapStateToProps，要么是mapDispatchToProps
+
+  return function initProxySelector(dispatch, { displayName }) {
+    // 入参：displayName是`Connect(${wrappedComponentName})`
+    // 例如：'Connect(Home)'
+
+    // 下面的函数返回一个类似class的构造函数
+
+    const proxy = function mapToPropsProxy(stateOrDispatch, ownProps) {
+      return proxy.dependsOnOwnProps
+        ? proxy.mapToProps(stateOrDispatch, ownProps)
+        : proxy.mapToProps(stateOrDispatch, undefined);
+    };
+
+    proxy.dependsOnOwnProps = true;
+
+    proxy.mapToProps = function detectFactoryAndVerify(stateOrDispatch, ownProps) {
+      proxy.mapToProps = mapToProps;
+      proxy.dependsOnOwnProps = getDependsOnOwnProps(mapToProps);
+      let props = proxy(stateOrDispatch, ownProps);
+
+      if (typeof props === 'function') {
+        proxy.mapToProps = props;
+        proxy.dependsOnOwnProps = getDependsOnOwnProps(props);
+        props = proxy(stateOrDispatch, ownProps);
+      }
+
+      if (process.env.NODE_ENV !== 'production') verifyPlainObject(props, displayName, methodName);
+      return props;
+    };
+
+    return proxy;
+  };
+}
+
+
+
+function mapDispatchToPropsFactory(mapDispatchToProps) {
+  return mapDispatchToProps && typeof mapDispatchToProps === 'object' 
+    ? wrapMapToPropsConstant(dispatch => bindActionCreators(mapDispatchToProps, dispatch)) 
+    : !mapDispatchToProps 
+      ? wrapMapToPropsConstant(dispatch => ({ dispatch })) 
+      : typeof mapDispatchToProps === 'function' 
+        ? wrapMapToPropsFunc(mapDispatchToProps, 'mapDispatchToProps') 
+        : createInvalidArgFactory(mapDispatchToProps, 'mapDispatchToProps');
+}
+
+
+
+function wrapMapToPropsConstant(getConstant) {
+  // getConstant就是一个函数：dispatch => bindActionCreators(mapDispatchToProps, dispatch)
+
+  return function initConstantSelector(dispatch) {
+    // 执行上面那个函数，目的是
+    const constant = getConstant(dispatch);
+    function constantSelector() {
+      return constant;
+    }
+    constantSelector.dependsOnOwnProps = false;
+    return constantSelector;
+  };
+}
+
+
+
+function bindActionCreators(actionCreators, dispatch) {
+  // 是actionCreator的对象，里面是一个个函数，每个函数都生成一个action对象
+  // dispatch是store的方法
+
+  // 下面是遍历这个对象，让每个action生成器函数变成瘦到dispatch包裹的一个函数
+  // 也就是说，如果执行里面的函数，相当于就是触发dispatch函数，改变state了
+  const boundActionCreators = {};
+  for (const key in actionCreators) {
+    const actionCreator = actionCreators[key];
+    if (typeof actionCreator === 'function') {
+      boundActionCreators[key] = (...args) => dispatch(actionCreator(...args));
+    }
+  }
+
+  return boundActionCreators;
+}
+
+
+
+function mergePropsFactory(mergeProps) {
+  return !mergeProps
+    ? () => defaultMergeProps 
+    : typeof mergeProps === 'function' 
+      ? wrapMergePropsFunc(mergeProps)
+      : createInvalidArgFactory(mergeProps, 'mergeProps');
+}
+
+
+function hoistStatics(targetComponent, sourceComponent, blacklist) {
+  hoistNonReactStatics(targetComponent, sourceComponent, blacklist)
+}
+
+
+function hoistNonReactStatics(targetComponent, sourceComponent, blacklist) {
+  // 入参：
+  // targetComponent需要把东西（props和dispatch）包裹到里面的memo组件（虚拟DOM）————静态属性将被复制到该组件
+  // sourceComponent被包裹的组件，一般是类组件（大类对象），或者是function的原型，或者是Object的原型————静态属性将从此组件复制
+  // blacklist没有传递，为undefined
+
+  // !本函数的最终目的是让这个memo的虚拟DOM，变成一个具有函数原型/通用类组件/自定义类组件的所有属性的对象！
+  // 注意：对于后两者，props不是类的属性，是类的实例的属性，比如对于Component，他的属性只有['length', 'name', 'prototype']
+
+  if (typeof sourceComponent !== 'string') {
+    // !1. 递归入口，目的是：
+    // !将sourceComponent所有父类的属性复制到targetComponent目标组件上面
+    if (objectPrototype) {
+      // 拿到这个类组件继承的Component大组件
+      var inheritedComponent = getPrototypeOf(sourceComponent);
+
+      // 大Component组件肯定不等于Object的prototype，那么重新用大Component组件再次进入这个函数
+      // 接着大Component组件的原型是函数的原型，也不等于Object的prototype，再次进入这个函数
+      // 接着当sourceComponent为函数的原型（即他的原型是Object的原型），这里就进不去了！
+      if (inheritedComponent && inheritedComponent !== objectPrototype) {
+        hoistNonReactStatics(targetComponent, inheritedComponent, blacklist);
+      }
+    }
+
+    // 2. 拿到这个对象所有的属性的名字数组（包括不可枚举属性），并把symbols上面的属性名字也整合到keys数组里面
+    // 情况一：当sourceComponent为函数的原型时，他的对象的属性名字有如下这些
+    // 0: "length"
+    // 1: "name"
+    // 2: "arguments"
+    // 3: "caller"
+    // 4: "constructor"
+    // 5: "apply"
+    // 6: "bind"
+    // 7: "call"
+    // 8: "toString"
+    var keys = getOwnPropertyNames(sourceComponent);
+
+    // 情况一：当sourceComponent为函数的原型时，
+    // keys数组在原基础上加东西：9: Symbol(Symbol.hasInstance)
+    if (getOwnPropertySymbols) {
+      keys = keys.concat(getOwnPropertySymbols(sourceComponent));
+    }
+
+    // 3. 获取需要排除的目标/源组件的静态属性
+    // 拿到两个组件的 不同类型对应的 必备属性集合对象！（需要排除的相关静态属性）
+    // 前者是MEMO_STATICS，后者是REACT_STATICS对象
+    var targetStatics = getStatics(targetComponent);
+    var sourceStatics = getStatics(sourceComponent);
+
+    // 4. 遍历sourceComponent对象（函数原型、大Component、自定义的需要被包裹的类组件）的属性
+    // 需要排除的东西是：
+    // KNOWN_STATICS（已知的属性）（函数、对象和数组的一些基本的属性）、
+    // sourceStatics（源组件的React的静态属性）（REACT_STATICS内容）、
+    // targetStatics（目标组件已存在的属性）（MEMO_STATICS内容）、
+    // blacklist（黑名单中的属性）（为undefined）
+    for (var i = 0; i < keys.length; ++i) {
+      var key = keys[i];
+
+      if (!KNOWN_STATICS[key] && !(blacklist && blacklist[key]) && !(sourceStatics && sourceStatics[key]) && !(targetStatics && targetStatics[key])) {
+        var descriptor = getOwnPropertyDescriptor(sourceComponent, key);
+
+        try {
+          // Avoid failures from read-only properties
+          defineProperty(targetComponent, key, descriptor);
+        } catch (e) {}
+      }
+    }
+  }
+
+  return targetComponent;
+}
+
+
+function getStatics(component) {
+  if (isMemo(component)) {
+    return MEMO_STATICS;
+  }
+  return TYPE_STATICS[component['$$typeof']] || REACT_STATICS;
+}
+
+
+function isMemo(object) {
+  return typeOf(object) === REACT_MEMO_TYPE;
+}
+
+
+function typeOf(object) {
+  // 如果时memo虚拟组件的话，$$typeof就是Symbol(react.memo)
+  if (typeof object === 'object' && object !== null) {
+    var $$typeof = object.$$typeof;
+
+    switch ($$typeof) {
+      case REACT_ELEMENT_TYPE:
+        // 拿到memo组件的函数本身
+        var type = object.type;
+
+        switch (type) {
+          case REACT_ASYNC_MODE_TYPE:
+          case REACT_CONCURRENT_MODE_TYPE:
+          case REACT_FRAGMENT_TYPE:
+          case REACT_PROFILER_TYPE:
+          case REACT_STRICT_MODE_TYPE:
+          case REACT_SUSPENSE_TYPE:
+            return type;
+
+          // 拿到memo组件的函数本身的$$typeof属性，此时为空，返回undefined
+          default:
+            var $$typeofType = type && type.$$typeof;
+
+            switch ($$typeofType) {
+              case REACT_CONTEXT_TYPE:
+              case REACT_FORWARD_REF_TYPE:
+              case REACT_LAZY_TYPE:
+              case REACT_MEMO_TYPE:
+              case REACT_PROVIDER_TYPE:
+                return $$typeofType;
+
+              default:
+                return $$typeof;
+            }
+
+        }
+
+      case REACT_PORTAL_TYPE:
+        return $$typeof;
+    }
+  }
+
+  return undefined;
+}
+
+
+
+
+
+function _objectWithoutPropertiesLoose(r, e) {
+  // 入参：
+  // r表示这个memo组件的props，实际上是空
+  // e是一个数组，长这样["reactReduxForwardedRef"]
+
+  if (null == r) return {};
+
+  // 遍历props的属性（不包括原型上面的属性），删除掉数组_exclude里面的属性键值对
+  // 如果数组_exclude里面没有props的属性, 就保存到一个新对象里面
+  var t = {};
+  for (var n in r) if ({}.hasOwnProperty.call(r, n)) {
+    if (e.includes(n)) continue;
+    t[n] = r[n];
+  }
+  return t;
+}
+
+
+
+function defaultSelectorFactory(dispatch, _ref) {
+  finalPropsSelectorFactory(dispatch, _ref)
+}
+
+
+
+
+
+function finalPropsSelectorFactory(dispatch, _ref) {
+  // 入参：
+  // dispatch来自于store工具箱的函数
+  // _ref是所有信息和工具的汇总（被包裹的类对象、MapStateToProps、MapDispatchToProps等函数）
+
+  // 把这个信息大杂烩的对象里面不要的属性去掉
+  let {initMapStateToProps, initMapDispatchToProps, initMergeProps} = _ref,
+  options = _objectWithoutPropertiesLoose(_ref, _excluded);
+
+  // 分别执行三个初始化函数
+  const mapStateToProps = initMapStateToProps(dispatch, options);
+  const mapDispatchToProps = initMapDispatchToProps(dispatch, options);
+  const mergeProps = initMergeProps(dispatch, options);
+
+  if (process.env.NODE_ENV !== 'production') {
+    verifySubselectors(mapStateToProps, mapDispatchToProps, mergeProps);
+  }
+
+  return pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, mergeProps, dispatch, options);
+}
+
+
+
+
+
+
+
+
+
+// REVIEW - <Provider store={store}> Provider函数组件
+
+
+
+
+function Provider({
+  store,
+  context,
+  children,
+  serverState,
+  stabilityCheck = 'once',
+  noopCheck = 'once'
+}) {
+
+  // 缓存一个工具箱对象（仓库变化了就要重新建立这个工具箱）
+  const contextValue = React.useMemo(() => {
+    const subscription = createSubscription(store);
+    return {
+      store,
+      subscription,
+      getServerState: serverState ? () => serverState : undefined,
+      stabilityCheck,
+      noopCheck
+    };
+  }, [store, serverState, stabilityCheck, noopCheck]);
+
+  // 缓存过去的state结果
+  const previousState = React.useMemo(() => store.getState(), [store]);
+
+  // 页面绘制DOM之后，！同步！开始订阅！
+  useLayoutEffect(() => {
+
+    const { subscription } = contextValue;
+    // 把通知函数给到监听函数
+    subscription.onStateChange = subscription.notifyNestedSubs;
+    // 开始订阅之后，后面：交互发生了——>执行dispatch函数——>遍历store的listener数组执行监听函数（notify函数）——>遍历内部的listener数组执行子监听函数
+    subscription.trySubscribe();
+
+    // 前后state不一样，直接执行通知函数，直接触发内部的listener数组函数，不需要等待交互发生
+    if (previousState !== store.getState()) {
+      subscription.notifyNestedSubs();
+    }
+
+    // 返回取消订阅的函数
+    return () => {
+      subscription.tryUnsubscribe();ConnectFunction
+      subscription.onStateChange = undefined;
+    };
+  }, [contextValue, previousState]);
+
+  // 返回一个provider，提供的信息是store、订阅工具箱
+  const Context = context || ReactReduxContext;
+
+  return React.createElement(Context.Provider, {value: contextValue}, children);
+}
+
+
+
+
+function createSubscription(store, parentSub) {
+  // 入参：
+  // store是仓库工具包
+  // parentSub是父级订阅对象（为undefined）
+
+  // 本函数的目的是：同时维护 Store 的直接订阅和 内部的嵌套订阅管理。
+  // 1）直接订阅 Store 的代价高：
+  // 如果每个组件都直接订阅 Store，每次 dispatch 会触发所有组件的监听器，导致大量重复计算。
+
+  // 2）订阅树的作用：
+  // 通过嵌套订阅，只有顶层订阅直接绑定 Store（就是<Provider>组件的useLayoutEffect钩子），子组件通过父组件间接订阅。
+  // 当状态变化时，父订阅先触发，再按需通知子订阅，减少不必要的更新。
+
+  // 例子：1000个子组件
+  // 直接订阅：每次 dispatch 触发 1000 次回调。
+  // 嵌套订阅：父订阅触发 1 次，通过条件判断仅通知 10 个需要更新的子组件。
+  // function handleChangeWrapper() {
+  //   if (shouldUpdateChildren) {
+  //     listeners.notify()
+  //   }
+  // }
+
+
+  // 定义一些变量
+  let unsubscribe;
+  let listeners = nullListeners;
+  let subscriptionsAmount = 0;
+  let selfSubscribed = false;
+
+  // 添加嵌套订阅
+  function addNestedSub(listener) {
+    // 订阅listeners.notify到store的listener数组中，到时外部状态变化时，这个notify函数发出通知
+    // 并创建本createSubscription函数组件的listeners数组
+    trySubscribe();
+
+    // 开始订阅listener到本createSubscription函数组件的listeners数组中
+    // 实际上这个listener是一个子监听函数
+    // 【到交互发生的时候】，顶层的store执行的只是notify函数发出通知，触发所有 “子订阅” 的回调
+    const cleanupListener = listeners.subscribe(listener);
+    let removed = false;
+
+    // 返回清理函数
+    return () => {
+      if (!removed) {
+        removed = true;
+        // 移除监听器
+        cleanupListener();
+        tryUnsubscribe();
+      }
+    };
+  }
+
+
+  // 状态变化时，通知嵌套订阅
+  function notifyNestedSubs() {
+    listeners.notify();
+  }
+
+  // store订阅的listener函数：
+  // 状态变化时（交互发生了——>执行dispatch函数——>遍历listener数组执行监听函数）触发的是以下函数
+  // （onStateChange实际上一般在外部被覆盖为notifyNestedSubs，也就是listeners.notify()）
+  function handleChangeWrapper() {
+    if (subscription.onStateChange) {
+      subscription.onStateChange();
+    }
+  }
+
+  // 检查自身订阅状态
+  function isSubscribed() {
+    return selfSubscribed;
+  }
+
+  // 激活订阅
+  // 如果已经正在订阅中，不再重新订阅
+  // 也就是说listener是逐个实现，完毕之后才订阅下一个的
+  function trySubscribe() {
+    subscriptionsAmount++;
+
+    if (!unsubscribe) {
+      // parentSub为true，则新的订阅放到嵌套到父级订阅（这个变量为undefined）
+      // 否则直接订阅store.subscribe，到时候状态变化之后，向listeners发出通知！
+      unsubscribe = parentSub ? parentSub.addNestedSub(handleChangeWrapper) : store.subscribe(handleChangeWrapper);
+      // 接下来准备到内部的这个createSubscription函数也订阅函数了
+      // 创建监听器集合
+      listeners = createListenerCollection();
+    }
+  }
+
+  // 取消订阅
+  function tryUnsubscribe() {
+    subscriptionsAmount--;
+
+    if (unsubscribe && subscriptionsAmount === 0) {
+      unsubscribe();
+      unsubscribe = undefined;
+      listeners.clear();
+      listeners = nullListeners;
+    }
+  }
+
+  // 管理自身订阅
+  function trySubscribeSelf() {
+    if (!selfSubscribed) {
+      selfSubscribed = true;
+      trySubscribe();
+    }
+  }
+
+  function tryUnsubscribeSelf() {
+    if (selfSubscribed) {
+      selfSubscribed = false;
+      tryUnsubscribe();
+    }
+  }
+
+  const subscription = {
+    addNestedSub,
+    notifyNestedSubs,
+    handleChangeWrapper,
+    isSubscribed,
+    trySubscribe: trySubscribeSelf,
+    tryUnsubscribe: tryUnsubscribeSelf,
+    getListeners: () => listeners
+  };
+  return subscription;
+}
+
+
+
+const nullListeners = {
+  notify() {},
+  get: () => []
+};
 
 
 
