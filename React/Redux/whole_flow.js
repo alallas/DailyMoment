@@ -93,7 +93,8 @@ var MEMO_STATICS = {
 
 
 
-
+const EMPTY_ARRAY = [null, 0];
+const NO_SUBSCRIPTION_ARRAY = [null, null];
 
 
 
@@ -659,7 +660,7 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
 
   const Context = context;
 
-  // 得到初始化的函数（仅仅只是函数，还没真正拿到里面的东西）！！
+  // 得到初始化的函数（仅仅只是根据参数类型返回的处理函数，这里有点像在分发）！！
   const initMapStateToProps = mapStateToPropsFactory(mapStateToProps);
   const initMapDispatchToProps = mapDispatchToPropsFactory(mapDispatchToProps);
   const initMergeProps = mergePropsFactory(mergeProps);
@@ -708,7 +709,7 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
       }, [props]);
 
 
-      // 2. 拿到上下文以此拿到store本身和getState函数
+      // 2. 拿到上下文对象以此拿到store本身和getState函数
       // 如果props里面有上下文就直接用他的上下文，如果没有就用ReactReduxContext（也就是<Provider>那里传递的上下文）
       const ContextToUse = React.useMemo(() => {
         return propsContext && propsContext.Consumer && isContextConsumer(React.createElement(propsContext.Consumer, null))
@@ -731,14 +732,17 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
       const getServerState = didStoreComeFromContext ? contextValue.getServerState : store.getState;
       
 
-      // 3. 
+      // 3. 初始化之前的入参函数，得到一个真正执行dispatch或拿到最新state的函数
       const childPropsSelector = React.useMemo(() => {
         return defaultSelectorFactory(store.dispatch, selectorFactoryOptions);
       }, [store]);
 
 
       const [subscription, notifyNestedSubs] = React.useMemo(() => {
+        // 如果传递了mapStateToProps就说明要检测state是否有变化
         if (!shouldHandleStateChanges) return NO_SUBSCRIPTION_ARRAY;
+
+        // 创造一个“二级订阅”工具箱对象，parentSub那边传入
         const subscription = createSubscription(store, didStoreComeFromProps ? undefined : contextValue.subscription);
         const notifyNestedSubs = subscription.notifyNestedSubs.bind(subscription);
         return [subscription, notifyNestedSubs];
@@ -863,6 +867,24 @@ function strictEqual(a, b) {
 }
 
 
+
+
+// REVIEW - connect函数内部————分发器与初始化函数
+
+
+
+
+// 注意：下面的mapStateToPropsFactory函数
+// 只有一种写法是：（一个函数）————>wrapMapToPropsFunc函数————>返回一个proxy，里面有执行函数得到的state对象（某个类型或若干类型杂烩）
+// const mapStateToProps=(state)=>({
+//   counter:state.counter.counter,
+//   banners:state.home.banners,
+//   recommends:state.home.recommends,
+// })
+
+// 或者
+// const mapStateToProps=(state) => state.home
+
 function mapStateToPropsFactory(mapStateToProps) {
   return !mapStateToProps
     ? wrapMapToPropsConstant(() => ({})) 
@@ -870,6 +892,38 @@ function mapStateToPropsFactory(mapStateToProps) {
       ? wrapMapToPropsFunc(mapStateToProps, 'mapStateToProps') 
       : createInvalidArgFactory(mapStateToProps, 'mapStateToProps');
 }
+
+
+
+
+// 注意：下面的mapDispatchToPropsFactory函数
+// 一种写法是：（一个函数）————>wrapMapToPropsFunc函数————>返回一个proxy，里面有执行函数得到的state对象（某个类型或若干类型杂烩）
+// const mapDispatchToProps=(dispatch)=>({
+//   addNumber:(num)=>dispatch(addNumberAction(num)),
+//   subNumber:(num)=>dispatch(subNumberAction(num)),
+// })
+// 另一种写法是：(一个对象)————>wrapMapToPropsConstant函数————>返回一个受到dispatch包裹的action生成器函数集合对象
+// const mapDispatchToProps={
+//   addNumberAction
+// }
+
+function mapDispatchToPropsFactory(mapDispatchToProps) {
+  return mapDispatchToProps && typeof mapDispatchToProps === 'object' 
+    ? wrapMapToPropsConstant(dispatch => bindActionCreators(mapDispatchToProps, dispatch)) 
+    : !mapDispatchToProps 
+      ? wrapMapToPropsConstant(dispatch => ({ dispatch })) 
+      : typeof mapDispatchToProps === 'function' 
+        ? wrapMapToPropsFunc(mapDispatchToProps, 'mapDispatchToProps') 
+        : createInvalidArgFactory(mapDispatchToProps, 'mapDispatchToProps');
+}
+
+
+
+
+// 注意：下面的三个wrap函数，为什么要采取函数嵌套的方式
+// 外层函数wrapMapToPropsFunc是在构造fiber树之前执行的，接受的入参是mapToProps, methodName，这是在执行ReactDOM之前就知道的信息
+// 内层函数initProxySelector是在构造fiber树期间执行高阶memo组件的函数时执行的，这个时候接受的入参是dispatch, { displayName }，这是在执行到<Provider>组件之后才拿到的数据（运行时才拿到数据）
+// 且内层函数initProxySelector只是在创建高阶memo组件Fiber的时候才需要用到，才需要把map的state对象或汇总的dispatch对象放入props
 
 
 
@@ -893,15 +947,25 @@ function wrapMapToPropsFunc(mapToProps, methodName) {
     proxy.mapToProps = function detectFactoryAndVerify(stateOrDispatch, ownProps) {
       proxy.mapToProps = mapToProps;
       proxy.dependsOnOwnProps = getDependsOnOwnProps(mapToProps);
+
+      // 执行mapToProps函数，参数是（最新的！）state或者Dispatch，得到一个对象：
+      // 1）对应的类型的state对象（根据不同的reducer有不同的state对象）
+      // 2）一个对象，自定义数据，拿的是state里面不同类型对象的不同数据，有点像大杂烩
       let props = proxy(stateOrDispatch, ownProps);
 
+      // 如果这个mapToProps函数也返回一个函数，那么继续调用，因此可以支持以下形式的mapToProps
+      // const mapState = (state, ownProps) => (dispatch) => ({ 
+      //   value: state[ownProps.key] 
+      // });
       if (typeof props === 'function') {
         proxy.mapToProps = props;
         proxy.dependsOnOwnProps = getDependsOnOwnProps(props);
         props = proxy(stateOrDispatch, ownProps);
       }
 
+      // 确保是一个纯对象
       if (process.env.NODE_ENV !== 'production') verifyPlainObject(props, displayName, methodName);
+      
       return props;
     };
 
@@ -911,32 +975,21 @@ function wrapMapToPropsFunc(mapToProps, methodName) {
 
 
 
-function mapDispatchToPropsFactory(mapDispatchToProps) {
-  return mapDispatchToProps && typeof mapDispatchToProps === 'object' 
-    ? wrapMapToPropsConstant(dispatch => bindActionCreators(mapDispatchToProps, dispatch)) 
-    : !mapDispatchToProps 
-      ? wrapMapToPropsConstant(dispatch => ({ dispatch })) 
-      : typeof mapDispatchToProps === 'function' 
-        ? wrapMapToPropsFunc(mapDispatchToProps, 'mapDispatchToProps') 
-        : createInvalidArgFactory(mapDispatchToProps, 'mapDispatchToProps');
-}
-
-
-
 function wrapMapToPropsConstant(getConstant) {
   // getConstant就是一个函数：dispatch => bindActionCreators(mapDispatchToProps, dispatch)
 
   return function initConstantSelector(dispatch) {
-    // 执行上面那个函数，目的是
+    // 执行上面那个函数，目的是用dispatch函数包裹这个对象里面的每一个函数，得到一个新的对象
     const constant = getConstant(dispatch);
     function constantSelector() {
       return constant;
     }
     constantSelector.dependsOnOwnProps = false;
+
+    // 返回一个函数，这个函数用来获取这个所有的受到dispatch包裹的对象
     return constantSelector;
   };
 }
-
 
 
 function bindActionCreators(actionCreators, dispatch) {
@@ -957,7 +1010,6 @@ function bindActionCreators(actionCreators, dispatch) {
 }
 
 
-
 function mergePropsFactory(mergeProps) {
   return !mergeProps
     ? () => defaultMergeProps 
@@ -967,10 +1019,141 @@ function mergePropsFactory(mergeProps) {
 }
 
 
+
+
+
+// REVIEW - connect函数内部————选择器工厂
+// 相当于二次生产的加工厂，对每个传入初始化函数（每个组件都是一个单独的初始化函数）进行执行，得到函数体内信息整合之后的完美形态的对象
+// 通过pure工厂整合成一个集合的函数
+
+
+
+
+function defaultSelectorFactory(dispatch, _ref) {
+  finalPropsSelectorFactory(dispatch, _ref)
+}
+
+
+function finalPropsSelectorFactory(dispatch, _ref) {
+  // 入参：
+  // dispatch来自于store工具箱的函数
+  // _ref是所有信息和工具的汇总（被包裹的类对象、MapStateToProps、MapDispatchToProps等函数）
+
+  // 把这个信息大杂烩的对象里面不要的属性去掉
+  let { initMapStateToProps, initMapDispatchToProps, initMergeProps } = _ref,
+  options = _objectWithoutPropertiesLoose(_ref, _excluded);
+
+  // 分别执行三个初始化函数，得到的还是一个函数！
+  // 对于传入的是对象来说，得到的函数就是返回一个经过改造的对象
+  // 对于传入的是函数来说，得到的函数是一个proxy，执行这个构造函数将会把最新的state或dispatch传入，拿到的是新的state
+  const mapStateToProps = initMapStateToProps(dispatch, options);
+  const mapDispatchToProps = initMapDispatchToProps(dispatch, options);
+  const mergeProps = initMergeProps(dispatch, options);
+
+  // 看有没有以上三个返回的函数有没有dependsOnOwnProps这个属性
+  if (process.env.NODE_ENV !== 'production') {
+    verifySubselectors(mapStateToProps, mapDispatchToProps, mergeProps);
+  }
+
+  // 返回的还是一个函数，若这个函数在后面某个地方被执行，那么拿到的将是所有信息的汇总对象
+  return pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, mergeProps, dispatch, options);
+}
+
+
+
+function verifySubselectors(mapStateToProps, mapDispatchToProps, mergeProps) {
+  verify(mapStateToProps, 'mapStateToProps');
+  verify(mapDispatchToProps, 'mapDispatchToProps');
+  verify(mergeProps, 'mergeProps');
+}
+
+function verify(selector, methodName) {
+  if (!selector) {
+    throw new Error(`Unexpected value for ${methodName} in connect.`);
+  } else if (methodName === 'mapStateToProps' || methodName === 'mapDispatchToProps') {
+    if (!Object.prototype.hasOwnProperty.call(selector, 'dependsOnOwnProps')) {
+      warning(`The selector for ${methodName} of connect did not specify a value for dependsOnOwnProps.`);
+    }
+  }
+}
+
+
+function pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, mergeProps, dispatch, {
+  areStatesEqual,
+  areOwnPropsEqual,
+  areStatePropsEqual
+}) {
+  let hasRunAtLeastOnce = false;
+  let state;
+  let ownProps;
+  let stateProps;
+  let dispatchProps;
+  let mergedProps;
+
+  function handleFirstCall(firstState, firstOwnProps) {
+    state = firstState;
+    ownProps = firstOwnProps;
+    stateProps = mapStateToProps(state, ownProps);
+    dispatchProps = mapDispatchToProps(dispatch, ownProps);
+    mergedProps = mergeProps(stateProps, dispatchProps, ownProps);
+    hasRunAtLeastOnce = true;
+    return mergedProps;
+  }
+
+  function handleNewPropsAndNewState() {
+    stateProps = mapStateToProps(state, ownProps);
+    if (mapDispatchToProps.dependsOnOwnProps) dispatchProps = mapDispatchToProps(dispatch, ownProps);
+    mergedProps = mergeProps(stateProps, dispatchProps, ownProps);
+    return mergedProps;
+  }
+
+  function handleNewProps() {
+    if (mapStateToProps.dependsOnOwnProps) stateProps = mapStateToProps(state, ownProps);
+    if (mapDispatchToProps.dependsOnOwnProps) dispatchProps = mapDispatchToProps(dispatch, ownProps);
+    mergedProps = mergeProps(stateProps, dispatchProps, ownProps);
+    return mergedProps;
+  }
+
+  function handleNewState() {
+    const nextStateProps = mapStateToProps(state, ownProps);
+    const statePropsChanged = !areStatePropsEqual(nextStateProps, stateProps);
+    stateProps = nextStateProps;
+    if (statePropsChanged) mergedProps = mergeProps(stateProps, dispatchProps, ownProps);
+    return mergedProps;
+  }
+
+  function handleSubsequentCalls(nextState, nextOwnProps) {
+    const propsChanged = !areOwnPropsEqual(nextOwnProps, ownProps);
+    const stateChanged = !areStatesEqual(nextState, state, nextOwnProps, ownProps);
+    state = nextState;
+    ownProps = nextOwnProps;
+    if (propsChanged && stateChanged) return handleNewPropsAndNewState();
+    if (propsChanged) return handleNewProps();
+    if (stateChanged) return handleNewState();
+    return mergedProps;
+  }
+
+  return function pureFinalPropsSelector(nextState, nextOwnProps) {
+    // hasRunAtLeastOnce首次执行为false
+    return hasRunAtLeastOnce
+      ? handleSubsequentCalls(nextState, nextOwnProps)
+      : handleFirstCall(nextState, nextOwnProps);
+  };
+}
+
+
+
+
+
+// REVIEW - connect函数内部————最后把被包裹组件的属性复制到包裹组件上面
+
+
+
+
+
 function hoistStatics(targetComponent, sourceComponent, blacklist) {
   hoistNonReactStatics(targetComponent, sourceComponent, blacklist)
 }
-
 
 function hoistNonReactStatics(targetComponent, sourceComponent, blacklist) {
   // 入参：
@@ -1105,8 +1288,6 @@ function typeOf(object) {
 
 
 
-
-
 function _objectWithoutPropertiesLoose(r, e) {
   // 入参：
   // r表示这个memo组件的props，实际上是空
@@ -1123,39 +1304,6 @@ function _objectWithoutPropertiesLoose(r, e) {
   }
   return t;
 }
-
-
-
-function defaultSelectorFactory(dispatch, _ref) {
-  finalPropsSelectorFactory(dispatch, _ref)
-}
-
-
-
-
-
-function finalPropsSelectorFactory(dispatch, _ref) {
-  // 入参：
-  // dispatch来自于store工具箱的函数
-  // _ref是所有信息和工具的汇总（被包裹的类对象、MapStateToProps、MapDispatchToProps等函数）
-
-  // 把这个信息大杂烩的对象里面不要的属性去掉
-  let {initMapStateToProps, initMapDispatchToProps, initMergeProps} = _ref,
-  options = _objectWithoutPropertiesLoose(_ref, _excluded);
-
-  // 分别执行三个初始化函数
-  const mapStateToProps = initMapStateToProps(dispatch, options);
-  const mapDispatchToProps = initMapDispatchToProps(dispatch, options);
-  const mergeProps = initMergeProps(dispatch, options);
-
-  if (process.env.NODE_ENV !== 'production') {
-    verifySubselectors(mapStateToProps, mapDispatchToProps, mergeProps);
-  }
-
-  return pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, mergeProps, dispatch, options);
-}
-
-
 
 
 
@@ -1177,7 +1325,7 @@ function Provider({
   noopCheck = 'once'
 }) {
 
-  // 缓存一个工具箱对象（仓库变化了就要重新建立这个工具箱）
+  // 缓存一个“二级订阅”工具箱对象（仓库变化了就要重新建立这个工具箱）
   const contextValue = React.useMemo(() => {
     const subscription = createSubscription(store);
     return {
