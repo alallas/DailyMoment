@@ -693,7 +693,9 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
       initMapStateToProps,
       initMapDispatchToProps,
       initMergeProps,
+      // state对象对比是深度对比
       areStatesEqual,
+      // 下面三个都是浅度对比
       areStatePropsEqual,
       areOwnPropsEqual,
       areMergedPropsEqual
@@ -770,6 +772,7 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
       // 缓存上一次的state和dispatch函数对象信息
       // 即 【真正执行函数】（pureFinalPropsSelector函数）的结果
       const lastChildProps = React.useRef();
+      // 保存上一次的connect组件的props
       const lastWrapperProps = React.useRef(wrapperProps);
       const childPropsFromStoreUpdate = React.useRef();
       const renderIsScheduled = React.useRef(false);
@@ -825,6 +828,7 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
       
 
       // 绘制页面之后，执行captureWrapperProps函数
+      // 这里没有给第三个参数，即dependencies
       useIsomorphicLayoutEffectWithArgs(
         captureWrapperProps,
         [
@@ -862,7 +866,7 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
         lastChildProps.current = actualChildProps;
       });
 
-      
+
       // （四）创建虚拟DOM，返回经过props传递和二级上下文传递的虚拟DOM
       // 9. 为原来被包裹的类组件创造一个虚拟DOM
       // 因为传给connect第二个括号的参数，只是一个class，而不是一个虚拟DOM
@@ -949,6 +953,18 @@ function useIsomorphicLayoutEffectWithArgs(effectFunc, effectArgs, dependencies)
 }
 
 
+
+
+
+
+
+// REVIEW - connect函数内部————订阅函数（也可以说是添加监听函数）相关
+
+
+
+
+
+
 function captureWrapperProps(
   lastWrapperProps, 
   lastChildProps, 
@@ -957,9 +973,13 @@ function captureWrapperProps(
   childPropsFromStoreUpdate, 
   notifyNestedSubs
 ){
+  // 保存connect组件的props对象（为空对象）
   lastWrapperProps.current = wrapperProps;
   renderIsScheduled.current = false;
 
+  // childPropsFromStoreUpdate.current为空，什么时候有值？？
+  // subscribeUpdates函数中，当新旧props不一样的时候，childPropsFromStoreUpdate.current的值为新props的值
+  // 此时说明store数据有变，在“二级订阅”工具箱对象内执行通知函数，通知谁？？？
   if (childPropsFromStoreUpdate.current) {
     childPropsFromStoreUpdate.current = null;
     notifyNestedSubs();
@@ -980,74 +1000,92 @@ function subscribeUpdates(
   notifyNestedSubs, 
   additionalSubscribeListener
 ){
-  // shouldHandleStateChanges是指如果传递了mapStateToProps就说明要检测state是否有变化
-  // 传递了mapStateToProps就是true，直接返回一个空函数
+  // shouldHandleStateChanges是指 如果传递了mapStateToProps就说明要检测state是否有变化
+  // 传递了mapStateToProps的话，shouldHandleStateChanges就是true，不走下面
   if (!shouldHandleStateChanges) return () => {};
 
   let didUnsubscribe = false;
-  let lastThrownError = null; // We'll run this callback every time a store subscription update propagates to this component
+  let lastThrownError = null;
 
   const checkForUpdates = () => {
+    // 到useEffect进来时，isMounted.current为true，已经完成了加载
+    // 如果还没有加载完或者已经取消订阅，就直接退出函数
     if (didUnsubscribe || !isMounted.current) {
-      // Don't run stale listeners.
-      // Redux doesn't guarantee unsubscriptions happen until next dispatch.
       return;
-    } // TODO We're currently calling getState ourselves here, rather than letting `uSES` do it
-
+    }
 
     const latestStoreState = store.getState();
     let newChildProps, error;
 
+    // 执行childPropsSelector(store.getState(), wrapperProps);
+    // 实际上就是执行pureFinalPropsSelector，拿到最新的state和dispatchAction的汇合对象
     try {
-      // Actually run the selector with the most recent store state and wrapper props
-      // to determine what the child props should be
       newChildProps = childPropsSelector(latestStoreState, lastWrapperProps.current);
     } catch (e) {
       error = e;
       lastThrownError = e;
     }
-
+    // 没错误的话更新一下标识
     if (!error) {
       lastThrownError = null;
-    } // If the child props haven't changed, nothing to do here - cascade the subscription update
+    }
 
-
+    // 如果前后的对象一致，就在“二级订阅”工具箱对象上发出通知，通知调用的是二级订阅工具箱的listeners数组
+    // 但是这个时候的二级订阅工具箱的listeners对象之上的函数保存的listen链表为空，
+    // 因为她根本就没有子组件来为她trySubscribe，然后addNestedSub
     if (newChildProps === lastChildProps.current) {
       if (!renderIsScheduled.current) {
         notifyNestedSubs();
       }
     } else {
-      // Save references to the new child props.  Note that we track the "child props from store update"
-      // as a ref instead of a useState/useReducer because we need a way to determine if that value has
-      // been processed.  If this went into useState/useReducer, we couldn't clear out the value without
-      // forcing another re-render, which we don't want.
+      // 前后对象不一致，更新信息
       lastChildProps.current = newChildProps;
       childPropsFromStoreUpdate.current = newChildProps;
-      renderIsScheduled.current = true; // TODO This is hacky and not how `uSES` is meant to be used
-      // Trigger the React `useSyncExternalStore` subscriber
+      renderIsScheduled.current = true;
 
+      // 并执行传递过来的最后一个参数
+      // 从connect组件的useEffect进来的最后一个参数是：
+      // function () {
+      //   checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
+      // }
+      // 再次检查是否正确，然后更新useState的信息
       additionalSubscribeListener();
     }
   };
 
-
+  // 将onStateChange替换为这个“监听变化——进行通知”的函数本身
   subscription.onStateChange = checkForUpdates;
-  subscription.trySubscribe(); // Pull data from the store after first render in case the store has
-  // changed since we began.
 
+  // 首次在子组件（connect组件内）执行trySubscribe，也就是手动在父订阅工具箱（Provider）上面订阅监听函数
+
+  // 自己这个子订阅工具箱执行trySubscribe，首先执行trySubscribeSelf，然后执行trySubscribe
+  // function trySubscribeSelf() {
+  //   if (!selfSubscribed) {
+  //     selfSubscribed = true;
+  //     trySubscribe();
+  //   }
+  // }
+  // function trySubscribe() {
+  //   subscriptionsAmount++;
+  //   if (!unsubscribe) {
+  //     unsubscribe = parentSub ? parentSub.addNestedSub(handleChangeWrapper) : store.subscribe(handleChangeWrapper);
+  //     listeners = createListenerCollection();
+  //   }
+  // }
+  // 在父订阅工具箱上面订阅监听函数，
+  // 这个时候的handleChangeWrapper就是执行的自己（connect组件）的工具箱内部的subscription的onStateChange，也就是上面被改成的checkForUpdates函数
+  subscription.trySubscribe();
+
+  // 先直接检查是否有变化，没有变化的话通知自己这个订阅工具箱的所有函数执行了（实际上是没有的）
   checkForUpdates();
 
+  // 
   const unsubscribeWrapper = () => {
     didUnsubscribe = true;
     subscription.tryUnsubscribe();
     subscription.onStateChange = null;
 
     if (lastThrownError) {
-      // It's possible that we caught an error due to a bad mapState function, but the
-      // parent re-rendered without this component and we're about to unmount.
-      // This shouldn't happen as long as we do top-down subscriptions correctly, but
-      // if we ever do those wrong, this throw will surface the error in our tests.
-      // In that case, throw the error from here so it doesn't get lost.
       throw lastThrownError;
     }
   };
@@ -1059,7 +1097,11 @@ function subscribeUpdates(
 
 
 
+
+
+
 // REVIEW - connect函数内部————真正执行函数（【拿到最新state对象和汇总的dispatch函数的对象】）
+
 
 
 
@@ -1136,8 +1178,7 @@ function useSyncExternalStore(subscribe, getSnapshot) {
     function () {
       checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
 
-      // 返回一个订阅函数，也就是执行subscribeUpdates，里面的参数函数是subscribeUpdates的最后一个入参
-      // 这里如果传递了mapStateToProps就返回一个空函数
+      // 返回一个订阅函数，也就是执行subscribeUpdates（里面的参数函数是subscribeUpdates的最后一个入参）
       return subscribe(function () {
         checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
       });
@@ -1342,7 +1383,7 @@ function defaultMergeProps(stateProps, dispatchProps, ownProps) {
 
 
 
-// REVIEW - connect函数内部————选择器工厂
+// REVIEW - connect函数内部————归一处理池与整合工厂
 // 相当于二次生产的加工厂，对每个传入初始化函数（每个组件都是一个单独的初始化函数）进行执行，得到函数体内信息整合之后的完美形态的对象
 // 通过pure工厂整合成一个集合的函数
 
@@ -1453,14 +1494,29 @@ function pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, merg
     return mergedProps;
   }
 
+  // 在checkIfSnapshotChanged函数中，再一次执行了pureFinalPropsSelector函数，因此进入下面
+  // 但是从childPropsSelector(store.getState(), wrapperProps)进入时，nextOwnProps都是空对象
   function handleSubsequentCalls(nextState, nextOwnProps) {
+    // 浅对比新旧wrapperProps（一般都是空对象）————实际上执行的是shallowEqual
+    // （ownProps在首次执行的时候被之前的wrapperProps赋予了）
     const propsChanged = !areOwnPropsEqual(nextOwnProps, ownProps);
+
+    // 深度对比最新的state对象（注意，只是state对象，不包含dispatch的函数）
+    // ————实际上执行的是strictEqual
     const stateChanged = !areStatesEqual(nextState, state, nextOwnProps, ownProps);
+
+    // 保存一下数据
     state = nextState;
     ownProps = nextOwnProps;
+
+    // 分发，看哪个变化了，就去执行哪个的 “ 更新函数 ”
     if (propsChanged && stateChanged) return handleNewPropsAndNewState();
     if (propsChanged) return handleNewProps();
     if (stateChanged) return handleNewState();
+
+    // 返回的是更新过后的整合数据！
+    // 如果没变，还是一样的内存地址，
+    // 如果变了，每次执行mergeProps（相当于() => defaultMergeProps）都会创造一个新的内存地址的对象
     return mergedProps;
   }
 
@@ -1475,9 +1531,36 @@ function pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, merg
 
 
 
+function shallowEqual(objA, objB) {
+  if (is(objA, objB)) return true;
+
+  if (typeof objA !== 'object' || objA === null || typeof objB !== 'object' || objB === null) {
+    return false;
+  }
+
+  const keysA = Object.keys(objA);
+  const keysB = Object.keys(objB);
+  if (keysA.length !== keysB.length) return false;
+
+  for (let i = 0; i < keysA.length; i++) {
+    if (!Object.prototype.hasOwnProperty.call(objB, keysA[i]) || !is(objA[keysA[i]], objB[keysA[i]])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+
+
+
+
+
 
 
 // REVIEW - connect函数内部————最后把被包裹组件的属性复制到包裹组件上面
+
+
 
 
 
@@ -1643,7 +1726,7 @@ function _objectWithoutPropertiesLoose(r, e) {
 
 
 
-// REVIEW - <Provider store={store}> Provider函数组件
+// REVIEW - <Provider store={store}> Provider函数组件 以及 订阅相关函数
 
 
 
@@ -1673,12 +1756,13 @@ function Provider({
   const previousState = React.useMemo(() => store.getState(), [store]);
 
   // 页面绘制DOM之后，！同步！开始订阅！
+  // 此次订阅是唯一一次在store仓库里面订阅，后面的订阅都由下层组件在本subscription工具包内订阅
   useLayoutEffect(() => {
-
     const { subscription } = contextValue;
     // 把通知函数给到监听函数
     subscription.onStateChange = subscription.notifyNestedSubs;
-    // 开始订阅之后，后面：交互发生了——>执行dispatch函数——>遍历store的listener数组执行监听函数（notify函数）——>遍历内部的listener数组执行子监听函数
+    // 开始订阅之后，后面：交互发生了——>执行dispatch函数——>遍历store的listener数组执行监听函数（notify函数）——>遍历下层？内部？的listener数组执行子监听函数
+    // 这里给store的笼子里面放的是自己的订阅工具箱的notifyNestedSubs的监听函数（遍历的是Provider自己的这个listeners链表的函数）
     subscription.trySubscribe();
 
     // 前后state不一样，直接执行通知函数，直接触发内部的listener数组函数，不需要等待交互发生
@@ -1724,6 +1808,9 @@ function createSubscription(store, parentSub) {
   //   }
   // }
 
+  // 注意：在函数内进行函数声明的作用是让这些函数私有化！
+  // 每次执行createSubscription都会重新创建一个新的内存地址的这些工具函数，因为这个subscription工具箱每个组件都可以创建一个
+
 
   // 定义一些变量
   let unsubscribe;
@@ -1733,7 +1820,7 @@ function createSubscription(store, parentSub) {
 
   // 添加嵌套订阅
   function addNestedSub(listener) {
-    // 订阅listeners.notify到store的listener数组中，到时外部状态变化时，这个notify函数发出通知
+    // 订阅listeners.notify到父级的listeners中，到时外部状态变化时，这个notify函数发出通知
     // 并创建本createSubscription函数组件的listeners数组
     trySubscribe();
 
@@ -1774,9 +1861,9 @@ function createSubscription(store, parentSub) {
     return selfSubscribed;
   }
 
-  // 激活订阅
+  // 激活订阅（实际上是为父订阅者订阅函数！在这里仅仅是为自己创造一个listener的工具箱和闭包）
+  // 为父订阅者订阅什么函数呢？！订阅自己本身的onStateChange函数！！！
   // 如果已经正在订阅中，不再重新订阅
-  // 也就是说listener是逐个实现，完毕之后才订阅下一个的
   function trySubscribe() {
     subscriptionsAmount++;
 
@@ -1786,8 +1873,9 @@ function createSubscription(store, parentSub) {
       // （只有在顶层的<Provider>的parentSub才是undefined，也就是store里面的listeners数组只有一个监听函数）
       // 之后下层的memo高阶组件，往父级的工具箱执行addNestedSub，首先给父级创造了一个store里面的监听函数，然后给父级自己的工具箱里面的listener函数添加了监听函数
       unsubscribe = parentSub ? parentSub.addNestedSub(handleChangeWrapper) : store.subscribe(handleChangeWrapper);
+
       // 接下来准备到内部的这个createSubscription函数也订阅函数了
-      // 创建监听器集合
+      // 创建全新的监听器集合，里面的作用域用来保存对应的数据，并提供一系列方法
       listeners = createListenerCollection();
     }
   }
@@ -1837,6 +1925,117 @@ const nullListeners = {
   notify() {},
   get: () => []
 };
+
+
+
+
+function createListenerCollection() {
+  // 这个作用域内记录 监听函数链表 的头和尾
+  const batch = getBatch();
+  let first = null;
+  let last = null;
+
+  // 每次都返回一个新对象
+  return {
+    clear() {
+      first = null;
+      last = null;
+    },
+
+    notify() {
+      // 这里的batch就等于batchedUpdates$1
+      batch(() => {
+        // 遍历当前的listener链表
+        let listener = first;
+        while (listener) {
+          listener.callback();
+          listener = listener.next;
+        }
+      });
+    },
+
+    get() {
+      let listeners = [];
+      let listener = first;
+
+      while (listener) {
+        listeners.push(listener);
+        listener = listener.next;
+      }
+
+      return listeners;
+    },
+
+    // 订阅
+    subscribe(callback) {
+      // 创建一个对象（包含函数信息）
+      let isSubscribed = true;
+      let listener = last = {
+        callback,
+        next: null,
+        prev: last
+      };
+
+      // 放到链表里面
+      if (listener.prev) {
+        listener.prev.next = listener;
+      } else {
+        first = listener;
+      }
+
+      // 返回一个卸载函数
+      return function unsubscribe() {
+        if (!isSubscribed || first === null) return;
+        isSubscribed = false;
+
+        if (listener.next) {
+          listener.next.prev = listener.prev;
+        } else {
+          last = listener.prev;
+        }
+
+        if (listener.prev) {
+          listener.prev.next = listener.next;
+        } else {
+          first = listener.next;
+        }
+      };
+    }
+
+  };
+}
+
+
+function getBatch() {
+  return batchedUpdates$1
+}
+
+
+function batchedUpdates$1(fn, a) {
+  // 这里的fn就是：
+  // () => {
+  //   let listener = first;
+  //   while (listener) {
+  //     listener.callback();
+  //     listener = listener.next;
+  //   }
+  // }
+
+  // 一开始的isBatchingUpdates是false的！
+  var previousIsBatchingUpdates = isBatchingUpdates;
+  isBatchingUpdates = true;
+  try {
+    return fn(a);
+  } finally {
+    isBatchingUpdates = previousIsBatchingUpdates;
+    // 因为还在rendering所以退出了，为什么还在render？？
+    // 因为在commitPassiveEffects的函数的一开始就让isRendering为true了
+    if (!isBatchingUpdates && !isRendering) {
+      performSyncWork();
+    }
+  }
+}
+
 
 
 
