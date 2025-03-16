@@ -96,6 +96,9 @@ var MEMO_STATICS = {
 const EMPTY_ARRAY = [null, 0];
 const NO_SUBSCRIPTION_ARRAY = [null, null];
 
+var didWarnOld18Alpha = !1
+var didWarnUncachedGetSnapshot = !1
+
 
 
 // reducer是指挥函数
@@ -697,8 +700,8 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
     };
 
     function ConnectFunction(props) {
-
-      // 
+      // （一）拿到上下文对象与connect组件的props，以此拿到store和getState函数
+      // 1. 拿到connect组件的props（空对象）
       const [propsContext, reactReduxForwardedRef, wrapperProps] = React.useMemo(() => {
         // 拿不到这个reactReduxForwardedRef，因为一开始的props是空对象
         const { reactReduxForwardedRef } = props,
@@ -731,23 +734,30 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
       const store = didStoreComeFromProps ? props.store : contextValue.store;
       const getServerState = didStoreComeFromContext ? contextValue.getServerState : store.getState;
       
-
-      // 3. 初始化之前的入参函数，得到一个真正执行dispatch或拿到最新state的函数
+      // （二）初始化mapToProps的数据（使其经过二次加工），并创造一个二级订阅工具箱，包装/缓存真正执行函数和更新订阅函数
+      // 3. 执行之前的入参即初始化函数（不同组件不同的、若干个），得到一个【真正执行dispatch或拿到最新state的函数】
+      // childPropsSelector实际上就是pureFinalPropsSelector函数
       const childPropsSelector = React.useMemo(() => {
+        // 返回的实际上就是pureFinalPropsSelector函数
         return defaultSelectorFactory(store.dispatch, selectorFactoryOptions);
       }, [store]);
 
 
+      // 4. 创造一个二级订阅工具箱
       const [subscription, notifyNestedSubs] = React.useMemo(() => {
         // 如果传递了mapStateToProps就说明要检测state是否有变化
         if (!shouldHandleStateChanges) return NO_SUBSCRIPTION_ARRAY;
 
-        // 创造一个“二级订阅”工具箱对象，parentSub那边传入
+        // 创造一个“二级订阅”工具箱对象，parentSub那边传入顶层父级所创建的订阅工具箱对象（在<Provider>那边创建的）
         const subscription = createSubscription(store, didStoreComeFromProps ? undefined : contextValue.subscription);
+        // 然后让里面的通知函数绑定这个工具箱
         const notifyNestedSubs = subscription.notifyNestedSubs.bind(subscription);
         return [subscription, notifyNestedSubs];
       }, [store, didStoreComeFromProps, contextValue]);
 
+
+      // 把 上下文对象 和 二级的订阅工具箱 放到一个新的内存地址的对象里面
+      // 注意：其中这个 二级的订阅工具箱 覆盖了原有的一级订阅工具箱
       const overriddenContextValue = React.useMemo(() => {
         if (didStoreComeFromProps) {
           return contextValue;
@@ -755,6 +765,10 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
         return _extends({}, contextValue, { subscription });
       }, [didStoreComeFromProps, contextValue, subscription]);
 
+
+      // 5. 用ref保存一些变量
+      // 缓存上一次的state和dispatch函数对象信息
+      // 即 【真正执行函数】（pureFinalPropsSelector函数）的结果
       const lastChildProps = React.useRef();
       const lastWrapperProps = React.useRef(wrapperProps);
       const childPropsFromStoreUpdate = React.useRef();
@@ -763,39 +777,77 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
       const isMounted = React.useRef(false);
       const latestSubscriptionCallbackError = React.useRef();
 
-      useIsomorphicLayoutEffect(() => {
+      // 绘制页面之后，改变isMounted这个标志着高阶组件加载成功没有的标识
+      useLayoutEffect(() => {
         isMounted.current = true;
         return () => {
           isMounted.current = false;
         };
       }, []);
 
+
+      // 6. 包装这个真正执行的函数（【拿到最新state对象和汇总的dispatch函数的对象】）
+      // 这个actualChildPropsSelector只在wrapperProps有值的时候才返回一个缓存
       const actualChildPropsSelector = React.useMemo(() => {
         const selector = () => {
           if (childPropsFromStoreUpdate.current && wrapperProps === lastWrapperProps.current) {
             return childPropsFromStoreUpdate.current;
           }
+          // 真正执行函数（实际上就是pureFinalPropsSelector函数）
           return childPropsSelector(store.getState(), wrapperProps);
         };
         return selector;
       }, [store, wrapperProps]);
 
+
+      // 7. 缓存一个订阅更新函数
       const subscribeForReact = React.useMemo(() => {
         const subscribe = reactListener => {
           if (!subscription) {
             return () => {};
           }
-          return subscribeUpdates(shouldHandleStateChanges, store, subscription, // @ts-ignore
-          childPropsSelector, lastWrapperProps, lastChildProps, renderIsScheduled, isMounted, childPropsFromStoreUpdate, notifyNestedSubs, reactListener);
+          return subscribeUpdates(
+            shouldHandleStateChanges,
+            store,
+            subscription,
+            childPropsSelector,
+            lastWrapperProps,
+            lastChildProps,
+            renderIsScheduled,
+            isMounted,
+            childPropsFromStoreUpdate,
+            notifyNestedSubs,
+            reactListener
+          );
         };
         return subscribe;
       }, [subscription]);
       
-      useIsomorphicLayoutEffectWithArgs(captureWrapperProps, [lastWrapperProps, lastChildProps, renderIsScheduled, wrapperProps, childPropsFromStoreUpdate, notifyNestedSubs]);
 
+      // 绘制页面之后，执行captureWrapperProps函数
+      useIsomorphicLayoutEffectWithArgs(
+        captureWrapperProps,
+        [
+          lastWrapperProps, 
+          lastChildProps, 
+          renderIsScheduled, 
+          wrapperProps, 
+          childPropsFromStoreUpdate, 
+          notifyNestedSubs
+        ]
+      );
+
+      // （三）调用connect第一入参的函数（入参为真正执行函数和二级订阅工具箱），得到props
+      // 8. 真正执行函数，得到的actualChildProps就是state和dispatch汇总的信息对象
       let actualChildProps;
       try {
-        actualChildProps = useSyncExternalStore(subscribeForReact, actualChildPropsSelector, getServerState ? () => childPropsSelector(getServerState(), wrapperProps) : actualChildPropsSelector);
+        actualChildProps = useSyncExternalStore(
+          subscribeForReact, 
+          actualChildPropsSelector,
+          getServerState
+            ? () => childPropsSelector(getServerState(), wrapperProps) 
+            : actualChildPropsSelector
+        );
       } catch (err) {
         if (latestSubscriptionCallbackError.current) {
           err.message += `\nThe error may be correlated with this previous error:\n${latestSubscriptionCallbackError.current.stack}\n\n`;
@@ -803,12 +855,19 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
         throw err;
       }
 
-      useIsomorphicLayoutEffect(() => {
+      // 绘制页面之后保存信息
+      useLayoutEffect(() => {
         latestSubscriptionCallbackError.current = undefined;
         childPropsFromStoreUpdate.current = undefined;
         lastChildProps.current = actualChildProps;
       });
 
+      
+      // （四）创建虚拟DOM，返回经过props传递和二级上下文传递的虚拟DOM
+      // 9. 为原来被包裹的类组件创造一个虚拟DOM
+      // 因为传给connect第二个括号的参数，只是一个class，而不是一个虚拟DOM
+      // 比如Home，而不是<Home />
+      // 他的props就是state和dispatch汇总的信息对象
       const renderedWrappedComponent = React.useMemo(() => {
         return (
           React.createElement(WrappedComponent, _extends({}, actualChildProps, {
@@ -817,16 +876,21 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
         );
       }, [reactReduxForwardedRef, WrappedComponent, actualChildProps]);
 
+
+      // 10.再次创建一个上下文对象的provider，并让他的孩子等于类组件
       const renderedChild = React.useMemo(() => {
+        // 只要mapStateToProps有值，shouldHandleStateChanges就是true，走下面
+        // 注意：其中这个overriddenContextValue里面存的订阅工具箱是二级的订阅工具箱
         if (shouldHandleStateChanges) {
           return React.createElement(ContextToUse.Provider, {
             value: overriddenContextValue
           }, renderedWrappedComponent);
         }
+        // shouldHandleStateChanges为false则直接返回这个props被改变的原来的类组件
         return renderedWrappedComponent;
       }, [ContextToUse, renderedWrappedComponent, overriddenContextValue]);
 
-
+      // 直接返回这个孩子
       return renderedChild;
     }
 
@@ -866,6 +930,245 @@ function strictEqual(a, b) {
   return a === b;
 }
 
+
+
+function _extends() {
+  return _extends = Object.assign ? Object.assign.bind() : function (n) {
+    for (var e = 1; e < arguments.length; e++) {
+      var t = arguments[e];
+      for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]);
+    }
+    return n;
+  }, _extends.apply(null, arguments);
+}
+
+
+
+function useIsomorphicLayoutEffectWithArgs(effectFunc, effectArgs, dependencies) {
+  useLayoutEffect(() => effectFunc(...effectArgs), dependencies);
+}
+
+
+function captureWrapperProps(
+  lastWrapperProps, 
+  lastChildProps, 
+  renderIsScheduled, 
+  wrapperProps, 
+  childPropsFromStoreUpdate, 
+  notifyNestedSubs
+){
+  lastWrapperProps.current = wrapperProps;
+  renderIsScheduled.current = false;
+
+  if (childPropsFromStoreUpdate.current) {
+    childPropsFromStoreUpdate.current = null;
+    notifyNestedSubs();
+  }
+}
+
+
+function subscribeUpdates(
+  shouldHandleStateChanges, 
+  store, 
+  subscription, 
+  childPropsSelector, 
+  lastWrapperProps, 
+  lastChildProps, 
+  renderIsScheduled, 
+  isMounted, 
+  childPropsFromStoreUpdate, 
+  notifyNestedSubs, 
+  additionalSubscribeListener
+){
+  // shouldHandleStateChanges是指如果传递了mapStateToProps就说明要检测state是否有变化
+  // 传递了mapStateToProps就是true，直接返回一个空函数
+  if (!shouldHandleStateChanges) return () => {};
+
+  let didUnsubscribe = false;
+  let lastThrownError = null; // We'll run this callback every time a store subscription update propagates to this component
+
+  const checkForUpdates = () => {
+    if (didUnsubscribe || !isMounted.current) {
+      // Don't run stale listeners.
+      // Redux doesn't guarantee unsubscriptions happen until next dispatch.
+      return;
+    } // TODO We're currently calling getState ourselves here, rather than letting `uSES` do it
+
+
+    const latestStoreState = store.getState();
+    let newChildProps, error;
+
+    try {
+      // Actually run the selector with the most recent store state and wrapper props
+      // to determine what the child props should be
+      newChildProps = childPropsSelector(latestStoreState, lastWrapperProps.current);
+    } catch (e) {
+      error = e;
+      lastThrownError = e;
+    }
+
+    if (!error) {
+      lastThrownError = null;
+    } // If the child props haven't changed, nothing to do here - cascade the subscription update
+
+
+    if (newChildProps === lastChildProps.current) {
+      if (!renderIsScheduled.current) {
+        notifyNestedSubs();
+      }
+    } else {
+      // Save references to the new child props.  Note that we track the "child props from store update"
+      // as a ref instead of a useState/useReducer because we need a way to determine if that value has
+      // been processed.  If this went into useState/useReducer, we couldn't clear out the value without
+      // forcing another re-render, which we don't want.
+      lastChildProps.current = newChildProps;
+      childPropsFromStoreUpdate.current = newChildProps;
+      renderIsScheduled.current = true; // TODO This is hacky and not how `uSES` is meant to be used
+      // Trigger the React `useSyncExternalStore` subscriber
+
+      additionalSubscribeListener();
+    }
+  };
+
+
+  subscription.onStateChange = checkForUpdates;
+  subscription.trySubscribe(); // Pull data from the store after first render in case the store has
+  // changed since we began.
+
+  checkForUpdates();
+
+  const unsubscribeWrapper = () => {
+    didUnsubscribe = true;
+    subscription.tryUnsubscribe();
+    subscription.onStateChange = null;
+
+    if (lastThrownError) {
+      // It's possible that we caught an error due to a bad mapState function, but the
+      // parent re-rendered without this component and we're about to unmount.
+      // This shouldn't happen as long as we do top-down subscriptions correctly, but
+      // if we ever do those wrong, this throw will surface the error in our tests.
+      // In that case, throw the error from here so it doesn't get lost.
+      throw lastThrownError;
+    }
+  };
+
+  return unsubscribeWrapper;
+}
+
+
+
+
+
+// REVIEW - connect函数内部————真正执行函数（【拿到最新state对象和汇总的dispatch函数的对象】）
+
+
+
+
+function useSyncExternalStore(subscribe, getSnapshot) {
+  // 入参：
+  // subscribe就是缓存的订阅更新函数
+  // reactListener => {
+  //   if (!subscription) {
+  //     return () => {};
+  //   }
+  //   return subscribeUpdates(
+  //     shouldHandleStateChanges,
+  //     store,
+  //     subscription,
+  //     childPropsSelector,
+  //     lastWrapperProps,
+  //     lastChildProps,
+  //     renderIsScheduled,
+  //     isMounted,
+  //     childPropsFromStoreUpdate,
+  //     notifyNestedSubs,
+  //     reactListener
+  //   );
+  // };
+
+  // getSnapshot就是缓存的actualChildPropsSelector，即childPropsSelector，实际上就是pureFinalPropsSelector函数
+  // 真正执行函数（【真正执行dispatch或拿到最新state的函数】）
+  // childPropsSelector入参为(store.getState(), wrapperProps);
+
+  didWarnOld18Alpha || void 0 === React.startTransition ||
+    ((didWarnOld18Alpha = !0),
+    console.error(
+      "You are using an outdated, pre-release alpha of React 18 that does not support useSyncExternalStore. The use-sync-external-store shim will not work correctly. Upgrade to a newer pre-release."
+    ));
+
+
+  // 拿到的是一个对象(包括dispatch函数和state数据)
+  // {
+  //   user: 1,
+  //   multipleUser: (...args) => dispatch(multipleUser(...args))
+  // }
+  var value = getSnapshot();
+
+  // didWarnUncachedGetSnapshot默认是false
+  // 再执行一次pureFinalPropsSelector
+  if (!didWarnUncachedGetSnapshot) {
+    var cachedValue = getSnapshot();
+    objectIs(value, cachedValue) ||
+      (console.error(
+        "The result of getSnapshot should be cached to avoid an infinite loop"
+      ),
+      (didWarnUncachedGetSnapshot = !0));
+  }
+
+  // 把当前的state和dispatch函数对象缓存起来
+  cachedValue = useState({
+    inst: { value: value, getSnapshot: getSnapshot }
+  });
+  var inst = cachedValue[0].inst, forceUpdate = cachedValue[1];
+
+  // 绘制页面之后，再一次用新的信息对象和函数覆盖之前的，检查是否需要强制更新
+  // 如果需要强制更新就把inst（为什么用旧的？？）更新给useState维护的信息
+  // 同时使用useLayoutEffect和useEffect
+  useLayoutEffect(
+    function () {
+      inst.value = value;
+      inst.getSnapshot = getSnapshot;
+      checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
+    },
+    [subscribe, value, getSnapshot]
+  );
+  useEffect(
+    function () {
+      checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
+
+      // 返回一个订阅函数，也就是执行subscribeUpdates，里面的参数函数是subscribeUpdates的最后一个入参
+      // 这里如果传递了mapStateToProps就返回一个空函数
+      return subscribe(function () {
+        checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
+      });
+    },
+    [subscribe]
+  );
+
+  // 代码debug用的
+  useDebugValue(value);
+
+  // 返回最新的state和dispatch信息对象
+  return value;
+}
+
+
+function checkIfSnapshotChanged(inst) {
+  var latestGetSnapshot = inst.getSnapshot;
+  inst = inst.value;
+  // 深度比较，如果不同就返回true，表明已经变化了
+  try {
+    var nextValue = latestGetSnapshot();
+    return !objectIs(inst, nextValue);
+  } catch (error) {
+    return !0;
+  }
+}
+
+
+var objectIs = "function" === typeof Object.is ? Object.is : function is(x, y) {
+  return (x === y && (0 !== x || 1 / x === 1 / y)) || (x !== x && y !== y);
+}
 
 
 
@@ -934,9 +1237,14 @@ function wrapMapToPropsFunc(mapToProps, methodName) {
     // 入参：displayName是`Connect(${wrappedComponentName})`
     // 例如：'Connect(Home)'
 
-    // 下面的函数返回一个类似class的构造函数
+    // 下面的函数返回一个函数
+    // 但是为了容下分发和递归的逻辑，在一个函数上加了一个方法，使得有两个函数可以用
+    // 一个函数专门用于分发，分发去到执行函数那边
+    // 另一个函数专门用于递归执行
 
+    // proxy是分发函数，实际上可以等于proxy.mapToProps
     const proxy = function mapToPropsProxy(stateOrDispatch, ownProps) {
+      // ownProps一般为空
       return proxy.dependsOnOwnProps
         ? proxy.mapToProps(stateOrDispatch, ownProps)
         : proxy.mapToProps(stateOrDispatch, undefined);
@@ -944,7 +1252,13 @@ function wrapMapToPropsFunc(mapToProps, methodName) {
 
     proxy.dependsOnOwnProps = true;
 
+    // proxy.mapToProps函数是递归函数：
+    // 首先改变自己的proxy.mapToProps函数为入参函数
+    // 1）没有递归情况，去到proxy分发，然后【实际上调用proxy.mapToProps】执行一次
+    // 2）有递归情况，去到proxy分发【实际上调用proxy.mapToProps】，相当于调用自身，再次执行，直接覆盖之前的proxy
     proxy.mapToProps = function detectFactoryAndVerify(stateOrDispatch, ownProps) {
+      // mapToProps一般是一个函数，
+      // 而函数没有dependsOnOwnProps属性，且其length属性为1，dependsOnOwnProps一般被改为false
       proxy.mapToProps = mapToProps;
       proxy.dependsOnOwnProps = getDependsOnOwnProps(mapToProps);
 
@@ -971,6 +1285,10 @@ function wrapMapToPropsFunc(mapToProps, methodName) {
 
     return proxy;
   };
+}
+
+function getDependsOnOwnProps(mapToProps) {
+  return mapToProps.dependsOnOwnProps ? Boolean(mapToProps.dependsOnOwnProps) : mapToProps.length !== 1;
 }
 
 
@@ -1018,7 +1336,9 @@ function mergePropsFactory(mergeProps) {
       : createInvalidArgFactory(mergeProps, 'mergeProps');
 }
 
-
+function defaultMergeProps(stateProps, dispatchProps, ownProps) {
+  return _extends({}, ownProps, stateProps, dispatchProps);
+}
 
 
 
@@ -1091,12 +1411,23 @@ function pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, merg
   let mergedProps;
 
   function handleFirstCall(firstState, firstOwnProps) {
+    // 入参：
+    // firstState是最新的state，firstOwnProps就是connect组件的经过筛选过的props对象（一般情况都是空）
     state = firstState;
     ownProps = firstOwnProps;
+
+    // 执行真正的“执行”函数，第二个参数一般为空
+    // 得到state某个类别的数据或自定义的数据对象 + dispatch执行函数的集合对象
     stateProps = mapStateToProps(state, ownProps);
     dispatchProps = mapDispatchToProps(dispatch, ownProps);
+    // 整合上面所有的结果到一个新的内存地址对象中
     mergedProps = mergeProps(stateProps, dispatchProps, ownProps);
     hasRunAtLeastOnce = true;
+    // 直接返回这个对象！长这样：(包括dispatch函数和state数据)
+    // {
+    //   user: 1,
+    //   multipleUser: (...args) => dispatch(multipleUser(...args))
+    // }
     return mergedProps;
   }
 
@@ -1134,6 +1465,7 @@ function pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, merg
   }
 
   return function pureFinalPropsSelector(nextState, nextOwnProps) {
+    // 外部执行入参为(store.getState(), wrapperProps)
     // hasRunAtLeastOnce首次执行为false
     return hasRunAtLeastOnce
       ? handleSubsequentCalls(nextState, nextOwnProps)
@@ -1449,8 +1781,10 @@ function createSubscription(store, parentSub) {
     subscriptionsAmount++;
 
     if (!unsubscribe) {
-      // parentSub为true，则新的订阅放到嵌套到父级订阅（这个变量为undefined）
+      // parentSub为true，则新的订阅放到嵌套到父级订阅
       // 否则直接订阅store.subscribe，到时候状态变化之后，向listeners发出通知！
+      // （只有在顶层的<Provider>的parentSub才是undefined，也就是store里面的listeners数组只有一个监听函数）
+      // 之后下层的memo高阶组件，往父级的工具箱执行addNestedSub，首先给父级创造了一个store里面的监听函数，然后给父级自己的工具箱里面的listener函数添加了监听函数
       unsubscribe = parentSub ? parentSub.addNestedSub(handleChangeWrapper) : store.subscribe(handleChangeWrapper);
       // 接下来准备到内部的这个createSubscription函数也订阅函数了
       // 创建监听器集合
