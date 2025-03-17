@@ -124,6 +124,7 @@ class MyPromise {
 
 
   // 这个就是Promise.resolve()方法，肯定返回一个已经resolve的状态为fulfilled的promise对象
+  // 返回一个promise对象
   static resolve(value) {
     if (value instanceof MyPromise) {
       return value

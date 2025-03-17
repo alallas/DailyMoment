@@ -16708,6 +16708,7 @@ function commitPassiveHookEffects(finishedWork) {
 
 // 如果通过performSyncWork和performWork进入的最后的这个清理函数，那么，两个if条件都没满足
 // 通过performWork进入的这个函数，两个if条件都没满足
+// 此时的nextFlushedExpirationTime为0，nextFlushedRoot为null
 // !什么时候会满足？
 function finishRendering() {
   nestedUpdateCount = 0;

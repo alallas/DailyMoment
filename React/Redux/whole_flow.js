@@ -13,6 +13,8 @@ const $$observable = (() => (typeof Symbol === 'function' && Symbol.observable) 
 
 
 // connect函数用到的
+// 第一层，也就是第一个<Provider>提供的上下文是包装了store和自己的subscription（父订阅工具箱）
+// 第二层，也就是第一个connect组件的provider，提供的上下文是包装了store和自己的subscription（子订阅工具箱）
 var ReactReduxContext = {
   _calculateChangedBits: null,
   _currentRenderer: null,
@@ -108,6 +110,8 @@ var didWarnUncachedGetSnapshot = !1
 
 
 // REVIEW - 整合reducer函数，返回大reducer函数
+
+
 
 
 function combineReducers(reducers) {
@@ -589,7 +593,7 @@ function createStore(reducer, preloadedState, enhancer) {
 
 // thunk 中间件
 
-
+var thunk = createThunkMiddleware();
 function createThunkMiddleware(extraArgument) {
   const middleware = ({ dispatch, getState }) => (next) => (action) => {
     if (typeof action === "function") {
@@ -601,7 +605,21 @@ function createThunkMiddleware(extraArgument) {
 }
 
 
+// 当一个action创造者返回的是一个函数，而不是一个action对象，说明这个需要异步执行
+function fetchTitleData() {
+  return function(diapatch) {
+    axios.get("http://123.207.32.32:8000/home/multidata").then(res=>{
+      const title=res.data.data.banner.list[0].title;
+      diapatch(changeTitle(title));
+    })
+  }
+}
 
+// dispatch这个函数的时候，首先进入第一个thunk中间件
+// 此时的next就是dispatch函数，而当action为函数时，直接执行这个函数，也不dispatch了，因为默认这个函数里面就有dispatch
+const handleAsyncClick = () => {
+  dispatch(actions.fetchTitleData())
+}
 
 
 
@@ -610,6 +628,9 @@ function createThunkMiddleware(extraArgument) {
 
 
 // REVIEW - connect函数
+
+
+
 
 
 
@@ -809,36 +830,17 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps, {
           if (!subscription) {
             return () => {};
           }
-          return subscribeUpdates(
-            shouldHandleStateChanges,
-            store,
-            subscription,
-            childPropsSelector,
-            lastWrapperProps,
-            lastChildProps,
-            renderIsScheduled,
-            isMounted,
-            childPropsFromStoreUpdate,
-            notifyNestedSubs,
-            reactListener
-          );
+          return subscribeUpdates(shouldHandleStateChanges, store, subscription, childPropsSelector, lastWrapperProps, lastChildProps, renderIsScheduled, isMounted, childPropsFromStoreUpdate, notifyNestedSubs, reactListener);
         };
         return subscribe;
       }, [subscription]);
       
 
-      // 绘制页面之后，执行captureWrapperProps函数
+      // 绘制页面之后，使用后面的数组作为参数执行captureWrapperProps函数
       // 这里没有给第三个参数，即dependencies
       useIsomorphicLayoutEffectWithArgs(
         captureWrapperProps,
-        [
-          lastWrapperProps, 
-          lastChildProps, 
-          renderIsScheduled, 
-          wrapperProps, 
-          childPropsFromStoreUpdate, 
-          notifyNestedSubs
-        ]
+        [lastWrapperProps, lastChildProps, renderIsScheduled, wrapperProps, childPropsFromStoreUpdate, notifyNestedSubs]
       );
 
       // （三）调用connect第一入参的函数（入参为真正执行函数和二级订阅工具箱），得到props
@@ -954,262 +956,6 @@ function useIsomorphicLayoutEffectWithArgs(effectFunc, effectArgs, dependencies)
 
 
 
-
-
-
-
-// REVIEW - connect函数内部————订阅函数（也可以说是添加监听函数）相关
-
-
-
-
-
-
-function captureWrapperProps(
-  lastWrapperProps, 
-  lastChildProps, 
-  renderIsScheduled, 
-  wrapperProps, 
-  childPropsFromStoreUpdate, 
-  notifyNestedSubs
-){
-  // 保存connect组件的props对象（为空对象）
-  lastWrapperProps.current = wrapperProps;
-  renderIsScheduled.current = false;
-
-  // childPropsFromStoreUpdate.current为空，什么时候有值？？
-  // subscribeUpdates函数中，当新旧props不一样的时候，childPropsFromStoreUpdate.current的值为新props的值
-  // 此时说明store数据有变，在“二级订阅”工具箱对象内执行通知函数，通知谁？？？
-  if (childPropsFromStoreUpdate.current) {
-    childPropsFromStoreUpdate.current = null;
-    notifyNestedSubs();
-  }
-}
-
-
-function subscribeUpdates(
-  shouldHandleStateChanges, 
-  store, 
-  subscription, 
-  childPropsSelector, 
-  lastWrapperProps, 
-  lastChildProps, 
-  renderIsScheduled, 
-  isMounted, 
-  childPropsFromStoreUpdate, 
-  notifyNestedSubs, 
-  additionalSubscribeListener
-){
-  // shouldHandleStateChanges是指 如果传递了mapStateToProps就说明要检测state是否有变化
-  // 传递了mapStateToProps的话，shouldHandleStateChanges就是true，不走下面
-  if (!shouldHandleStateChanges) return () => {};
-
-  let didUnsubscribe = false;
-  let lastThrownError = null;
-
-  const checkForUpdates = () => {
-    // 到useEffect进来时，isMounted.current为true，已经完成了加载
-    // 如果还没有加载完或者已经取消订阅，就直接退出函数
-    if (didUnsubscribe || !isMounted.current) {
-      return;
-    }
-
-    const latestStoreState = store.getState();
-    let newChildProps, error;
-
-    // 执行childPropsSelector(store.getState(), wrapperProps);
-    // 实际上就是执行pureFinalPropsSelector，拿到最新的state和dispatchAction的汇合对象
-    try {
-      newChildProps = childPropsSelector(latestStoreState, lastWrapperProps.current);
-    } catch (e) {
-      error = e;
-      lastThrownError = e;
-    }
-    // 没错误的话更新一下标识
-    if (!error) {
-      lastThrownError = null;
-    }
-
-    // 如果前后的对象一致，就在“二级订阅”工具箱对象上发出通知，通知调用的是二级订阅工具箱的listeners数组
-    // 但是这个时候的二级订阅工具箱的listeners对象之上的函数保存的listen链表为空，
-    // 因为她根本就没有子组件来为她trySubscribe，然后addNestedSub
-    if (newChildProps === lastChildProps.current) {
-      if (!renderIsScheduled.current) {
-        notifyNestedSubs();
-      }
-    } else {
-      // 前后对象不一致，更新信息
-      lastChildProps.current = newChildProps;
-      childPropsFromStoreUpdate.current = newChildProps;
-      renderIsScheduled.current = true;
-
-      // 并执行传递过来的最后一个参数
-      // 从connect组件的useEffect进来的最后一个参数是：
-      // function () {
-      //   checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
-      // }
-      // 再次检查是否正确，然后更新useState的信息
-      additionalSubscribeListener();
-    }
-  };
-
-  // 将onStateChange替换为这个“监听变化——进行通知”的函数本身
-  subscription.onStateChange = checkForUpdates;
-
-  // 首次在子组件（connect组件内）执行trySubscribe，也就是手动在父订阅工具箱（Provider）上面订阅监听函数
-
-  // 自己这个子订阅工具箱执行trySubscribe，首先执行trySubscribeSelf，然后执行trySubscribe
-  // function trySubscribeSelf() {
-  //   if (!selfSubscribed) {
-  //     selfSubscribed = true;
-  //     trySubscribe();
-  //   }
-  // }
-  // function trySubscribe() {
-  //   subscriptionsAmount++;
-  //   if (!unsubscribe) {
-  //     unsubscribe = parentSub ? parentSub.addNestedSub(handleChangeWrapper) : store.subscribe(handleChangeWrapper);
-  //     listeners = createListenerCollection();
-  //   }
-  // }
-  // 在父订阅工具箱上面订阅监听函数，
-  // 这个时候的handleChangeWrapper就是执行的自己（connect组件）的工具箱内部的subscription的onStateChange，也就是上面被改成的checkForUpdates函数
-  subscription.trySubscribe();
-
-  // 先直接检查是否有变化，没有变化的话通知自己这个订阅工具箱的所有函数执行了（实际上是没有的）
-  checkForUpdates();
-
-  // 
-  const unsubscribeWrapper = () => {
-    didUnsubscribe = true;
-    subscription.tryUnsubscribe();
-    subscription.onStateChange = null;
-
-    if (lastThrownError) {
-      throw lastThrownError;
-    }
-  };
-
-  return unsubscribeWrapper;
-}
-
-
-
-
-
-
-
-
-// REVIEW - connect函数内部————真正执行函数（【拿到最新state对象和汇总的dispatch函数的对象】）
-
-
-
-
-
-function useSyncExternalStore(subscribe, getSnapshot) {
-  // 入参：
-  // subscribe就是缓存的订阅更新函数
-  // reactListener => {
-  //   if (!subscription) {
-  //     return () => {};
-  //   }
-  //   return subscribeUpdates(
-  //     shouldHandleStateChanges,
-  //     store,
-  //     subscription,
-  //     childPropsSelector,
-  //     lastWrapperProps,
-  //     lastChildProps,
-  //     renderIsScheduled,
-  //     isMounted,
-  //     childPropsFromStoreUpdate,
-  //     notifyNestedSubs,
-  //     reactListener
-  //   );
-  // };
-
-  // getSnapshot就是缓存的actualChildPropsSelector，即childPropsSelector，实际上就是pureFinalPropsSelector函数
-  // 真正执行函数（【真正执行dispatch或拿到最新state的函数】）
-  // childPropsSelector入参为(store.getState(), wrapperProps);
-
-  didWarnOld18Alpha || void 0 === React.startTransition ||
-    ((didWarnOld18Alpha = !0),
-    console.error(
-      "You are using an outdated, pre-release alpha of React 18 that does not support useSyncExternalStore. The use-sync-external-store shim will not work correctly. Upgrade to a newer pre-release."
-    ));
-
-
-  // 拿到的是一个对象(包括dispatch函数和state数据)
-  // {
-  //   user: 1,
-  //   multipleUser: (...args) => dispatch(multipleUser(...args))
-  // }
-  var value = getSnapshot();
-
-  // didWarnUncachedGetSnapshot默认是false
-  // 再执行一次pureFinalPropsSelector
-  if (!didWarnUncachedGetSnapshot) {
-    var cachedValue = getSnapshot();
-    objectIs(value, cachedValue) ||
-      (console.error(
-        "The result of getSnapshot should be cached to avoid an infinite loop"
-      ),
-      (didWarnUncachedGetSnapshot = !0));
-  }
-
-  // 把当前的state和dispatch函数对象缓存起来
-  cachedValue = useState({
-    inst: { value: value, getSnapshot: getSnapshot }
-  });
-  var inst = cachedValue[0].inst, forceUpdate = cachedValue[1];
-
-  // 绘制页面之后，再一次用新的信息对象和函数覆盖之前的，检查是否需要强制更新
-  // 如果需要强制更新就把inst（为什么用旧的？？）更新给useState维护的信息
-  // 同时使用useLayoutEffect和useEffect
-  useLayoutEffect(
-    function () {
-      inst.value = value;
-      inst.getSnapshot = getSnapshot;
-      checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
-    },
-    [subscribe, value, getSnapshot]
-  );
-  useEffect(
-    function () {
-      checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
-
-      // 返回一个订阅函数，也就是执行subscribeUpdates（里面的参数函数是subscribeUpdates的最后一个入参）
-      return subscribe(function () {
-        checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
-      });
-    },
-    [subscribe]
-  );
-
-  // 代码debug用的
-  useDebugValue(value);
-
-  // 返回最新的state和dispatch信息对象
-  return value;
-}
-
-
-function checkIfSnapshotChanged(inst) {
-  var latestGetSnapshot = inst.getSnapshot;
-  inst = inst.value;
-  // 深度比较，如果不同就返回true，表明已经变化了
-  try {
-    var nextValue = latestGetSnapshot();
-    return !objectIs(inst, nextValue);
-  } catch (error) {
-    return !0;
-  }
-}
-
-
-var objectIs = "function" === typeof Object.is ? Object.is : function is(x, y) {
-  return (x === y && (0 !== x || 1 / x === 1 / y)) || (x !== x && y !== y);
-}
 
 
 
@@ -1380,6 +1126,9 @@ function mergePropsFactory(mergeProps) {
 function defaultMergeProps(stateProps, dispatchProps, ownProps) {
   return _extends({}, ownProps, stateProps, dispatchProps);
 }
+
+
+
 
 
 
@@ -1556,6 +1305,276 @@ function shallowEqual(objA, objB) {
 
 
 
+// REVIEW - connect函数内部————真正执行函数（【拿到最新state对象和汇总的dispatch函数的对象】）
+
+
+
+
+
+
+function useSyncExternalStore(subscribe, getSnapshot) {
+  // 入参：
+  // 从connect组件进来的
+  // 1. subscribe就是缓存的订阅更新函数
+  // reactListener => {
+  //   if (!subscription) {
+  //     return () => {};
+  //   }
+  //   return subscribeUpdates(
+  //     shouldHandleStateChanges,
+  //     store,
+  //     subscription,
+  //     childPropsSelector,
+  //     lastWrapperProps,
+  //     lastChildProps,
+  //     renderIsScheduled,
+  //     isMounted,
+  //     childPropsFromStoreUpdate,
+  //     notifyNestedSubs,
+  //     reactListener
+  //   );
+  // };
+  // 2. getSnapshot就是缓存的actualChildPropsSelector，即childPropsSelector，实际上就是pureFinalPropsSelector函数
+  // 真正执行函数（【真正执行dispatch或拿到最新state的函数】）
+  // childPropsSelector入参为(store.getState(), wrapperProps);
+
+
+  // 从useSelector进来的
+  // 1. subscribe是subscription.addNestedSub（父亲的订阅工具箱（provider的））
+  // 2. getSnapshot就是下面的函数
+  // function () {
+  //   return memoizedSelector(getSnapshot());
+  // },
+
+
+  didWarnOld18Alpha || void 0 === React.startTransition ||
+    ((didWarnOld18Alpha = !0),
+    console.error(
+      "You are using an outdated, pre-release alpha of React 18 that does not support useSyncExternalStore. The use-sync-external-store shim will not work correctly. Upgrade to a newer pre-release."
+    ));
+
+
+  // 从connect组件进来的
+  // 拿到的是一个对象(包括dispatch函数和state数据)
+  // {
+  //   user: 1,
+  //   multipleUser: (...args) => dispatch(multipleUser(...args))
+  // }
+  // 从useSelector进来的
+  // 拿到的是一个对象(仅包括选择过的state数据)
+  var value = getSnapshot();
+
+  // didWarnUncachedGetSnapshot默认是false
+  // 再执行一次pureFinalPropsSelector，看是不是内存地址不一样，默认必须不一样，因为是纯函数
+  if (!didWarnUncachedGetSnapshot) {
+    var cachedValue = getSnapshot();
+    objectIs(value, cachedValue) ||
+      (console.error(
+        "The result of getSnapshot should be cached to avoid an infinite loop"
+      ),
+      (didWarnUncachedGetSnapshot = !0));
+  }
+
+  // 把当前的state和dispatch函数对象缓存起来
+  cachedValue = useState({
+    inst: { value: value, getSnapshot: getSnapshot }
+  });
+  var inst = cachedValue[0].inst, forceUpdate = cachedValue[1];
+
+  // 绘制页面之后，再一次用新的信息对象和函数覆盖之前的，检查是否需要强制更新
+  // 如果需要强制更新就把inst（为什么用旧的？？）更新给useState维护的信息
+  // 同时使用useLayoutEffect和useEffect
+  useLayoutEffect(
+    function () {
+      inst.value = value;
+      inst.getSnapshot = getSnapshot;
+      checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
+    },
+    [subscribe, value, getSnapshot]
+  );
+  useEffect(
+    function () {
+      checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
+
+      // 从connect进来：
+      // 执行subscribeUpdates（里面的参数函数是subscribeUpdates的最后一个入参），返回卸载函数
+      // 从useSelector进来：
+      // 直接执行subscription.addNestedSub（父亲的订阅工具箱（provider的））（不用trySubscribe了）
+      return subscribe(function () {
+        checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
+      });
+    },
+    [subscribe]
+  );
+
+  // 代码debug用的
+  useDebugValue(value);
+
+  // 返回最新的state和dispatch信息对象
+  return value;
+}
+
+
+function checkIfSnapshotChanged(inst) {
+  var latestGetSnapshot = inst.getSnapshot;
+  inst = inst.value;
+  // 内存地址比较，如果不同就返回true，表明已经内存地址变化了
+  // 正常来说一般都要变化（因为是纯函数）
+  try {
+    var nextValue = latestGetSnapshot();
+    return !objectIs(inst, nextValue);
+  } catch (error) {
+    return !0;
+  }
+}
+
+
+var objectIs = "function" === typeof Object.is ? Object.is : function is(x, y) {
+  return (x === y && (0 !== x || 1 / x === 1 / y)) || (x !== x && y !== y);
+}
+
+
+
+
+
+
+// REVIEW - connect函数内部————订阅函数（也可以说是添加监听函数）相关
+
+
+
+
+
+
+function captureWrapperProps(lastWrapperProps, lastChildProps, renderIsScheduled, wrapperProps, childPropsFromStoreUpdate, notifyNestedSubs){
+  // 保存connect组件的props对象（为空对象）
+  lastWrapperProps.current = wrapperProps;
+  renderIsScheduled.current = false;
+
+  // childPropsFromStoreUpdate.current为空，什么时候有值？？
+  // subscribeUpdates函数中，当新旧props不一样的时候，childPropsFromStoreUpdate.current的值为新props的值
+  // 也就是说只有在更新且新旧props不一样的时候，这个通知函数才会执行。
+  // 此时说明store数据有变，在“二级订阅”工具箱对象内执行通知函数，遍历执行二级工具箱内部的listeners函数（实际上为空）
+  if (childPropsFromStoreUpdate.current) {
+    childPropsFromStoreUpdate.current = null;
+    notifyNestedSubs();
+  }
+}
+
+
+// 这个函数目前来看只在connect的useEffect钩子里面会执行
+function subscribeUpdates(
+  shouldHandleStateChanges, 
+  store, 
+  subscription, 
+  childPropsSelector, 
+  lastWrapperProps, 
+  lastChildProps, 
+  renderIsScheduled, 
+  isMounted, 
+  childPropsFromStoreUpdate, 
+  notifyNestedSubs, 
+  additionalSubscribeListener
+){
+  // shouldHandleStateChanges是指 如果传递了mapStateToProps就说明要检测state是否有变化
+  // 传递了mapStateToProps的话，shouldHandleStateChanges就是true，不走下面
+  if (!shouldHandleStateChanges) return () => {};
+
+  let didUnsubscribe = false;
+  let lastThrownError = null;
+
+  const checkForUpdates = () => {
+    // 到useEffect进来时，isMounted.current为true，已经完成了加载
+    // 如果还没有加载完或者已经取消订阅，就直接退出函数
+    if (didUnsubscribe || !isMounted.current) {
+      return;
+    }
+
+    const latestStoreState = store.getState();
+    let newChildProps, error;
+
+    // 执行childPropsSelector(store.getState(), wrapperProps);
+    // 实际上就是执行pureFinalPropsSelector，拿到最新的state和dispatchAction的汇合对象
+    try {
+      newChildProps = childPropsSelector(latestStoreState, lastWrapperProps.current);
+    } catch (e) {
+      error = e;
+      lastThrownError = e;
+    }
+    // 没错误的话更新一下标识
+    if (!error) {
+      lastThrownError = null;
+    }
+
+    // 如果前后的对象一致，就在“二级订阅”工具箱对象上发出通知，通知调用的是二级订阅工具箱的listeners数组
+    // 但是这个时候的二级订阅工具箱的listeners对象之上的函数保存的listen链表为空，因为她根本就没有子组件来为她trySubscribe，然后addNestedSub
+    
+    // 如果有值的话（这个connect组件下层还有组件也是被connect包裹，他也有一个useEffect在父级的工具箱（通过provider的上下文value拿到工具箱）订阅了自己的checkForUpdates函数）
+    // 就不更新这个组件，直接把本层组件的listeners数组遍历执行，这个数组里面存的时下一层子组件的订阅工具箱的checkForUpdates
+    if (newChildProps === lastChildProps.current) {
+      if (!renderIsScheduled.current) {
+        notifyNestedSubs();
+      }
+    } else {
+      // 前后对象不一致，更新信息
+      lastChildProps.current = newChildProps;
+      childPropsFromStoreUpdate.current = newChildProps;
+      renderIsScheduled.current = true;
+
+      // 并执行传递过来的最后一个参数
+      // 从connect组件的useEffect进来的最后一个参数是：
+      // function () {
+      //   checkIfSnapshotChanged(inst) && forceUpdate({ inst: inst });
+      // }
+      // 执行上面函数，再次检查是否正确，然后更新useState的信息为旧的？？
+      additionalSubscribeListener();
+    }
+  };
+
+  // 将onStateChange替换为这个“监听变化——进行通知”的函数本身
+  subscription.onStateChange = checkForUpdates;
+
+  // 首次在子组件（connect组件内）执行trySubscribe，也就是手动在父订阅工具箱（Provider）上面订阅监听函数
+
+  // 自己这个子订阅工具箱执行trySubscribe，首先执行trySubscribeSelf，然后执行trySubscribe
+  // function trySubscribeSelf() {
+  //   if (!selfSubscribed) {
+  //     selfSubscribed = true;
+  //     trySubscribe();
+  //   }
+  // }
+  // function trySubscribe() {
+  //   subscriptionsAmount++;
+  //   if (!unsubscribe) {
+  //     unsubscribe = parentSub ? parentSub.addNestedSub(handleChangeWrapper) : store.subscribe(handleChangeWrapper);
+  //     listeners = createListenerCollection();
+  //   }
+  // }
+  // 在父订阅工具箱上面订阅监听函数，
+  // 这个时候的handleChangeWrapper就是执行的自己（connect组件）的工具箱内部的subscription的onStateChange，也就是上面被改成的checkForUpdates函数
+  subscription.trySubscribe();
+
+  // 先直接检查是否有变化，没有变化的话通知自己这个订阅工具箱的所有函数执行了（实际上是没有的）
+  checkForUpdates();
+
+  // 最后返回一个卸载函数，给到connect组件的useEffect的返回值（destory函数）
+  const unsubscribeWrapper = () => {
+    didUnsubscribe = true;
+    subscription.tryUnsubscribe();
+    subscription.onStateChange = null;
+
+    if (lastThrownError) {
+      throw lastThrownError;
+    }
+  };
+
+  return unsubscribeWrapper;
+}
+
+
+
+
+
+
 
 
 // REVIEW - connect函数内部————最后把被包裹组件的属性复制到包裹组件上面
@@ -1719,8 +1738,6 @@ function _objectWithoutPropertiesLoose(r, e) {
   }
   return t;
 }
-
-
 
 
 
@@ -2037,6 +2054,301 @@ function batchedUpdates$1(fn, a) {
 }
 
 
+
+
+
+
+
+
+
+// REVIEW - 函数组件的useDispatch和useSelector钩子函数
+// 函数组件不需要connect连接者，只是需要一个工具
+// （类似把每个组件都有的connect函数脱离组件，自己提供数据给组件，而不是附到组件身上）
+
+
+
+// 1. 【useDispatch】就是下面createDispatchHook的返回值
+
+const useDispatch = createDispatchHook();
+
+function createDispatchHook(context = ReactReduxContext) {
+  // createDispatchHook没有传递上下文，默认值就是顶层的上下文（包含store和顶层provider的subscription）
+  const useStore = context === ReactReduxContext ? useDefaultStore : createStoreHook(context);
+  return function useDispatch() {
+    // 执行这个函数，就是下面函数的返回的函数，相当于执行useDefaultReduxContext
+    // 拿到store之后，直接返回dispatch函数
+    const store = useStore();
+    return store.dispatch;
+  };
+}
+
+
+function createStoreHook(context = ReactReduxContext) {
+  const useReduxContext = context === ReactReduxContext ? useDefaultReduxContext : createReduxContextHook(context);
+  return function useStore() {
+    // 这里相当于执行useDefaultReduxContext，就是下面函数的返回值的函数
+    // 解构上下文，拿到里面的store
+    const {store} = useReduxContext();
+    return store;
+  };
+}
+
+
+function createReduxContextHook(context = ReactReduxContext) {
+  return function useReduxContext() {
+    // 从顶层的上下文拿到这个value对象
+    const contextValue = useContext(context);
+    if (process.env.NODE_ENV !== 'production' && !contextValue) {
+      throw new Error('could not find react-redux context value; please ensure the component is wrapped in a <Provider>');
+    }
+    // 直接返回这个value对象
+    return contextValue;
+  };
+}
+
+
+
+
+
+// 2. 【useDispatch】就是下面createSelectorHook的返回值
+// 采用闭包是因为createSelectorHook导出的时候直接创建了一个useSelector，注意，只是一个！！
+// 每个组件内部使用这个函数，都指向的同一个内存地址，并且共享同样的上层作用域，也就是useReduxContext这个变量可以随时拿到
+
+// 但是不会导致内存泄漏吗？
+// 如果不使用useReduxContext这个变量，（或者说不执行useSelector这个函数然后使用这个变量），这个内存就会被垃圾回收掉
+
+
+
+const useSelector = createSelectorHook();
+
+function createSelectorHook(context = ReactReduxContext) {
+  // 这里在找缓存！
+  const useReduxContext = context === ReactReduxContext ? useDefaultReduxContext : createReduxContextHook(context);
+  return function useSelector(selector, equalityFnOrOptions = {}) {
+    // selector是一个函数，state是她的参数
+
+    // 拿出第二参数的一些属性，一般useSelector不传递第二个参数
+    const {
+      equalityFn = refEquality,
+      stabilityCheck = undefined,
+      noopCheck = undefined
+    } = typeof equalityFnOrOptions === 'function' ? {
+      equalityFn: equalityFnOrOptions
+    } : equalityFnOrOptions;
+
+    // 异常错误检测
+    if (process.env.NODE_ENV !== 'production') {
+      if (!selector) {
+        throw new Error(`You must pass a selector to useSelector`);
+      }
+
+      if (typeof selector !== 'function') {
+        throw new Error(`You must pass a function as a selector to useSelector`);
+      }
+
+      if (typeof equalityFn !== 'function') {
+        throw new Error(`You must pass a function as an equality function to useSelector`);
+      }
+    }
+
+    // 下面执行的是useReduxContext函数
+    // 拿到的是顶层上下文对象
+    const {store, subscription, getServerState, stabilityCheck: globalStabilityCheck, noopCheck: globalNoopCheck} = useReduxContext();
+
+    const firstRun = useRef(true);
+
+    // 包装并缓存这个第一入参的selector函数
+    // selector.name是selector的函数名字，如果传的是箭头函数，那么这个name就是空字符串
+    const wrappedSelector = useCallback({
+      [selector.name](state) {
+
+        // 执行这个selector函数，参数为state
+        const selected = selector(state);
+
+        // 开发模式下的错误检测
+        if (process.env.NODE_ENV !== 'production') {
+          const finalStabilityCheck = typeof stabilityCheck === 'undefined' ? globalStabilityCheck : stabilityCheck;
+
+          if (finalStabilityCheck === 'always' || finalStabilityCheck === 'once' && firstRun.current) {
+            const toCompare = selector(state);
+            // 如果新旧的对象不一样（非纯函数），就抛出错误
+            if (!equalityFn(selected, toCompare)) {
+              let stack = undefined;
+
+              try {
+                throw new Error();
+              } catch (e) {
+                ;
+                ({
+                  stack
+                } = e);
+              }
+
+              console.warn('Selector ' + (selector.name || 'unknown') + ' returned a different result when called with the same parameters. This can lead to unnecessary rerenders.' + '\nSelectors that return a new reference (such as an object or an array) should be memoized: https://redux.js.org/usage/deriving-data-selectors#optimizing-selectors-with-memoization', {
+                state,
+                selected,
+                selected2: toCompare,
+                stack
+              });
+            }
+          }
+
+          const finalNoopCheck = typeof noopCheck === 'undefined' ? globalNoopCheck : noopCheck;
+
+          if (finalNoopCheck === 'always' || finalNoopCheck === 'once' && firstRun.current) {
+            // 如果selected等于入参，就是写错了
+            if (selected === state) {
+              let stack = undefined;
+
+              try {
+                throw new Error();
+              } catch (e) {
+                ;
+                ({
+                  stack
+                } = e);
+              }
+
+              console.warn('Selector ' + (selector.name || 'unknown') + ' returned the root state when called. This can lead to unnecessary rerenders.' + '\nSelectors that return the entire state are almost certainly a mistake, as they will cause a rerender whenever *anything* in state changes.', {
+                stack
+              });
+            }
+          }
+
+          if (firstRun.current) firstRun.current = false;
+        }
+
+        // 直接返回这个执行结果
+        return selected;
+      }
+
+    }[selector.name], [selector, globalStabilityCheck, stabilityCheck]);
+
+    const selectedState = useSyncExternalStoreWithSelector(subscription.addNestedSub, store.getState, getServerState || store.getState, wrappedSelector, equalityFn);
+
+    useDebugValue(selectedState);
+    return selectedState;
+  };
+}
+
+
+
+function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnapshot, selector, isEqual) {
+  // 入参：
+  // subscribe是subscription.addNestedSub（父亲的订阅工具箱）
+  // getSnapshot是store.getState
+  // 如果上下文对象里面的getServerState为空，getServerSnapshot还是store.getState
+  // wrappedSelector是包装过的useSeletor的入参函数。类似于state => state.home
+  // isEqual 是 useSelector的第二个参数，为undefined
+
+  var instRef = useRef(null);
+
+
+  // 初始走下面的逻辑，为instRef赋予值，总之是拿到inst对象
+  if (null === instRef.current) {
+    var inst = { hasValue: !1, value: null };
+    instRef.current = inst;
+  } else inst = instRef.current;
+
+
+  // 缓存/定义对比函数，得到目标state值
+  const selectorRef = useMemo(
+    function () {
+      function memoizedSelector(nextSnapshot) {
+        // nextSnapshot是最新的state（完整的state对象）
+        // 本函数的目标是先浅对比，然后再深度对比！
+
+        // memoizedSnapshot：存储完整的 state 对象（即 getSnapshot() 的原始结果）。
+        // memoizedSelection：存储通过 selector 从 state 中提取的特定数据。
+
+        // 1. 看过去和现在的 “ 自定义 ” 的state对象选的数据是不是一样的
+        // 第一次走这个函数的时候，hasMemo是false，走下面的逻辑：inst为null不走内部的if，直接返回最新的提取的state对象，然后以后都不走这个函数了
+        if (!hasMemo) {
+          hasMemo = !0;
+          // 这是最新的完整state对象
+          memoizedSnapshot = nextSnapshot;
+          // 这是最新的提取的state对象
+          nextSnapshot = selector(nextSnapshot);
+
+          // !第一次因为inst为null所以不会走下面
+          if (void 0 !== isEqual && inst.hasValue) {
+            // 这是目前的/过去的提取的state对象
+            var currentSelection = inst.value;
+            // 对比新旧的这个 “ 自定义 ” 的state对象，如果相同的话直接返回之前的数据，不相同的话直接返回最新的数据
+            // 也就是看前后选择的是不是一样的数据
+            if (isEqual(currentSelection, nextSnapshot))
+              return (memoizedSelection = currentSelection);
+          }
+
+          // 直接返回最新的结果
+          return (memoizedSelection = nextSnapshot);
+        }
+
+        // 2. 深度对比新旧的 “ 完整 ” 的state对象【按道理肯定是不一样的，因为是纯函数】
+        // 第二次走下面的逻辑（因为已经有了有值的memoizedSelection和memoizedSnapshot）
+        currentSelection = memoizedSelection;
+        // 深度对比！两个完整state对象的内存地址，如果是一样的直接返回之前的那个所选结果
+        if (objectIs(memoizedSnapshot, nextSnapshot))
+          return currentSelection;
+
+        // 3. 对比新旧的选择的state（ “ 自定义 ” 的state对象）数据是否相同
+        // 重新执行函数，得到最新的结果
+        var nextSelection = selector(nextSnapshot);
+        // 比较新旧的选择的state是否相同，相同的话直接返回过去的结果
+        if (void 0 !== isEqual && isEqual(currentSelection, nextSelection))
+          return (memoizedSnapshot = nextSnapshot), currentSelection;
+          // 上面相当于
+          // memoizedSnapshot = nextSnapshot;
+          // return currentSelection;
+
+        memoizedSnapshot = nextSnapshot;
+        // 新旧选的state不同则返回最新的结果
+        return (memoizedSelection = nextSelection);
+      }
+
+      // 定义一些变量，通过函数内定义的方式持久化在内存中
+      var hasMemo = !1,
+        memoizedSnapshot,
+        memoizedSelection,
+        // getServerSnapshot为空时，maybeGetServerSnapshot也为空
+        maybeGetServerSnapshot =
+          void 0 === getServerSnapshot ? null : getServerSnapshot;
+
+      return [
+        function () {
+          return memoizedSelector(getSnapshot());
+        },
+        // getServerSnapshot不为空的时候，数组第二个元素是memoizedSelector的再次调用的返回值
+        null === maybeGetServerSnapshot
+          ? void 0
+          : function () {
+              return memoizedSelector(maybeGetServerSnapshot());
+            }
+      ];
+    },
+    [getSnapshot, getServerSnapshot, selector, isEqual]
+  );
+
+  // 执行【对比函数】，得到目标值
+  // useSyncExternalStore这个函数就是：connect函数内部的真正执行函数（【拿到最新state对象和汇总的dispatch函数的对象】）
+  // 到时候执行第二个入参，然后返回第二个入参的返回值，也就是：选择的state数据的对象
+  var value = useSyncExternalStore(subscribe, selectorRef[0], selectorRef[1]);
+
+
+  // 当 value 变化时，更新 inst 中的缓存值，供后续选择器逻辑复用
+  // 放在页面绘制之后异步执行了，不是很重要，但是也要执行的
+  useEffect(
+    function () {
+      inst.hasValue = !0;
+      inst.value = value;
+    },
+    [value]
+  );
+
+  // 
+  useDebugValue(value);
+  return value;
+};
 
 
 
