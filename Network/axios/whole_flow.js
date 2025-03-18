@@ -21,10 +21,12 @@ var utils = {
         fn.call(null, obj[i], i, obj);
       }
     } else {
+      // 找到非原型属性！！
       const keys = allOwnKeys ? Object.getOwnPropertyNames(obj) : Object.keys(obj);
       const len = keys.length;
       let key;
-  
+
+      // 遍历这些属性，执行函数
       for (i = 0; i < len; i++) {
         key = keys[i];
         fn.call(null, obj[key], key, obj);
@@ -61,6 +63,34 @@ var utils = {
   isFunction() {
     return this.typeOfTest('function');
   },
+  isFormData(thing) {
+    let kind;
+    return thing && (
+      // 先判断入参是否是FormData的实例，是的话直接返回true
+      (typeof FormData === 'function' && thing instanceof FormData) || (
+        // 不是的话看thing里面有没有append函数，没有的话返回false
+        isFunction(thing.append) && (
+          // 如果有的话，看kind是否是'formdata'、'object'类型
+          // kindOf 是一个返回对象类型标识的函数（如返回 'formdata'、'object' 等）
+          (kind = kindOf(thing)) === 'formdata' ||
+          (kind === 'object' && isFunction(thing.toString) && thing.toString() === '[object FormData]')
+        )
+      )
+    )
+  },
+  findKey(obj, key) {
+    key = key.toLowerCase();
+    const keys = Object.keys(obj);
+    let i = keys.length;
+    let _key;
+    while (i-- > 0) {
+      _key = keys[i];
+      if (key === _key.toLowerCase()) {
+        return _key;
+      }
+    }
+    return null;
+  }
 }
 
 
@@ -286,8 +316,15 @@ function _request(configOrUrl, config) {
   const {transitional, paramsSerializer, headers} = config;
 
   // 2. 数据检验与修正
-  // 1）过渡性配置transitional
+  // 1）过渡性配置transitional对象,里面长这样
+  // {
+  //   clarifyTimeoutError: false
+  //   forcedJSONParsing: true
+  //   silentJSONParsing: true
+  // }
   if (transitional !== undefined) {
+    // assertOptions实际上在遍历，
+    // validators.transitional实际上在执行validators.validator函数
     validator.assertOptions(transitional, {
       silentJSONParsing: validators.transitional(validators.boolean),
       forcedJSONParsing: validators.transitional(validators.boolean),
@@ -329,14 +366,14 @@ function _request(configOrUrl, config) {
     headers.common,
     headers[config.method]
   );
-  // 2）删除方法特定的头属性（避免冗余）
+  // 2）首先删除方法特定的头属性（之前提取出来过，这里先删掉，后面会合并进去的）
   headers && utils.forEach(
     ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
     (method) => {
       delete headers[method];
     }
   );
-  // 3）合并后的头赋值给 config.headers
+  // 3）然后合并，合并后的头赋值给 config.headers
   config.headers = AxiosHeaders.concat(contextHeaders, headers);
 
 
@@ -431,8 +468,120 @@ function _request(configOrUrl, config) {
 
 
 
-// REVIEW - dispatchRequest函数【promise执行链中间的函数】
 
+// REVIEW - 验证器validators
+
+
+
+const validators = {};
+const validator = {};
+
+
+// 这个函数实际上就是去执行validator函数
+// 看配置里面的transional的属性值的类型是不是对应着自己手动输入进去的类型
+validators.transitional = function transitional(validator, version, message) {
+  function formatMessage(opt, desc) {
+    return '[Axios v' + VERSION + '] Transitional option \'' + opt + '\'' + desc + (message ? '. ' + message : '');
+  }
+
+  // 返回一个函数，上面缓存入参的validator，也就是validators.boolean
+  return (value, opt, opts) => {
+    // 入参：
+    // value就是配置config里面transitional对象对应的boolean值
+    // opt就是对应的属性名字
+    // opts就是配置config里面transitional对象
+    if (validator === false) {
+      throw new AxiosError(
+        formatMessage(opt, ' has been removed' + (version ? ' in ' + version : '')),
+        AxiosError.ERR_DEPRECATED
+      );
+    }
+
+    if (version && !deprecatedWarnings[opt]) {
+      deprecatedWarnings[opt] = true;
+      console.warn(
+        formatMessage(
+          opt,
+          ' has been deprecated since v' + version + ' and will be removed in the near future'
+        )
+      );
+    }
+
+    // 直接去执行validator函数(也就是validators.boolean的方法，实际上就是‘boolean’函数)
+    // 可是'boolean'并等于typeof value的返回值（布尔类型），那么直接返回true
+    return validator ? validator(value, opt, opts) : true;
+  };
+};
+
+
+
+['object', 'boolean', 'number', 'function', 'string', 'symbol'].forEach((type, i) => {
+  validators[type] = function validator(thing) {
+    return typeof thing === type || 'a' + (i < 1 ? 'n ' : ' ') + type;
+  };
+});
+
+
+
+validator.assertOptions = function (options, schema, allowUnknown) {
+  // 入参：
+  // options是transitional对象，里面长这样
+  // {
+  //   clarifyTimeoutError: false
+  //   forcedJSONParsing: true
+  //   silentJSONParsing: true
+  // }
+  // schema是一个对象，里面的属性值是一个函数，是validators.transitional函数
+
+  if (typeof options !== 'object') {
+    throw new AxiosError('options must be an object', AxiosError.ERR_BAD_OPTION_VALUE);
+  }
+
+  // 下面相当于从一个地方拿出一个配置项（boolean形式，以此说明这个配置项是否需要！）
+  // 从另外一个地方拿出一个函数，然后结合两者执行
+  // 倒序遍历
+  const keys = Object.keys(options);
+  let i = keys.length;
+  while (i-- > 0) {
+    // 从schema对象里面拿出对应的函数
+    const opt = keys[i];
+    const validator = schema[opt];
+    if (validator) {
+      // 函数存在的话，拿到对应的boolean值
+      const value = options[opt];
+      // 然后执行validator函数（就是validators.transitional的返回值），入参是boolean值和属性名字
+      const result = value === undefined || validator(value, opt, options);
+      // 拿到结果，不是true就抛出错误
+      if (result !== true) {
+        throw new AxiosError('option ' + opt + ' must be ' + result, AxiosError.ERR_BAD_OPTION_VALUE);
+      }
+      continue;
+    }
+    // 遍历到最后没错就ok！
+    if (allowUnknown !== true) {
+      throw new AxiosError('Unknown option ' + opt, AxiosError.ERR_BAD_OPTION);
+    }
+  }
+}
+
+
+
+validators.spelling = function spelling(correctSpelling) {
+  return (value, opt) => {
+    console.warn(`${opt} is likely a misspelling of ${correctSpelling}`);
+    return true;
+  }
+};
+
+
+
+
+
+
+
+
+
+// REVIEW - dispatchRequest函数【promise执行链中间的函数】
 
 
 
@@ -447,14 +596,14 @@ function dispatchRequest(config) {
   // 将用户传入的 headers（可能是普通对象或字符串）转换为 Axios 内部统一的 AxiosHeaders 实例（赋予很多方法）
   config.headers = AxiosHeaders.from(config.headers);
 
-  // 2. 请求数据转化
-  // 按顺序执行 config.transformRequest 中的每个函数，将对象转为 JSON 字符串
+  // 2. 请求数据转化（格式化data数据）
+  // 按顺序执行 config.transformRequest 数组中的一个函数，将对象转为 JSON 字符串
   config.data = transformData.call(
     config,
     config.transformRequest
   );
 
-  // 3. 设置Content-Type
+  // 3. 设置Content-Type【一般Content-Type在上面的data数据转化中就根据数据类型而被设置好了】
   // 仅当请求方法是 POST、PUT 或 PATCH 时，默认设置Content-Type为 application/x-www-form-urlencoded
   if (['post', 'put', 'patch'].indexOf(config.method) !== -1) {
     config.headers.setContentType('application/x-www-form-urlencoded', false);
@@ -465,7 +614,7 @@ function dispatchRequest(config) {
   // config.adapter是一个数组，里面是[xhr,http,fetch]，都是浏览器本身的底层API，直接调用是发出网络请求
   const adapter = adapters.getAdapter(config.adapter || defaults.adapter);
 
-  // 2）调用这个适配器
+  // 2）调用这个适配器（相当于借用xhr的API发出网络请求）——去看xhr部分
   return adapter(config).then(function onAdapterResolution(response) {
     // 成功回调
     throwIfCancellationRequested(config);
@@ -519,13 +668,14 @@ function transformData(fns, response) {
 
   // this指的是axios实例
   const config = this || defaults;
-  // 配置对象
+  // 配置大对象config
   const context = response || config;
   // 请求头实例
   const headers = AxiosHeaders.from(context.headers);
   let data = context.data;
 
   // 开始遍历config.transformRequest数组，执行函数，转换对象为JSON
+  // 这个config.transformRequest数组在defaults里面的transformRequest
   utils.forEach(fns, function transform(fn) {
     data = fn.call(config, data, headers.normalize(), response ? response.status : undefined);
   });
@@ -534,6 +684,78 @@ function transformData(fns, response) {
 
   return data;
 }
+
+const defaults = {
+  transformRequest: [function transformRequest(data, headers) {
+    // 入参：
+    // data就是config里面的data属性
+    // headers就是标准化之后的AxiosHeaders实例
+
+    // 下面函数就是在把object对象改为json，并根据情况修改ContentType
+
+    const contentType = headers.getContentType() || '';
+    const hasJSONContentType = contentType.indexOf('application/json') > -1;
+    const isObjectPayload = utils.isObject(data);
+  
+    // 格式化data数据（变成FormData的实例），然后把他变成JSON
+    if (isObjectPayload && utils.isHTMLForm(data)) {
+      data = new FormData(data);
+    }
+    const isFormData = utils.isFormData(data);
+    if (isFormData) {
+      return hasJSONContentType ? JSON.stringify(formDataToJSON(data)) : data;
+    }
+  
+    // 满足任意一个条件就返回data
+    if (utils.isArrayBuffer(data) ||
+      utils.isBuffer(data) ||
+      utils.isStream(data) ||
+      utils.isFile(data) ||
+      utils.isBlob(data) ||
+      utils.isReadableStream(data)
+    ) {
+      return data;
+    }
+
+    // 
+    if (utils.isArrayBufferView(data)) {
+      return data.buffer;
+    }
+
+    // url有参数的话，contentType改一下
+    if (utils.isURLSearchParams(data)) {
+      headers.setContentType('application/x-www-form-urlencoded;charset=utf-8', false);
+      return data.toString();
+    }
+  
+    let isFileList;
+  
+    if (isObjectPayload) {
+      if (contentType.indexOf('application/x-www-form-urlencoded') > -1) {
+        return toURLEncodedForm(data, this.formSerializer).toString();
+      }
+  
+      if ((isFileList = utils.isFileList(data)) || contentType.indexOf('multipart/form-data') > -1) {
+        const _FormData = this.env && this.env.FormData;
+  
+        return toFormData(
+          isFileList ? {'files[]': data} : data,
+          _FormData && new _FormData(),
+          this.formSerializer
+        );
+      }
+    }
+  
+    if (isObjectPayload || hasJSONContentType ) {
+      headers.setContentType('application/json', false);
+      return stringifySafely(data);
+    }
+
+    return data;
+  }],
+}
+
+
 
 
 
@@ -551,14 +773,19 @@ class AxiosHeaders {
     const self = this;
 
     function setHeader(_value, _header, _rewrite) {
-      const lHeader = normalizeHeader(_header);
+      // 第二个参数才是header的key值
 
+      // normalizeHeader有小写作用：Content-Type变成了content-type
+      const lHeader = normalizeHeader(_header);
       if (!lHeader) {
         throw new Error('header name must be a non-empty string');
       }
 
+      // 返回原来存起来的（有可能是首字母大写，也有可能是小写）
       const key = utils.findKey(self, lHeader);
 
+      // 统一将 Header 名称转为小写存储
+      // 设置这个_value为这个实例的这个header的值
       if(!key || self[key] === undefined || _rewrite === true || (_rewrite === undefined && self[key] !== false)) {
         self[key || _header] = normalizeValue(_value);
       }
@@ -568,14 +795,22 @@ class AxiosHeaders {
       utils.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
 
     if (utils.isPlainObject(header) || header instanceof this.constructor) {
+      // 如果入参header是一个对象，批量改
       setHeaders(header, valueOrRewrite)
+
     } else if(utils.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
+      // 如果是字符串，且不是全空格，且不是一个有效的，批量执行
+      // 传入的是解析过的header
       setHeaders(parseHeaders(header), valueOrRewrite);
+
     } else if (utils.isHeaders(header)) {
+      // 传入的是一个标准的header对象
       for (const [key, value] of header.entries()) {
         setHeader(value, key, rewrite);
       }
+
     } else {
+      // 都不是执行下面
       header != null && setHeader(valueOrRewrite, header, rewrite);
     }
 
@@ -667,27 +902,38 @@ class AxiosHeaders {
     return deleted;
   }
 
+
+  // 将小写键转换为首字母大写格式：headers['Content-Type'] = 'application/json'
+  // 删除原小写键：delete headers['content-type']
   normalize(format) {
+    // this是axiosHeaders的类实例
     const self = this;
     const headers = {};
 
     utils.forEach(this, (value, header) => {
-      const key = utils.findKey(headers, header);
+      // this上面的每一个非原型属性都遍历执行下面函数
+      // value是属性值obj[key]，header是属性名key
 
+      // ！下面这小段是为了处理headers里面重复的属性名，让后面的覆盖前面的
+      // 从缓存里面找这个原来的属性名字（有可能大写也有可能小写）
+      // 找的过程大家都小写化了
+      const key = utils.findKey(headers, header);
+      // 能够找到就在实例里面重新赋予一下这个属性名 + 属性值（字符串化）
+      // 且删掉原来的
       if (key) {
         self[key] = normalizeValue(value);
         delete self[header];
         return;
       }
 
+      // 把header（属性名）改为首字母大写的，删除旧的重新保存新的
       const normalized = format ? formatHeader(header) : String(header).trim();
-
       if (normalized !== header) {
         delete self[header];
       }
-
+      // 属性值（字符串化）保存！
       self[normalized] = normalizeValue(value);
-
+      // 缓存当前的
       headers[normalized] = true;
     });
 
@@ -758,24 +1004,77 @@ class AxiosHeaders {
 
 AxiosHeaders.accessor(['Content-Type', 'Content-Length', 'Accept', 'Accept-Encoding', 'User-Agent', 'Authorization']);
 
-// reserved names hotfix
-utils.reduceDescriptors(AxiosHeaders.prototype, ({value}, key) => {
-  let mapped = key[0].toUpperCase() + key.slice(1); // map `set` => `Set`
-  return {
-    get: () => value,
-    set(headerValue) {
-      this[mapped] = headerValue;
-    }
+
+function normalizeHeader(header) {
+  return header && String(header).trim().toLowerCase();
+}
+
+// 单纯转化为字符串
+function normalizeValue(value) {
+  if (value === false || value == null) {
+    return value;
   }
-});
-
-utils.freezeMethods(AxiosHeaders);
-
+  return utils.isArray(value) ? value.map(normalizeValue) : String(value);
+}
 
 
+// 单词的首字母转为大写，其他下小写
+function formatHeader(header) {
+  // [a-z\d] 匹配一个小写字母或数字。它代表单词的首个字母或数字
+  // \w* 匹配零个或多个字母、数字或下划线。它代表单词的剩余部分（即首字母后面的字符）
+  // g 标志表示全局匹配，也就是说它会在整个字符串中匹配所有符合条件的部分
+  
+  // replace 方法会对每一个匹配到的部分执行回调函数 (w, char, str)
+  // w 是整个匹配的字符串（即一个完整的单词）
+  // char 是匹配到的第一个字符（即字母或数字）
+  // str 是匹配到的后续字符（即除第一个字符外的部分）
+  return header.trim()
+    .toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
+      return char.toUpperCase() + str;
+    });
+}
 
 
-// REVIEW - 下面为adapters！
+// 不允许的字符：空格和 !
+const isValidHeaderName = (str) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
+
+
+
+
+function parseHeaders(rawHeaders) {
+  const parsed = {};
+  let key;
+  let val;
+  let i;
+
+  rawHeaders && rawHeaders.split('\n').forEach(function parser(line) {
+    i = line.indexOf(':');
+    key = line.substring(0, i).trim().toLowerCase();
+    val = line.substring(i + 1).trim();
+
+    if (!key || (parsed[key] && ignoreDuplicateOf[key])) {
+      return;
+    }
+
+    if (key === 'set-cookie') {
+      if (parsed[key]) {
+        parsed[key].push(val);
+      } else {
+        parsed[key] = [val];
+      }
+    } else {
+      parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+    }
+  });
+
+  return parsed;
+};
+
+
+
+
+
+// REVIEW - 下面为adapters，意思是：寻找可发出网络请求的API
 
 
 
@@ -883,38 +1182,47 @@ isXHRAdapterSupported && function xhr(config) {
   return new Promise(function dispatchXhrRequest(resolve, reject) {
     // 初始化promise对象，同步执行这个里面的函数
     // 这里的入参config就是处理好的大总配置对象
+
+    // 1. 做一些鉴权、XSRF、设置跨端请求头等事情
+    // （重新复制（新内存）一个config对象出来）
     const _config = resolveConfig(config);
     let requestData = _config.data;
+
+    // 拿到（格式统一化的）请求头
     const requestHeaders = AxiosHeaders.from(_config.headers).normalize();
     let {responseType, onUploadProgress, onDownloadProgress} = _config;
     let onCanceled;
     let uploadThrottled, downloadThrottled;
     let flushUpload, flushDownload;
 
+    // 2. 定义清理函数 done
     function done() {
-      flushUpload && flushUpload(); // flush events
-      flushDownload && flushDownload(); // flush events
+      // 清空上传进度事件和下载进度事件
+      flushUpload && flushUpload();
+      flushDownload && flushDownload();
 
+      // 取消订阅
       _config.cancelToken && _config.cancelToken.unsubscribe(onCanceled);
-
+      // 移除事件监听
       _config.signal && _config.signal.removeEventListener('abort', onCanceled);
     }
 
+    // 3. 创建xhr实例，并初始化请求，给到 方法 和 url 
     let request = new XMLHttpRequest();
-
     request.open(_config.method.toUpperCase(), _config.url, true);
-
-    // Set the request timeout in MS
     request.timeout = _config.timeout;
 
+    // 4. 响应处理逻辑
+    // 1）处理完成事件
     function onloadend() {
       if (!request) {
         return;
       }
-      // Prepare the response
+      // 获取响应头
       const responseHeaders = AxiosHeaders.from(
         'getAllResponseHeaders' in request && request.getAllResponseHeaders()
       );
+      // 获取响应数据，构造对象
       const responseData = !responseType || responseType === 'text' || responseType === 'json' ?
         request.responseText : request.response;
       const response = {
@@ -926,6 +1234,7 @@ isXHRAdapterSupported && function xhr(config) {
         request
       };
 
+      // 根据状态码决定 resolve/reject
       settle(function _resolve(value) {
         resolve(value);
         done();
@@ -934,12 +1243,11 @@ isXHRAdapterSupported && function xhr(config) {
         done();
       }, response);
 
-      // Clean up request
+      // 清理实例
       request = null;
     }
-
+    // 兼容性处理
     if ('onloadend' in request) {
-      // Use onloadend if available
       request.onloadend = onloadend;
     } else {
       // Listen for ready state to emulate onloadend
@@ -1000,7 +1308,7 @@ isXHRAdapterSupported && function xhr(config) {
       request = null;
     };
 
-    // Remove Content-Type if data is undefined
+    // 最后关头再改一下Content-Type（如果data是空的话，没有Content-Type）
     requestData === undefined && requestHeaders.setContentType(null);
 
     // Add headers to the request
@@ -1075,14 +1383,15 @@ function resolveConfig(config) {
   const newConfig = mergeConfig({}, config);
   let {data, withXSRFToken, xsrfHeaderName, xsrfCookieName, headers, auth} = newConfig;
 
-  // 请求头转换为 AxiosHeaders 实例（赋予很多方法）
+  // 1. 请求头转换为 AxiosHeaders 实例（赋予很多方法）
   newConfig.headers = headers = AxiosHeaders.from(headers);
 
+  // 2. 拼接URL
   // buildFullPath将 baseURL 和 url 拼接成完整 URL（例如 baseURL: '/api' + url: 'user' → /api/user）
   // 将参数序列化并附加到 URL（如 { id: 1 } → ?id=1），依赖 paramsSerializer 处理复杂参数
   newConfig.url = buildURL(buildFullPath(newConfig.baseURL, newConfig.url, newConfig.allowAbsoluteUrls), config.params, config.paramsSerializer);
 
-  // HTTP基本认证处理
+  // 3. 【】设置HTTP基本认证处理
   // encodeURIComponent + unescape：确保密码中的特殊字符（如 @）正确编码
   // btoa：将 username:password 转为 Base64 字符串。
   if (auth) {
@@ -1093,26 +1402,28 @@ function resolveConfig(config) {
 
   let contentType;
 
+  // 4. 请求头中跨端的Content-Type设置（这里仅仅防止app端设置不了！）
+  // 进到这里，data是合规的类型（在dispatchRequest这个链条的中间那边处理好了）
   if (utils.isFormData(data)) {
     if (platform.hasStandardBrowserEnv || platform.hasStandardBrowserWebWorkerEnv) {
-      headers.setContentType(undefined); // Let the browser set it
+      // 让浏览器自动设置 Content-Type（含 multipart/form-data 和 boundary）
+      headers.setContentType(undefined);
     } else if ((contentType = headers.getContentType()) !== false) {
+      // 非浏览器环境（如 React Native）手动修复 Content-Type
       const [type, ...tokens] = contentType ? contentType.split(';').map(token => token.trim()).filter(Boolean) : [];
       headers.setContentType([type || 'multipart/form-data', ...tokens].join('; '));
     }
   }
 
-  // Add xsrf header
-  // This is only done if running in a standard browser environment.
-  // Specifically not if we're in a web worker, or react-native.
-
+  // 5. 【】添加 XSRF 防御头（如 X-XSRF-TOKEN）
   if (platform.hasStandardBrowserEnv) {
+    // 浏览器环境下需要 XSRF 头（支持函数配置）
     withXSRFToken && utils.isFunction(withXSRFToken) && (withXSRFToken = withXSRFToken(newConfig));
 
+    // 同源策略：默认对同源请求自动添加 XSRF 头（isURLSameOrigin 检测）。
     if (withXSRFToken || (withXSRFToken !== false && isURLSameOrigin(newConfig.url))) {
-      // Add xsrf header
+      // 从 xsrfCookieName 指定的 Cookie 中读取令牌，写入 xsrfHeaderName 指定的请求头。
       const xsrfValue = xsrfHeaderName && xsrfCookieName && cookies.read(xsrfCookieName);
-
       if (xsrfValue) {
         headers.set(xsrfHeaderName, xsrfValue);
       }
@@ -1125,11 +1436,133 @@ function resolveConfig(config) {
 
 
 
+function buildFullPath(baseURL, requestedURL, allowAbsoluteUrls) {
+  // 第二个参数是外部传递进来的url字符串
+  // 在练习中，为'http://123.207.32.32:8000/home/multidata'
+
+  // 如果是相对的，要合并为绝对的
+  let isRelativeUrl = !isAbsoluteURL(requestedURL);
+  if (baseURL && isRelativeUrl || allowAbsoluteUrls == false) {
+    return combineURLs(baseURL, requestedURL);
+  }
+  return requestedURL;
+}
+
+// 看看有无 http://, https://, ftp://
+// 或者以 // 开头的 URL，如 //example.com
+function isAbsoluteURL(url) {
+  return /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url);
+}
+
+
+function combineURLs(baseURL, relativeURL) {
+  return relativeURL
+    ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+    : baseURL;
+}
+
+
+
+function buildURL(url, params, options) {
+  // 入参：
+  // url是绝对的url
+  // params是参数（config.params）
+  // options是config.paramsSerializer
+
+  if (!params) {
+    return url;
+  }
+  
+  // 统一化格式
+  const _encode = options && options.encode || encode;
+  if (utils.isFunction(options)) {
+    options = {
+      serialize: options
+    };
+  }
+  const serializeFn = options && options.serialize;
+
+  let serializedParams;
+
+  // 如果传递了options（就是serializeFn），并且他是一个函数
+  // 执行她，这个函数是对params字符串进行修改的
+  if (serializeFn) {
+    serializedParams = serializeFn(params, options);
+  } else {
+    // 不然规范params的格式
+    serializedParams = utils.isURLSearchParams(params) ?
+      params.toString() :
+      new AxiosURLSearchParams(params, options).toString(_encode);
+  }
+
+  // 给路由加上参数部分
+  if (serializedParams) {
+    const hashmarkIndex = url.indexOf("#");
+    if (hashmarkIndex !== -1) {
+      url = url.slice(0, hashmarkIndex);
+    }
+    url += (url.indexOf('?') === -1 ? '?' : '&') + serializedParams;
+  }
+
+  return url;
+}
+
+
+
+const hasBrowserEnv = typeof window !== 'undefined' && typeof document !== 'undefined';
+const _navigator = typeof navigator === 'object' && navigator || undefined;
+
+// 首先判断window是否存在
+// 然后判断navigator是否不存在，如果不存在就不用看['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0
+// 如果navigator存在，继续看是否是'ReactNative', 'NativeScript', 'NS'
+// 如果navigator存在，且不是三者中的一个，就直接返回true
+const hasStandardBrowserEnv = hasBrowserEnv &&
+  (!_navigator || ['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0);
+
+
+
+
+
+
+const origin = hasBrowserEnv && window.location.href || 'http://localhost';
+
+var isURLSameOrigin = ((origin, isMSIE) => (url) => {
+  // origin是 new URL(window)，当前页面的 URL
+  // isMSIE是 当前是否是 MSIE（Internet Explorer）浏览器
+
+  // url是外部传入的url，第二个参数是当前页面的根 URL
+  // 如果 url 是一个相对路径，它会被解析为相对于 platform.origin 的完整 URL。
+  // 如果 url 已经是一个完整的 URL，则 url 不会发生变化。
+  url = new URL(url, platform.origin);
+
+  // 比较协议、主机和端口
+  // 比较两个 URL 的协议部分（例如 http: 或 https:）
+  // 比较两个 URL 的主机名（包括域名和端口，如果有的话）
+  // IE浏览器的端口号比较（ IE 在某些情况下不会包括端口号）
+  return (
+    origin.protocol === url.protocol &&
+    origin.host === url.host &&
+    (isMSIE || origin.port === url.port)
+  );
+})(
+  new URL(platform.origin),
+  platform.navigator && /(msie|trident)/i.test(platform.navigator.userAgent)
+)
+
+
+
+
+
+
 
 
 
 
 // REVIEW - 【备份】下面为Axios大类的原始函数！
+
+
+
+
 
 
 class Axios {
