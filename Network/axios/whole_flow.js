@@ -537,8 +537,8 @@ validator.assertOptions = function (options, schema, allowUnknown) {
     throw new AxiosError('options must be an object', AxiosError.ERR_BAD_OPTION_VALUE);
   }
 
-  // 下面相当于从一个地方拿出一个配置项（boolean形式，以此说明这个配置项是否需要！）
-  // 从另外一个地方拿出一个函数，然后结合两者执行
+  // 下面相当于从一个地方（config.transitional）拿出一个配置项（boolean形式，以此说明这个配置项是否需要！）
+  // 从另外一个地方(validators.transitional)拿出一个函数，然后结合两者执行
   // 倒序遍历
   const keys = Object.keys(options);
   let i = keys.length;
@@ -549,7 +549,7 @@ validator.assertOptions = function (options, schema, allowUnknown) {
     if (validator) {
       // 函数存在的话，拿到对应的boolean值
       const value = options[opt];
-      // 然后执行validator函数（就是validators.transitional的返回值），入参是boolean值和属性名字
+      // 然后执行validator函数（就是validators.transitional的返回值），前两个入参是boolean值和属性名字
       const result = value === undefined || validator(value, opt, options);
       // 拿到结果，不是true就抛出错误
       if (result !== true) {
@@ -572,8 +572,6 @@ validators.spelling = function spelling(correctSpelling) {
     return true;
   }
 };
-
-
 
 
 
@@ -664,18 +662,26 @@ function throwIfCancellationRequested(config) {
 
 function transformData(fns, response) {
   // 入参：
-  // fns就是config.transformRequest数组
+  // fns就是config.transformRequest数组或者是config.transformResponse
+  // response是只有在收到数据之后调用本方法的时候才会传入这个第二参数，response长这样
+    // config = {transitional: {…}, adapter: Array(3), transformRequest: Array(1), transformResponse: Array(1), timeout: 0, …}
+    // data = '{"data":{"banner":{"context":{"currentTime":1538014774},"isEnd":true,"list":[{"acm":"3.mce.2_10_1jhwa.43542.0.ccy5br4OlfK0Q.pos_0-m_454801-sd_119","height":390,"height923":390}],"nextPage":1}},"returnCode":"SUCCESS","success":true}\n'
+    // headers = content-length: 4605 content-type: application/json
+    // request = XMLHttpRequest {onreadystatechange: null, readyState: 4, timeout: 0, withCredentials: false, upload: XMLHttpRequestUpload, …}
+    // status = 200
+    // statusText = 'OK'
 
   // this指的是axios实例
   const config = this || defaults;
-  // 配置大对象config
+  // 请求时执行这个函数是没有response的，取的是配置大对象config（请求头和data都从配置里面拿出来）
+  // 响应之后这个context取得是response数据（请求头和data都从返回的数据里面拿出来）
   const context = response || config;
   // 请求头实例
   const headers = AxiosHeaders.from(context.headers);
   let data = context.data;
 
-  // 开始遍历config.transformRequest数组，执行函数，转换对象为JSON
-  // 这个config.transformRequest数组在defaults里面的transformRequest
+  // 开始遍历config.transformRequest/Response数组，执行函数，转换对象为JSON 或者 转换JSON为对象
+  // 这个config.transformRequest/Response数组存在下面的defaults对象里面
   utils.forEach(fns, function transform(fn) {
     data = fn.call(config, data, headers.normalize(), response ? response.status : undefined);
   });
@@ -686,6 +692,16 @@ function transformData(fns, response) {
 }
 
 const defaults = {
+
+  // 这里的transitional就是默认值，就是下面这个
+  // {
+  //   clarifyTimeoutError: false
+  //   forcedJSONParsing: true
+  //   silentJSONParsing: true
+  // }
+  transitional: transitionalDefaults,
+
+  // 请求
   transformRequest: [function transformRequest(data, headers) {
     // 入参：
     // data就是config里面的data属性
@@ -716,8 +732,6 @@ const defaults = {
     ) {
       return data;
     }
-
-    // 
     if (utils.isArrayBufferView(data)) {
       return data.buffer;
     }
@@ -751,6 +765,38 @@ const defaults = {
       return stringifySafely(data);
     }
 
+    return data;
+  }],
+
+  // 响应
+  transformResponse: [function transformResponse(data) {
+    // 这里的this指向的是本defauls
+
+    // 这个data就是从网络那边拿过来的JSON化的数据，看一下本defaults是不是要求forcedJSONParsing
+    const transitional = this.transitional || defaults.transitional;
+    const forcedJSONParsing = transitional && transitional.forcedJSONParsing;
+    // 看本defauls对象的responseType属性是否要求为json
+    const JSONRequested = this.responseType === 'json';
+
+    if (utils.isResponse(data) || utils.isReadableStream(data)) {
+      return data;
+    }
+    // 如果data是一个JSON，就开始解析为对象，然后直接返回
+    if (data && utils.isString(data) && ((forcedJSONParsing && !this.responseType) || JSONRequested)) {
+      const silentJSONParsing = transitional && transitional.silentJSONParsing;
+      const strictJSONParsing = !silentJSONParsing && JSONRequested;
+      try {
+        return JSON.parse(data);
+      } catch (e) {
+        if (strictJSONParsing) {
+          if (e.name === 'SyntaxError') {
+            throw AxiosError.from(e, AxiosError.ERR_BAD_RESPONSE, this, null, this.response);
+          }
+          throw e;
+        }
+      }
+    }
+    // 解析完之后的数据直接返回
     return data;
   }],
 }
@@ -944,13 +990,18 @@ class AxiosHeaders {
     return this.constructor.concat(this, ...targets);
   }
 
+  // 在xhr的promise同步函数里面对请求头进行设置时，用到了下面的方法
+  // requestHeaders.toJSON()目的是把那些值为undefined的属性去掉
   toJSON(asStrings) {
     const obj = Object.create(null);
 
     utils.forEach(this, (value, header) => {
-      value != null && value !== false && (obj[header] = asStrings && utils.isArray(value) ? value.join(', ') : value);
+      // 只有当value不为 null/undefined，且不等于 false才保存值到obj里面
+      // asStrings && utils.isArray(value) 两个条件都满足的时候，转成逗号分隔字符串
+      value != null && value !== false && (obj[header] = (asStrings && utils.isArray(value)) ? value.join(', ') : value);
     });
 
+    // 返回新的对象
     return obj;
   }
 
@@ -1183,7 +1234,7 @@ isXHRAdapterSupported && function xhr(config) {
     // 初始化promise对象，同步执行这个里面的函数
     // 这里的入参config就是处理好的大总配置对象
 
-    // 1. 做一些鉴权、XSRF、设置跨端请求头等事情
+    // 1. 做一些鉴权、XSRF（同源才要设置）、设置跨端（非浏览器环境）请求头等事情
     // （重新复制（新内存）一个config对象出来）
     const _config = resolveConfig(config);
     let requestData = _config.data;
@@ -1195,7 +1246,14 @@ isXHRAdapterSupported && function xhr(config) {
     let uploadThrottled, downloadThrottled;
     let flushUpload, flushDownload;
 
-    // 2. 定义清理函数 done
+    // 2. 创建xhr实例，并初始化请求，给到 方法 和 url 
+    let request = new XMLHttpRequest();
+    request.open(_config.method.toUpperCase(), _config.url, true);
+    request.timeout = _config.timeout;
+
+    // 3. 响应处理逻辑（事先定义好）
+    // 1）处理【完成】之后的逻辑
+    // 定义清理函数 done
     function done() {
       // 清空上传进度事件和下载进度事件
       flushUpload && flushUpload();
@@ -1206,14 +1264,7 @@ isXHRAdapterSupported && function xhr(config) {
       // 移除事件监听
       _config.signal && _config.signal.removeEventListener('abort', onCanceled);
     }
-
-    // 3. 创建xhr实例，并初始化请求，给到 方法 和 url 
-    let request = new XMLHttpRequest();
-    request.open(_config.method.toUpperCase(), _config.url, true);
-    request.timeout = _config.timeout;
-
-    // 4. 响应处理逻辑
-    // 1）处理完成事件
+    // 完成之后处理的主函数
     function onloadend() {
       if (!request) {
         return;
@@ -1234,7 +1285,7 @@ isXHRAdapterSupported && function xhr(config) {
         request
       };
 
-      // 根据状态码决定 resolve/reject
+      // 根据状态码决定 resolve/reject，传递数据（第三个参数）给下一层，并执行清理函数
       settle(function _resolve(value) {
         resolve(value);
         done();
@@ -1246,52 +1297,40 @@ isXHRAdapterSupported && function xhr(config) {
       // 清理实例
       request = null;
     }
-    // 兼容性处理
+    // 把完成事件的主函数挂到request上面！
     if ('onloadend' in request) {
+      // 标准浏览器使用 onloadend
       request.onloadend = onloadend;
     } else {
-      // Listen for ready state to emulate onloadend
+      // 不然的话，旧浏览器通过 readyState === 4 判断请求完成
       request.onreadystatechange = function handleLoad() {
         if (!request || request.readyState !== 4) {
           return;
         }
-
-        // The request errored out and we didn't get a response, this will be
-        // handled by onerror instead
-        // With one exception: request that using file: protocol, most browsers
-        // will return status as 0 even though it's a successful request
         if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
           return;
         }
-        // readystate handler is calling before onerror or ontimeout handlers,
-        // so we should call onloadend on the next 'tick'
         setTimeout(onloadend);
       };
     }
 
-    // Handle browser request cancellation (as opposed to a manual cancellation)
+    // 2）处理【请求取消】的情况
     request.onabort = function handleAbort() {
       if (!request) {
         return;
       }
-
+      // 直接对这个promise reject一个错误
       reject(new AxiosError('Request aborted', AxiosError.ECONNABORTED, config, request));
-
-      // Clean up request
       request = null;
     };
 
-    // Handle low level network errors
+    // 3）处理【网络错误】的情况
     request.onerror = function handleError() {
-      // Real errors are hidden from us by the browser
-      // onerror should only fire if it's a network error
       reject(new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request));
-
-      // Clean up request
       request = null;
     };
 
-    // Handle timeout
+    // 4）处理【超时】的情况
     request.ontimeout = function handleTimeout() {
       let timeoutErrorMessage = _config.timeout ? 'timeout of ' + _config.timeout + 'ms exceeded' : 'timeout exceeded';
       const transitional = _config.transitional || transitionalDefaults;
@@ -1304,48 +1343,43 @@ isXHRAdapterSupported && function xhr(config) {
         config,
         request));
 
-      // Clean up request
       request = null;
     };
 
-    // 最后关头再改一下Content-Type（如果data是空的话，没有Content-Type）
+    // 4. 最后关头再改一下请求头
+    // 1）Content-Type（如果data是空的话，没有Content-Type）
     requestData === undefined && requestHeaders.setContentType(null);
-
-    // Add headers to the request
+    // 2）筛选掉那些值为无效的属性，重新设置请求头
     if ('setRequestHeader' in request) {
       utils.forEach(requestHeaders.toJSON(), function setRequestHeader(val, key) {
         request.setRequestHeader(key, val);
       });
     }
-
-    // Add withCredentials to request if needed
+    // 3）跨域凭据（非同源）
     if (!utils.isUndefined(_config.withCredentials)) {
       request.withCredentials = !!_config.withCredentials;
     }
-
-    // Add responseType to request if needed
+    // 4）设置传递过程中的数据类型！
     if (responseType && responseType !== 'json') {
       request.responseType = _config.responseType;
     }
 
-    // Handle progress if needed
+    // 5. 进度事件处理（是什么？？？）
+    // 1）下载进度
     if (onDownloadProgress) {
       ([downloadThrottled, flushDownload] = progressEventReducer(onDownloadProgress, true));
       request.addEventListener('progress', downloadThrottled);
     }
-
-    // Not all browsers support upload events
+    // 上传进度（仅支持有 upload 属性的环境）
     if (onUploadProgress && request.upload) {
       ([uploadThrottled, flushUpload] = progressEventReducer(onUploadProgress));
-
       request.upload.addEventListener('progress', uploadThrottled);
-
       request.upload.addEventListener('loadend', flushUpload);
     }
 
+    // 3. 【补充！】响应处理逻辑（事先定义好）
+    // 5）处理【取消请求】的情况
     if (_config.cancelToken || _config.signal) {
-      // Handle cancellation
-      // eslint-disable-next-line func-names
       onCanceled = cancel => {
         if (!request) {
           return;
@@ -1354,22 +1388,21 @@ isXHRAdapterSupported && function xhr(config) {
         request.abort();
         request = null;
       };
-
       _config.cancelToken && _config.cancelToken.subscribe(onCanceled);
       if (_config.signal) {
         _config.signal.aborted ? onCanceled() : _config.signal.addEventListener('abort', onCanceled);
       }
     }
 
+    // 6. 协议检查
     const protocol = parseProtocol(_config.url);
-
     if (protocol && platform.protocols.indexOf(protocol) === -1) {
       reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
       return;
     }
 
-
-    // Send the request
+    // 最后终于发送请求了！！！
+    // 用这个配置好的实例，发送大配置里面的data数据
     request.send(requestData || null);
   });
 }
@@ -1552,7 +1585,10 @@ var isURLSameOrigin = ((origin, isMSIE) => (url) => {
 
 
 
-
+function parseProtocol(url) {
+  const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url);
+  return match && match[1] || '';
+}
 
 
 

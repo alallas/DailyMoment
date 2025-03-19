@@ -36,7 +36,7 @@ var $Promise = function Promise(resolver) {
   if (!IS_SPEC_FUNCTION(resolver))
     throw MakeTypeError('resolver_not_a_function', [resolver]);
 
-  // 给属性私有化？？
+  // 给属性私有化？？（相当于去到PromiseSet）
   var promise = PromiseInit(this);
 
   // 初始时执行resolver入参函数
