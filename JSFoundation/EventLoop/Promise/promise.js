@@ -3,11 +3,10 @@ function addToTaskQueue(task) {
 }
 
 class MyPromise {
-  constructor(fn) {
+  constructor() {
     this.promiseResult = null
     this.promiseState = 'pending'
     this.alreadyResolved = false
-    fn(this.)
   }
 
 

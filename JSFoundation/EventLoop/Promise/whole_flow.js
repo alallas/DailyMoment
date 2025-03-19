@@ -242,7 +242,7 @@ function PromiseDeferred() {
 // 也就是说一开始所有的promise的内部队列都有值了，只是最后一个promise队列没有值
 
 // 相当于：
-// 第一个promise实例的处理是：手动创建实例——>执行then放入实例队列（多个then）——>第一实例队列添加到微任务（state变为1）——>后续执行
+// 第一个promise实例的处理是：手动创建实例——>执行then放入实例队列（多个then）——>第一实例队列添加到微任务（state变为1）——>后续执行——>
 // 第二个promise实例的处理是：（自动在前面then处创建实例）——>第二实例队列添加到微任务（state变为1）——>后续执行
 
 
@@ -299,7 +299,7 @@ function PromiseEnqueue(value, tasks, status) {
 
   // C_$EnqueueMicrotask说明下面是被setTimeOut包裹的！
   C_$EnqueueMicrotask(function() {
-    // 针对一个小组合即（【外部then传入的resolve的函数】和【三件套对象】）进行处理
+    // 针对一个小组合即（【外部then传入的resolve的函数】和【then生成的三件套对象】）进行处理
     for (var i = 0; i < tasks.length; i += 2) {
       PromiseHandle(value, tasks[i], tasks[i + 1])
     }
@@ -313,7 +313,7 @@ function PromiseHandle(value, handler, deferred) {
   // 入参：
   // value是实例的promiseValue属性
   // handler是【外部then传入的resolve/reject的函数】
-  // deferred是【三件套对象】
+  // deferred是【then生成的三件套对象】
   try {
 
     // 执行外部传入的函数，给到实例的promiseValue属性作为参数
@@ -327,12 +327,12 @@ function PromiseHandle(value, handler, deferred) {
       throw MakeTypeError('promise_cyclic', [result]);
 
     else if (IsPromise(result))
-      // 如果还是一个promise，就执行【下一个实例的三件套】里面存着的resolve函数
+      // 如果还是一个promise，就执行【then生成的三件套】里面存着的resolve函数
       // 也就是function(x) { PromiseResolve(promise, x) }，这个里面的x就是result结果，然后继续去chain那边
       C_$_CallFunction(result, deferred.resolve, deferred.reject, PromiseChain);
 
       else
-      // 不是的话直接执行【下一个实例的三件套】里面存着的resolve函数
+      // 不是的话直接执行【then生成的三件套】里面存着的resolve函数
       // 也就是function(x) { PromiseResolve(promise, x) }，这个里面的x就是result
       deferred.resolve(result);
 
@@ -351,24 +351,45 @@ function PromiseHandle(value, handler, deferred) {
 
 
 // 这个就是Promise.resolve()函数
+// 生成一个新的promise，然后立刻resolve入参值
+// 把这个值存到promise对象里面，然后把空队列放入微任务
 function PromiseCast(x) {
   return IsPromise(x) ? x : new this(function(resolve) { resolve(x) });
 }
 
 
+
+// 这个就是Promise.all()函数
 function PromiseAll(values) {
+  // 创建一个新的promise组合对象
   var deferred = C_$_CallFunction(this, PromiseDeferred);
+
   var resolutions = [];
+
+  // 参数检验
   if (!C_$_IsArray(values)) {
     deferred.reject(MakeTypeError('invalid_argument'));
     return deferred.promise;
   }
+
+  // 遍历数组
   try {
     var count = values.length;
     if (count === 0) {
+      // 只有一个元素，直接resolve（把这个值存到promise对象里面，然后把这个promise实例存的 then里面的函数 放入微任务）
       deferred.resolve(resolutions);
     } else {
       for (var i = 0; i < values.length; ++i) {
+        // 多个元素就先分别执行Promise.resolve()函数，创造一个个新的promise，然后立刻resolve每个元素值（把这个值存到promise对象里面，然后把空队列放入微任务）
+        // 然后执行then函数，（这个时候的promise的状态是1，直接把这个函数和下一个promise对象放入微任务）
+
+        // 注意，这里的自执行函数是在保存i的唯一值，then方法执行，在赋予形参的过程中，先执行这个自我执行函数，然后拿到返回的函数，然后放入微任务
+        // 【然后外部函数把外部then里面的函数放入顶层promise实例中】
+
+        // 执行微任务，保存结果，当count遇到0，就直接resolve，也就是把结果数组存到外面这个大promise实例中，然后把顶层promise实例then函数放入微任务
+        // 也就是所有函数的结果都保存起来，然后给到顶层的promise输出（与race的不同之处）
+        
+        // 每个子then的第二个参数都是在顶层的promise上面执行reject，也就是只要有一个有误，整个就reject
         this.resolve(values[i]).then(
           (function() {
             var i_captured = i;
@@ -388,15 +409,24 @@ function PromiseAll(values) {
 }
 
 
+
+
+
+
 // 这个就是Promise.race()函数
 function PromiseOne(values) {
+  // 创建一个新的promise组合对象
   var deferred = C_$_CallFunction(this, PromiseDeferred);
+  // 参数检验
   if (!C_$_IsArray(values)) {
     deferred.reject(MakeTypeError('invalid_argument'));
     return deferred.promise;
   }
+
   try {
     for (var i = 0; i < values.length; ++i) {
+      // 前面省略，执行微任务的时候，任意子 Promise 成功，保存结果到顶层promise处，然后把顶层promise的then函数加入微任务
+      // 相当于只要有一个promise成功或失败了，就直接去告诉顶层了，执行顶层的then函数了（异步）
       this.resolve(values[i]).then(
         function(x) { deferred.resolve(x) },
         function(r) { deferred.reject(r) }
