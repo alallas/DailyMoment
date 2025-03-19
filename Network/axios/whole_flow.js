@@ -799,6 +799,12 @@ const defaults = {
     // 解析完之后的数据直接返回
     return data;
   }],
+
+  // 后面在settle函数里面检测响应状态是否正常会用到
+  validateStatus: function validateStatus(status) {
+    return status >= 200 && status < 300;
+  },
+
 }
 
 
@@ -846,7 +852,8 @@ class AxiosHeaders {
 
     } else if(utils.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
       // 如果是字符串，且不是全空格，且不是一个有效的，批量执行
-      // 传入的是解析过的header
+      // 比如'content-length: 4605\r\ncontent-type: application/json'，这种一般是拿到响应之后的响应头字符串
+      // 给setHeaders传入的是解析过的header
       setHeaders(parseHeaders(header), valueOrRewrite);
 
     } else if (utils.isHeaders(header)) {
@@ -1086,7 +1093,7 @@ function formatHeader(header) {
 }
 
 
-// 不允许的字符：空格和 !
+// 不允许的字符有 空格 和 ! 
 const isValidHeaderName = (str) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
 
 
@@ -1269,11 +1276,12 @@ isXHRAdapterSupported && function xhr(config) {
       if (!request) {
         return;
       }
-      // 获取响应头
+      // 用request.getAllResponseHeaders()原生方法拿到响应头
+      // 处理响应头（创建一个axios的响应头实例，然后把字符串的响应头变为一个对象）
       const responseHeaders = AxiosHeaders.from(
         'getAllResponseHeaders' in request && request.getAllResponseHeaders()
       );
-      // 获取响应数据，构造对象
+      // 拿到响应数据，构造对象（注意，里面存的data还是一个json格式的数据）
       const responseData = !responseType || responseType === 'text' || responseType === 'json' ?
         request.responseText : request.response;
       const response = {
@@ -1549,11 +1557,7 @@ const _navigator = typeof navigator === 'object' && navigator || undefined;
 // 然后判断navigator是否不存在，如果不存在就不用看['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0
 // 如果navigator存在，继续看是否是'ReactNative', 'NativeScript', 'NS'
 // 如果navigator存在，且不是三者中的一个，就直接返回true
-const hasStandardBrowserEnv = hasBrowserEnv &&
-  (!_navigator || ['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0);
-
-
-
+const hasStandardBrowserEnv = hasBrowserEnv && (!_navigator || ['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0);
 
 
 
@@ -1584,11 +1588,43 @@ var isURLSameOrigin = ((origin, isMSIE) => (url) => {
 
 
 
-
 function parseProtocol(url) {
   const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url);
   return match && match[1] || '';
 }
+
+
+
+function settle(resolve, reject, response) {
+  // response是下面这个数据（responseData是JSON格式的数据）
+  // const response = {
+  //   data: responseData,
+  //   status: request.status,
+  //   statusText: request.statusText,
+  //   headers: responseHeaders,
+  //   config,
+  //   request
+  // };
+
+  // 拿出原始配置的一个检验状态的函数
+  const validateStatus = response.config.validateStatus;
+
+  // 如果状态okk的话就可以resolve这个promise对象了（没有状态或没有检测函数也直接resolve）
+  if (!response.status || !validateStatus || validateStatus(response.status)) {
+    resolve(response);
+  } else {
+    reject(new AxiosError(
+      'Request failed with status code ' + response.status,
+      [AxiosError.ERR_BAD_REQUEST, AxiosError.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
+      response.config,
+      response.request,
+      response
+    ));
+  }
+}
+
+
+
 
 
 

@@ -22,13 +22,15 @@ var promiseValue = GLOBAL_PRIVATE("Promise#value");
 var promiseOnResolve = GLOBAL_PRIVATE("Promise#onResolve");
 var promiseOnReject = GLOBAL_PRIVATE("Promise#onReject");
 var promiseRaw = GLOBAL_PRIVATE("Promise#raw");
-var promiseDebug = GLOBAL_PRIVATE("Promise#debug");
 var lastMicrotaskId = 0;
 
 
 
-// 出口的Promise大类
+// REVIEW - 外部手动初始化第一个promise实例
 
+
+
+// 一、Promise大类（对外出口的）
 var $Promise = function Promise(resolver) {
   // 错误检测
   if (resolver === promiseRaw) return;
@@ -40,15 +42,14 @@ var $Promise = function Promise(resolver) {
   var promise = PromiseInit(this);
 
   // 初始时执行resolver入参函数
-  // 对外提供的参数是两个函数resolve和reject函数，
-  // 前者执行就是PromiseResolve(promise, x)执行，后者执行就是PromiseReject(promise, r)执行
+  // 对外提供的参数是两个函数resolve和reject函数，前者执行就是PromiseResolve(promise, x)执行，后者执行就是PromiseReject(promise, r)执行
+  // 然后在执行这个resolver入参函数的时候执行一些需要等待的东西，并自己定义好什么时候算等待完毕，这个时候就手动写上resolve函数！
+  // 完了之后同步代码部分继续执行返回的promise的then方法
   try {
-    C_$DebugPushPromise(promise);
     resolver(function(x) { PromiseResolve(promise, x) }, function(r) { PromiseReject(promise, r) });
   } catch (e) {
     PromiseReject(promise, e);
   } finally {
-    C_$DebugPopPromise();
   }
 }
 
@@ -58,84 +59,199 @@ function PromiseSet(promise, status, value, onResolve, onReject) {
   SET_PRIVATE(promise, promiseValue, value);
   SET_PRIVATE(promise, promiseOnResolve, onResolve);
   SET_PRIVATE(promise, promiseOnReject, onReject);
-  if (DEBUG_IS_ACTIVE) {
-    C_$DebugPromiseEvent({ promise: promise, status: status, value: value });
-  }
   return promise;
 }
 
 
 function PromiseInit(promise) {
-  return PromiseSet(promise, 0, UNDEFINED, new InternalArray, new InternalArray)
+  // 创建空回调队列 onResolve 和 onReject
+  return PromiseSet(promise, 0, undefined, new InternalArray, new InternalArray)
 }
 
 
+
+// REVIEW - then方法
+
+
+
+// 二、then函数-第一辑
+PromiseThen = function PromiseThen(onResolve, onReject) {
+  // 统一入参函数的格式！
+  onResolve = IS_SPEC_FUNCTION(onResolve) ? onResolve : PromiseIdResolveHandler;
+  onReject = IS_SPEC_FUNCTION(onReject) ? onReject : PromiseIdRejectHandler;
+
+  var that = this;
+  var constructor = this.constructor;
+
+  // 下面这个c语言的_CallFunction函数是在一参上下文的情况下执行二参函数
+  // 入参：
+  // 第一参数是 函数执行的上下文（当前在外部new之后产生的实例）
+  // 第二参数是 要调用的函数
+  // 第三参数是 错误回调
+  // 第四参数是 链式类型（如 PromiseChain，标识后续处理逻辑）
+  return C_$_CallFunction(
+    this,
+    function(x) {
+      // x 是前一个 Promise 的解决值（比如这里初始的时候可能传入this的promiseValue属性，为undefined）
+      // 统一传入的参数（即前一个 Promise 的解决值）为promise类的实例
+      // （处理thenable对象，即那些具有then方法但并非标准Promise的对象，使其能够适配到Promise链中）
+      x = PromiseCoerce(constructor, x);
+
+      // 处理存在 Promise 循环引用的问题，也就是某个 Promise 对象试图解析自身（即 Promise A 调用 .then() 并返回自己）
+      // 又或者比如：const p = new Promise(resolve => resolve(p)); // p 的 resolve 返回自身
+
+      // 如果这个x（原本不是一个promise实例）是在PromiseCoerce函数里面新建的（也就是x不等于that）
+      // 则再次判断是否一个promise，是就执行这个实例里面的then函数，否则把这个x直接onResolve出去
+      // 如果这个x就是this（promise实例），就直接抛出错误
+      return x === that
+        ? onReject(MakeTypeError('promise_cyclic', [x]))
+        : IsPromise(x) ? x.then(onResolve, onReject) : onResolve(x);
+    },
+    onReject,
+    // 接下来执行的函数，也是then函数的真正逻辑所在！
+    PromiseChain
+  );
+}
+
+
+
+// 二、then函数-第二辑
+function PromiseChain(onResolve, onReject) {
+  // 统一入参函数
+  onResolve = IS_UNDEFINED(onResolve) ? PromiseIdResolveHandler : onResolve;
+  onReject = IS_UNDEFINED(onReject) ? PromiseIdRejectHandler : onReject;
+
+  // 执行PromiseDeferred拿到三件套对象
+  // {
+  //   promise: promise,
+  //   resolve: function(x) { PromiseResolve(promise, x) },
+  //   reject: function(r) { PromiseReject(promise, r) }
+  // };
+
+  // 每then一下都会生成一个全新的三件套对象（里面的promise是一个新的promise）
+  var deferred = C_$_CallFunction(this.constructor, PromiseDeferred);
+
+  // 拿到promiseStatus的属性
+  switch (GET_PRIVATE(this, promiseStatus)) {
+    case UNDEFINED:
+      throw MakeTypeError('not_a_promise', [this]);
+    // pending状态，存入re和rj函数
+    case 0:
+      GET_PRIVATE(this, promiseOnResolve).push(onResolve, deferred);
+      GET_PRIVATE(this, promiseOnReject).push(onReject, deferred);
+      break;
+    // resolved状态
+    case +1:
+      PromiseEnqueue(GET_PRIVATE(this, promiseValue), [onResolve, deferred], +1);
+      break;
+    // rejected状态
+    case -1:
+      PromiseEnqueue(GET_PRIVATE(this, promiseValue), [onReject, deferred], -1);
+      break;
+  }
+  // 注意then函数返回的是一个新的promise
+  return deferred.promise;
+}
+
+
+
+
 function PromiseDone(promise, status, value, promiseQueue) {
+  // 入参：
+  // value是要获取的目标值，也就是在外部初始化实例过程中执行resolve时传入的值
+  // status是状态，从PromiseResolve过来传入的是1，另一个是-1
+  // promise是当前的实例，也就是外部初始化的时候创建的实例
+  // promiseQueue是相应的promiseResolve/Reject队列
+
   if (GET_PRIVATE(promise, promiseStatus) === 0) {
+    // 如果当前的状态是pending的，允许更新
+    // 1. 放入异步队列里面
     PromiseEnqueue(value, GET_PRIVATE(promise, promiseQueue), status);
+    // 同时设置最新状态和目标值到本实例中
     PromiseSet(promise, status, value);
   }
 }
 
 
+// 把所有的传入对象都统一为promise类的实例
+// 处理thenable对象，即那些具有then方法但并非标准Promise的对象，使其能够适配到Promise链中
 function PromiseCoerce(constructor, x) {
+  // 这个x应该就是外面new Promise生成的组件实例
+  // 如果发现x不是一个promise实例的话，要让他成为一个promise实例
   if (!IsPromise(x) && IS_SPEC_OBJECT(x)) {
+    // 1. 尝试拿到then方法
     var then;
     try {
       then = x.then;
     } catch(r) {
       return C_$_CallFunction(constructor, r, PromiseRejected);
     }
+
     if (IS_SPEC_FUNCTION(then)) {
+      // 2. 能够找到则执行PromiseDeferred函数，返回三件套对象
+      // （此时这个C_$_CallFunction函数执行时的上下文是当前的实例的constructor对象）
       var deferred = C_$_CallFunction(constructor, PromiseDeferred);
+      // 然后执行resolve和reject函数？？？
       try {
         C_$_CallFunction(x, deferred.resolve, deferred.reject, then);
       } catch(r) {
         deferred.reject(r);
       }
+      // 返回这个promise对象
       return deferred.promise;
     }
   }
+  // 如果是一个实例直接返回他
   return x;
 }
 
 
 function PromiseHandle(value, handler, deferred) {
+  // 入参：
+  // value是实例的promiseValue属性
+  // handler是【外部then传入的resolve/reject的函数】
+  // deferred是【三件套对象】
   try {
-    C_$DebugPushPromise(deferred.promise);
+
+    // 执行外部传入的函数，给到实例的promiseValue属性作为参数
     var result = handler(value);
+
+    // 得到结果，判断这个结果是否还是一个同样的promise对象，
+    // 也就是在then的入参函数里面写返回他前面的那个promise实例
     if (result === deferred.promise)
       throw MakeTypeError('promise_cyclic', [result]);
+
     else if (IsPromise(result))
+      // 如果还是一个promise，就首先执行当前的三件套里面存着的resolve函数
+      // 也就是function(x) { PromiseResolve(promise, x) }，这个里面的x就是result结果，然后继续去chain那边
       C_$_CallFunction(result, deferred.resolve, deferred.reject, PromiseChain);
-    else
+
+      else
+      // 不是的话直接执行当前的三件套里面存着的resolve函数
       deferred.resolve(result);
+
   } catch (exception) {
     try { deferred.reject(exception); } catch (e) { }
   } finally {
-    C_$DebugPopPromise();
   }
 }
 
 
 function PromiseEnqueue(value, tasks, status) {
-  var id, name, instrumenting = DEBUG_IS_ACTIVE;
+  // 入参：
+  // value是实例的promiseValue属性
+  // tasks是任务队列
+    // 从chain过来的是[外部then传入的resolve的函数，三件套对象]
+    // 从done过来的是promiseOnResolve/Reject队列！
+  // status是pending还是resolved还是rejected
+
+  // C_$EnqueueMicrotask说明下面是被setTimeOut包裹的！
   C_$EnqueueMicrotask(function() {
-    if (instrumenting) {
-      C_$DebugAsyncTaskEvent({ type: "willHandle", id: id, name: name });
-    }
+    // 针对一个小组合即（【外部then传入的resolve的函数】和【三件套对象】）进行处理
     for (var i = 0; i < tasks.length; i += 2) {
       PromiseHandle(value, tasks[i], tasks[i + 1])
     }
-    if (instrumenting) {
-      C_$DebugAsyncTaskEvent({ type: "didHandle", id: id, name: name });
-    }
   });
-  if (instrumenting) {
-    id = ++lastMicrotaskId;
-    name = status > 0 ? "Promise.resolve" : "Promise.reject";
-    C_$DebugAsyncTaskEvent({ type: "enqueue", id: id, name: name });
-  }
 }
 
 
@@ -143,30 +259,29 @@ function PromiseIdResolveHandler(x) { return x }
 function PromiseIdRejectHandler(r) { throw r }
 function PromiseNopResolver() {}
 
+
 IsPromise = function IsPromise(x) {
   return IS_SPEC_OBJECT(x) && HAS_DEFINED_PRIVATE(x, promiseStatus);
 }
+
+
 PromiseCreate = function PromiseCreate() {
   return new $Promise(PromiseNopResolver)
 }
-PromiseResolve = function PromiseResolve(promise, x) {
+
+function PromiseResolve(promise, x) {
   PromiseDone(promise, +1, x, promiseOnResolve)
 }
-PromiseReject = function PromiseReject(promise, r) {
-  // Check promise status to confirm that this reject has an effect.
-  // Check promiseDebug property to avoid duplicate event.
-  if (DEBUG_IS_ACTIVE &&
-      GET_PRIVATE(promise, promiseStatus) == 0 &&
-      !HAS_DEFINED_PRIVATE(promise, promiseDebug)) {
-    C_$DebugPromiseRejectEvent(promise, r);
-  }
+
+function PromiseReject(promise, r) {
   PromiseDone(promise, -1, r, promiseOnReject)
 }
 
 
 function PromiseDeferred() {
+  // 一般只有在执行then函数的时候才会重新创造一个promise实例
   if (this === $Promise) {
-    // Optimized case, avoid extra closure.
+    // 新建一个实例，返回一个三件套对象
     var promise = PromiseInit(new $Promise(promiseRaw));
     return {
       promise: promise,
@@ -174,6 +289,8 @@ function PromiseDeferred() {
       reject: function(r) { PromiseReject(promise, r) }
     };
   } else {
+    // 不然的话返回一个自定义的三件套对象
+    // 这种情况很少吧！！（thenable对象？？）
     var result = {};
     result.promise = new this(function(resolve, reject) {
       result.resolve = resolve;
@@ -202,61 +319,21 @@ function PromiseRejected(r) {
 }
 
 
-PromiseChain = function PromiseChain(onResolve, onReject) {  // a.k.a.
-                                                              // flatMap
-  onResolve = IS_UNDEFINED(onResolve) ? PromiseIdResolveHandler : onResolve;
-  onReject = IS_UNDEFINED(onReject) ? PromiseIdRejectHandler : onReject;
-  var deferred = C_$_CallFunction(this.constructor, PromiseDeferred);
-  switch (GET_PRIVATE(this, promiseStatus)) {
-    case UNDEFINED:
-      throw MakeTypeError('not_a_promise', [this]);
-    case 0:  // Pending
-      GET_PRIVATE(this, promiseOnResolve).push(onResolve, deferred);
-      GET_PRIVATE(this, promiseOnReject).push(onReject, deferred);
-      break;
-    case +1:  // Resolved
-      PromiseEnqueue(GET_PRIVATE(this, promiseValue),
-                      [onResolve, deferred],
-                      +1);
-      break;
-    case -1:  // Rejected
-      PromiseEnqueue(GET_PRIVATE(this, promiseValue),
-                      [onReject, deferred],
-                      -1);
-      break;
-  }
-  if (DEBUG_IS_ACTIVE) {
-    C_$DebugPromiseEvent({ promise: deferred.promise, parentPromise: this });
-  }
-  return deferred.promise;
-}
+
+
 PromiseCatch = function PromiseCatch(onReject) {
   return this.then(UNDEFINED, onReject);
 }
-PromiseThen = function PromiseThen(onResolve, onReject) {
-  onResolve = IS_SPEC_FUNCTION(onResolve) ? onResolve
-                                          : PromiseIdResolveHandler;
-  onReject = IS_SPEC_FUNCTION(onReject) ? onReject
-                                        : PromiseIdRejectHandler;
-  var that = this;
-  var constructor = this.constructor;
-  return C_$_CallFunction(
-    this,
-    function(x) {
-      x = PromiseCoerce(constructor, x);
-      return x === that ? onReject(MakeTypeError('promise_cyclic', [x])) :
-              IsPromise(x) ? x.then(onResolve, onReject) : onResolve(x);
-    },
-    onReject,
-    PromiseChain
-  );
-}
+
+
+
 
 
 function PromiseCast(x) {
   // TODO(rossberg): cannot do better until we support @@create.
   return IsPromise(x) ? x : new this(function(resolve) { resolve(x) });
 }
+
 function PromiseAll(values) {
   var deferred = C_$_CallFunction(this, PromiseDeferred);
   var resolutions = [];
@@ -289,6 +366,7 @@ function PromiseAll(values) {
   }
   return deferred.promise;
 }
+
 function PromiseOne(values) {
   var deferred = C_$_CallFunction(this, PromiseDeferred);
   if (!C_$_IsArray(values)) {

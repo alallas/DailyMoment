@@ -3,10 +3,11 @@ function addToTaskQueue(task) {
 }
 
 class MyPromise {
-  constructor() {
+  constructor(fn) {
     this.promiseResult = null
     this.promiseState = 'pending'
     this.alreadyResolved = false
+    fn(this.)
   }
 
 
@@ -70,10 +71,8 @@ class MyPromise {
       let fulfilledTask;
       if (typeof onFulfilled === 'function') {
         fulfilledTask = function () {
-  
           // 执行回调函数
           const r = onFulfilled(self.promiseResult);
-  
           // 执行完回调函数之后就使得这个新的promise变成一个状态为fulfilled的promise对象
           resolve(r);
         };
@@ -82,15 +81,12 @@ class MyPromise {
           resolve(self.promiseResult);
         };
       }
-
       let rejectedTask;
       if (typeof onRejected === 'function') {
         rejectedTask = function () {
           const r = onRejected(self.promiseResult);
-  
           // 这里官网写的是resolve，但是我感觉是不是应该写reject(x)
           // https://exploringjs.com/es6/ch_promises.html#sec_demo-promise
-  
           resolve(r);
         };
       } else {
