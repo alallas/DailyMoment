@@ -380,16 +380,17 @@ function PromiseAll(values) {
       deferred.resolve(resolutions);
     } else {
       for (var i = 0; i < values.length; ++i) {
-        // 多个元素就先分别执行Promise.resolve()函数，创造一个个新的promise，然后立刻resolve每个元素值（把这个值存到promise对象里面，然后把空队列放入微任务）
-        // 然后执行then函数，（这个时候的promise的状态是1，直接把这个函数和下一个promise对象放入微任务）
-
-        // 注意，这里的自执行函数是在保存i的唯一值，then方法执行，在赋予形参的过程中，先执行这个自我执行函数，然后拿到返回的函数，然后放入微任务
+        // 多个元素就先分别执行Promise.resolve()函数，直接返回本promise（因为promises数组里面一般存的就是promise）
+        // 然后执行then函数，（这个时候的promise的状态是0，放入当前的promise对象的队列属性）
+        // 注意，这里的自执行函数是在保存i的唯一值，then方法执行，在赋予形参的过程中，先执行这个自我执行函数，然后拿到返回的函数，然后放入队列属性
         // 【然后外部函数把外部then里面的函数放入顶层promise实例中】
 
-        // 执行微任务，保存结果，当count遇到0，就直接resolve，也就是把结果数组存到外面这个大promise实例中，然后把顶层promise实例then函数放入微任务
+        // 一个个promise的任务执行完，（在外面）执行resolve，修改当前promise对象的value值，然后队列放入微任务
+        // 执行微任务，保存结果，当count遇到0，就直接resolve，也就是把结果数组存到外面这个大promise实例中，然后把顶层promise实例then函数【最后】放入微任务
         // 也就是所有函数的结果都保存起来，然后给到顶层的promise输出（与race的不同之处）
         
         // 每个子then的第二个参数都是在顶层的promise上面执行reject，也就是只要有一个有误，整个就reject
+        // （虽然这个时候剩下的promise的微任务有的还在执行，并且是有可能执行成功的）
         this.resolve(values[i]).then(
           (function() {
             var i_captured = i;

@@ -1361,6 +1361,8 @@ isXHRAdapterSupported && function xhr(config) {
       // 拿到响应数据，构造对象（注意，里面存的data还是一个json格式的数据）
       const responseData = !responseType || responseType === 'text' || responseType === 'json' ?
         request.responseText : request.response;
+
+      // 注意，这个包装的结果对象也是向外部的then传递的，因此为什么先要拿data函数就是这原因
       const response = {
         data: responseData,
         status: request.status,

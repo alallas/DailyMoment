@@ -580,7 +580,7 @@ function applyMiddleware(...middlewares) {
     const chain = middlewares.map(middleware => middleware(middlewareAPI))
 
     // 逐渐整合!
-    // 最后得到的函数是：函数4（函数3（函数2（函数1（dispatch函数））））
+    // 最后得到的函数是：函数1（函数2（函数3（函数4（dispatch函数））））
     dispatch = compose(...chain)(store.dispatch)
 
     return {
@@ -608,7 +608,6 @@ function compose(...funcs) {
 
 
 
-
 // 当一个action创造者返回的是一个函数，而不是一个action对象，说明这个需要异步执行
 // function fetchTitleData() {
 //   return function(diapatch) {
@@ -626,6 +625,31 @@ function compose(...funcs) {
 // }
 
 
+
+// !此外注意！
+// 1. 原生的dispatch返回的是action本身，没啥大问题
+// 2. 经过中间件改造的升级版dispatch，假设中间件的第一个是thunk（一般第一个是他）
+// 2.1 上面的情况下，当action为对象时，他的返回值就是dispatch的返回值，也是一个action对象
+// 2.2 而当action为函数时，他返回的是这个函数执行之后的返回值！（一般是一个promise）
+// 也就是action函数要写上一个return，才会在dispatch函数执行之后拿到想要的数据
+
+// 例子：下面这个actionCreator函数
+// function getHomeList() {
+//   return function(dispatch, getState) {
+//     return axios.get('http://localhost:3002/api/users').then(res => {
+//       let list = res.data
+//       dispatch({
+//         type: types.SET_HOME_LIST,
+//         payload: list
+//       })
+//     })
+//   }
+// }
+// 我需要自己手动派发（靠useDispatch），而不靠connect的封装，然后拿到改变之后的数据
+// 那么就需要依靠thunk返回 函数式action函数的返回值 这个特点，在action函数中return一些东西，然后在dispatch这边能够拿到
+Home.loadData = function(store) {
+  return store.dispatch(actions.getHomeList())
+}
 
 
 
@@ -2133,92 +2157,19 @@ function createSelectorHook(context = ReactReduxContext) {
       equalityFn: equalityFnOrOptions
     } : equalityFnOrOptions;
 
-    // 异常错误检测
-    if (process.env.NODE_ENV !== 'production') {
-      if (!selector) {
-        throw new Error(`You must pass a selector to useSelector`);
-      }
-
-      if (typeof selector !== 'function') {
-        throw new Error(`You must pass a function as a selector to useSelector`);
-      }
-
-      if (typeof equalityFn !== 'function') {
-        throw new Error(`You must pass a function as an equality function to useSelector`);
-      }
-    }
-
     // 下面执行的是useReduxContext函数
-    // 拿到的是顶层上下文对象
+    // 拿到的是顶层上下文对象(其中的subscription是顶层的provider组件的订阅器)
     const {store, subscription, getServerState, stabilityCheck: globalStabilityCheck, noopCheck: globalNoopCheck} = useReduxContext();
-
-    const firstRun = useRef(true);
 
     // 包装并缓存这个第一入参的selector函数
     // selector.name是selector的函数名字，如果传的是箭头函数，那么这个name就是空字符串
     const wrappedSelector = useCallback({
       [selector.name](state) {
-
         // 执行这个selector函数，参数为state
         const selected = selector(state);
-
-        // 开发模式下的错误检测
-        if (process.env.NODE_ENV !== 'production') {
-          const finalStabilityCheck = typeof stabilityCheck === 'undefined' ? globalStabilityCheck : stabilityCheck;
-
-          if (finalStabilityCheck === 'always' || finalStabilityCheck === 'once' && firstRun.current) {
-            const toCompare = selector(state);
-            // 如果新旧的对象不一样（非纯函数），就抛出错误
-            if (!equalityFn(selected, toCompare)) {
-              let stack = undefined;
-
-              try {
-                throw new Error();
-              } catch (e) {
-                ;
-                ({
-                  stack
-                } = e);
-              }
-
-              console.warn('Selector ' + (selector.name || 'unknown') + ' returned a different result when called with the same parameters. This can lead to unnecessary rerenders.' + '\nSelectors that return a new reference (such as an object or an array) should be memoized: https://redux.js.org/usage/deriving-data-selectors#optimizing-selectors-with-memoization', {
-                state,
-                selected,
-                selected2: toCompare,
-                stack
-              });
-            }
-          }
-
-          const finalNoopCheck = typeof noopCheck === 'undefined' ? globalNoopCheck : noopCheck;
-
-          if (finalNoopCheck === 'always' || finalNoopCheck === 'once' && firstRun.current) {
-            // 如果selected等于入参，就是写错了
-            if (selected === state) {
-              let stack = undefined;
-
-              try {
-                throw new Error();
-              } catch (e) {
-                ;
-                ({
-                  stack
-                } = e);
-              }
-
-              console.warn('Selector ' + (selector.name || 'unknown') + ' returned the root state when called. This can lead to unnecessary rerenders.' + '\nSelectors that return the entire state are almost certainly a mistake, as they will cause a rerender whenever *anything* in state changes.', {
-                stack
-              });
-            }
-          }
-
-          if (firstRun.current) firstRun.current = false;
-        }
-
         // 直接返回这个执行结果
         return selected;
       }
-
     }[selector.name], [selector, globalStabilityCheck, stabilityCheck]);
 
     const selectedState = useSyncExternalStoreWithSelector(subscription.addNestedSub, store.getState, getServerState || store.getState, wrappedSelector, equalityFn);
@@ -2235,7 +2186,7 @@ function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnaps
   // subscribe是subscription.addNestedSub（父亲的订阅工具箱）
   // getSnapshot是store.getState
   // 如果上下文对象里面的getServerState为空，getServerSnapshot还是store.getState
-  // wrappedSelector是包装过的useSeletor的入参函数。类似于state => state.home
+  // selector是包装过的useSeletor的入参函数。类似于state => state.home
   // isEqual 是 useSelector的第二个参数，为undefined
 
   var instRef = useRef(null);
@@ -2253,13 +2204,14 @@ function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnaps
     function () {
       function memoizedSelector(nextSnapshot) {
         // nextSnapshot是最新的state（完整的state对象）
-        // 本函数的目标是先浅对比，然后再深度对比！
+        // 本函数的目标是先明确是一个纯函数（深度对比完整对象），然后深度对比 经过选择的对象
 
         // memoizedSnapshot：存储完整的 state 对象（即 getSnapshot() 的原始结果）。
         // memoizedSelection：存储通过 selector 从 state 中提取的特定数据。
 
         // 1. 看过去和现在的 “ 自定义 ” 的state对象选的数据是不是一样的
         // 第一次走这个函数的时候，hasMemo是false，走下面的逻辑：inst为null不走内部的if，直接返回最新的提取的state对象，然后以后都不走这个函数了
+        // 这个if只有第一次会走（memo会缓存结果，因此不会再进入外部函数，自然外部函数的hasmemo也不会变成!1）
         if (!hasMemo) {
           hasMemo = !0;
           // 这是最新的完整state对象
@@ -2282,13 +2234,13 @@ function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnaps
         }
 
         // 2. 深度对比新旧的 “ 完整 ” 的state对象【按道理肯定是不一样的，因为是纯函数】
-        // 第二次走下面的逻辑（因为已经有了有值的memoizedSelection和memoizedSnapshot）
+        // 第二次走下面的逻辑（因为已经有了有值的memoizedSelection（经过选取的特定对象）和memoizedSnapshot（完整state对象））
         currentSelection = memoizedSelection;
         // 深度对比！两个完整state对象的内存地址，如果是一样的直接返回之前的那个所选结果
         if (objectIs(memoizedSnapshot, nextSnapshot))
           return currentSelection;
 
-        // 3. 对比新旧的选择的state（ “ 自定义 ” 的state对象）数据是否相同
+        // 3. 深度对比新旧的选择的state（ “ 自定义 ” 的state对象）数据是否相同
         // 重新执行函数，得到最新的结果
         var nextSelection = selector(nextSnapshot);
         // 比较新旧的选择的state是否相同，相同的话直接返回过去的结果
@@ -2347,5 +2299,5 @@ function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnaps
   return value;
 };
 
-
+const refEquality = (a, b) => a === b;
 
