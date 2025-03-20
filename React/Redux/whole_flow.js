@@ -262,64 +262,10 @@ function assertReducerShape(reducers) {
 
 
 
-function applyMiddleware(...middlewares) {
-  return createStore => (reducer, preloadedState) => {
-
-    // 在createStore那边如果传递了第二个参数, 来到这执行的就是下面的函数
-    // [ 相当于包裹了createStore函数本身, 加入了"中间件"的参数, 但是外部却可以只用一个函数名字, 因为是自己包裹了自己 ]
-    // 执行createStore函数 (dispatch指挥函数执行 (所有reducer函数以及listener函数) )
-    const store = createStore(reducer, preloadedState)
-
-    // 重置一下dispatch的值
-    let dispatch = () => {
-      throw new Error(
-        'Dispatching while constructing your middleware is not allowed. ' +
-          'Other middleware would not be applied to this dispatch.'
-      )
-    }
-
-    // 封装一个工具,提供getState信息和dispatch指挥者(假的! 只会抛出错误! )的工具
-    const middlewareAPI = {
-      getState: store.getState,
-      dispatch: (action, ...args) => dispatch(action, ...args)
-    }
-
-    // 遍历所有的中间件, 执行所有的中间件函数, 得到中间件函数的返回值(也是函数)数组
-    const chain = middlewares.map(middleware => middleware(middlewareAPI))
-
-    // 逐渐整合!
-    // 最后得到的函数是：函数4（函数3（函数2（函数1（dispatch函数））））
-    dispatch = compose(...chain)(store.dispatch)
-
-    return {
-      ...store,
-      dispatch
-    }
-  }
-}
-
-
-
-function compose(...funcs) {
-  // 空值返回空函数
-  if (funcs.length === 0) {
-    return (arg) => arg
-  }
-  // 只有一个中间件直接返回她本身
-  if (funcs.length === 1) {
-    return funcs[0]
-  }
-
-  return funcs.reduce((a, b) => (...args) => a(b(...args)))
-}
-
-
-
 function createStore(reducer, preloadedState, enhancer) {
   // 入参：
   // reducer是一个函数，就上面combineReducer函数的返回值 (相当于包装过的reducer函数, 执行所有reducer的)
-  // preloadedState是applyMiddleware的返回值
-  // （一个二重嵌套函数）createStore => (reducer, preState) => {}
+  // preloadedState是applyMiddleware的返回值（一个二重嵌套函数）createStore => (reducer, preState) => {}
   // enhancer还不知道是什么？？？
 
 
@@ -605,21 +551,79 @@ function createThunkMiddleware(extraArgument) {
 }
 
 
-// 当一个action创造者返回的是一个函数，而不是一个action对象，说明这个需要异步执行
-function fetchTitleData() {
-  return function(diapatch) {
-    axios.get("http://123.207.32.32:8000/home/multidata").then(res=>{
-      const title=res.data.data.banner.list[0].title;
-      diapatch(changeTitle(title));
-    })
+
+
+
+function applyMiddleware(...middlewares) {
+  return createStore => (reducer, preloadedState) => {
+
+    // 在createStore那边如果传递了第二个参数, 来到这执行的就是下面的函数
+    // [ 相当于包裹了createStore函数本身, 加入了"中间件"的参数, 但是外部却可以只用一个函数名字, 因为是自己包裹了自己 ]
+    // 执行createStore函数 (dispatch指挥函数执行 (所有reducer函数以及listener函数) )
+    const store = createStore(reducer, preloadedState)
+
+    // 重置一下dispatch的值
+    let dispatch = () => {
+      throw new Error(
+        'Dispatching while constructing your middleware is not allowed. ' +
+          'Other middleware would not be applied to this dispatch.'
+      )
+    }
+
+    // 封装一个工具,提供getState信息和dispatch指挥者(假的! 只会抛出错误! )的工具
+    const middlewareAPI = {
+      getState: store.getState,
+      dispatch: (action, ...args) => dispatch(action, ...args)
+    }
+
+    // 遍历所有的中间件, 执行所有的中间件函数, 得到中间件函数的返回值(也是函数)数组
+    const chain = middlewares.map(middleware => middleware(middlewareAPI))
+
+    // 逐渐整合!
+    // 最后得到的函数是：函数4（函数3（函数2（函数1（dispatch函数））））
+    dispatch = compose(...chain)(store.dispatch)
+
+    return {
+      ...store,
+      dispatch
+    }
   }
 }
 
+
+
+function compose(...funcs) {
+  // 空值返回空函数
+  if (funcs.length === 0) {
+    return (arg) => arg
+  }
+  // 只有一个中间件直接返回她本身
+  if (funcs.length === 1) {
+    return funcs[0]
+  }
+
+  return funcs.reduce((a, b) => (...args) => a(b(...args)))
+}
+
+
+
+
+
+// 当一个action创造者返回的是一个函数，而不是一个action对象，说明这个需要异步执行
+// function fetchTitleData() {
+//   return function(diapatch) {
+//     axios.get("http://123.207.32.32:8000/home/multidata").then(res=>{
+//       const title=res.data.data.banner.list[0].title;
+//       diapatch(changeTitle(title));
+//     })
+//   }
+// }
+
 // dispatch这个函数的时候，首先进入第一个thunk中间件
 // 此时的next就是dispatch函数，而当action为函数时，直接执行这个函数，也不dispatch了，因为默认这个函数里面就有dispatch
-const handleAsyncClick = () => {
-  dispatch(actions.fetchTitleData())
-}
+// const handleAsyncClick = () => {
+//   dispatch(actions.fetchTitleData())
+// }
 
 
 
@@ -957,6 +961,166 @@ function useIsomorphicLayoutEffectWithArgs(effectFunc, effectArgs, dependencies)
 
 
 
+// REVIEW - connect函数最后————最后把被包裹组件的属性复制到包裹组件上面
+
+
+function hoistStatics(targetComponent, sourceComponent, blacklist) {
+  hoistNonReactStatics(targetComponent, sourceComponent, blacklist)
+}
+
+function hoistNonReactStatics(targetComponent, sourceComponent, blacklist) {
+  // 入参：
+  // targetComponent需要把东西（props和dispatch）包裹到里面的memo组件（虚拟DOM）————静态属性将被复制到该组件
+  // sourceComponent被包裹的组件，一般是类组件（大类对象），或者是function的原型，或者是Object的原型————静态属性将从此组件复制
+  // blacklist没有传递，为undefined
+
+  // !本函数的最终目的是让这个memo的虚拟DOM，变成一个具有函数原型/通用类组件/自定义类组件的所有属性的对象！
+  // 注意：对于后两者，props不是类的属性，是类的实例的属性，比如对于Component，他的属性只有['length', 'name', 'prototype']
+
+  if (typeof sourceComponent !== 'string') {
+    // !1. 递归入口，目的是：
+    // !将sourceComponent所有父类的属性复制到targetComponent目标组件上面
+    if (objectPrototype) {
+      // 拿到这个类组件继承的Component大组件
+      var inheritedComponent = getPrototypeOf(sourceComponent);
+
+      // 大Component组件肯定不等于Object的prototype，那么重新用大Component组件再次进入这个函数
+      // 接着大Component组件的原型是函数的原型，也不等于Object的prototype，再次进入这个函数
+      // 接着当sourceComponent为函数的原型（即他的原型是Object的原型），这里就进不去了！
+      if (inheritedComponent && inheritedComponent !== objectPrototype) {
+        hoistNonReactStatics(targetComponent, inheritedComponent, blacklist);
+      }
+    }
+
+    // 2. 拿到这个对象所有的属性的名字数组（包括不可枚举属性），并把symbols上面的属性名字也整合到keys数组里面
+    // 情况一：当sourceComponent为函数的原型时，他的对象的属性名字有如下这些
+    // 0: "length"
+    // 1: "name"
+    // 2: "arguments"
+    // 3: "caller"
+    // 4: "constructor"
+    // 5: "apply"
+    // 6: "bind"
+    // 7: "call"
+    // 8: "toString"
+    var keys = getOwnPropertyNames(sourceComponent);
+
+    // 情况一：当sourceComponent为函数的原型时，
+    // keys数组在原基础上加东西：9: Symbol(Symbol.hasInstance)
+    if (getOwnPropertySymbols) {
+      keys = keys.concat(getOwnPropertySymbols(sourceComponent));
+    }
+
+    // 3. 获取需要排除的目标/源组件的静态属性
+    // 拿到两个组件的 不同类型对应的 必备属性集合对象！（需要排除的相关静态属性）
+    // 前者是MEMO_STATICS，后者是REACT_STATICS对象
+    var targetStatics = getStatics(targetComponent);
+    var sourceStatics = getStatics(sourceComponent);
+
+    // 4. 在connect组件上添加原来的相应的组件（函数原型、大Component、自定义的需要被包裹的类组件 的属性）
+    // 需要排除的东西是：
+    // KNOWN_STATICS（已知的属性）（函数、对象和数组的一些基本的属性）、
+    // sourceStatics（源组件的React的静态属性）（REACT_STATICS内容）、
+    // targetStatics（目标组件已存在的属性）（MEMO_STATICS内容）、
+    // blacklist（黑名单中的属性）（为undefined）
+    for (var i = 0; i < keys.length; ++i) {
+      var key = keys[i];
+
+      if (!KNOWN_STATICS[key] && !(blacklist && blacklist[key]) && !(sourceStatics && sourceStatics[key]) && !(targetStatics && targetStatics[key])) {
+        var descriptor = getOwnPropertyDescriptor(sourceComponent, key);
+
+        try {
+          // Avoid failures from read-only properties
+          defineProperty(targetComponent, key, descriptor);
+        } catch (e) {}
+      }
+    }
+  }
+
+  return targetComponent;
+}
+
+
+function getStatics(component) {
+  if (isMemo(component)) {
+    return MEMO_STATICS;
+  }
+  return TYPE_STATICS[component['$$typeof']] || REACT_STATICS;
+}
+
+
+function isMemo(object) {
+  return typeOf(object) === REACT_MEMO_TYPE;
+}
+
+
+function typeOf(object) {
+  // 如果时memo虚拟组件的话，$$typeof就是Symbol(react.memo)
+  if (typeof object === 'object' && object !== null) {
+    var $$typeof = object.$$typeof;
+
+    switch ($$typeof) {
+      case REACT_ELEMENT_TYPE:
+        // 拿到memo组件的函数本身
+        var type = object.type;
+
+        switch (type) {
+          case REACT_ASYNC_MODE_TYPE:
+          case REACT_CONCURRENT_MODE_TYPE:
+          case REACT_FRAGMENT_TYPE:
+          case REACT_PROFILER_TYPE:
+          case REACT_STRICT_MODE_TYPE:
+          case REACT_SUSPENSE_TYPE:
+            return type;
+
+          // 拿到memo组件的函数本身的$$typeof属性，此时为空，返回undefined
+          default:
+            var $$typeofType = type && type.$$typeof;
+
+            switch ($$typeofType) {
+              case REACT_CONTEXT_TYPE:
+              case REACT_FORWARD_REF_TYPE:
+              case REACT_LAZY_TYPE:
+              case REACT_MEMO_TYPE:
+              case REACT_PROVIDER_TYPE:
+                return $$typeofType;
+
+              default:
+                return $$typeof;
+            }
+
+        }
+
+      case REACT_PORTAL_TYPE:
+        return $$typeof;
+    }
+  }
+
+  return undefined;
+}
+
+
+
+function _objectWithoutPropertiesLoose(r, e) {
+  // 入参：
+  // r表示这个memo组件的props，实际上是空
+  // e是一个数组，长这样["reactReduxForwardedRef"]
+
+  if (null == r) return {};
+
+  // 遍历props的属性（不包括原型上面的属性），删除掉数组_exclude里面的属性键值对
+  // 如果数组_exclude里面没有props的属性, 就保存到一个新对象里面
+  var t = {};
+  for (var n in r) if ({}.hasOwnProperty.call(r, n)) {
+    if (e.includes(n)) continue;
+    t[n] = r[n];
+  }
+  return t;
+}
+
+
+
+
 
 
 // REVIEW - connect函数内部————分发器与初始化函数
@@ -1247,7 +1411,7 @@ function pureFinalPropsSelectorFactory(mapStateToProps, mapDispatchToProps, merg
   // 但是从childPropsSelector(store.getState(), wrapperProps)进入时，nextOwnProps都是空对象
   function handleSubsequentCalls(nextState, nextOwnProps) {
     // 浅对比新旧wrapperProps（一般都是空对象）————实际上执行的是shallowEqual
-    // （ownProps在首次执行的时候被之前的wrapperProps赋予了）
+    // （ownProps在首次执行的时候被之前的wrapperProps（一般都是空对象）赋予了）
     const propsChanged = !areOwnPropsEqual(nextOwnProps, ownProps);
 
     // 深度对比最新的state对象（注意，只是state对象，不包含dispatch的函数）
@@ -1508,8 +1672,8 @@ function subscribeUpdates(
     // 如果前后的对象一致，就在“二级订阅”工具箱对象上发出通知，通知调用的是二级订阅工具箱的listeners数组
     // 但是这个时候的二级订阅工具箱的listeners对象之上的函数保存的listen链表为空，因为她根本就没有子组件来为她trySubscribe，然后addNestedSub
     
-    // 如果有值的话（这个connect组件下层还有组件也是被connect包裹，他也有一个useEffect在父级的工具箱（通过provider的上下文value拿到工具箱）订阅了自己的checkForUpdates函数）
-    // 就不更新这个组件，直接把本层组件的listeners数组遍历执行，这个数组里面存的时下一层子组件的订阅工具箱的checkForUpdates
+    // 有值的情况是（这个connect组件下层还有组件也是被connect包裹，他也有一个useEffect在父级的工具箱（通过provider的上下文value拿到工具箱）订阅了自己的checkForUpdates函数）
+    // 前后的对象一致，就不更新这个组件，直接把本层组件的listeners数组遍历执行，这个数组里面存的是下一层子组件的订阅工具箱的checkForUpdates
     if (newChildProps === lastChildProps.current) {
       if (!renderIsScheduled.current) {
         notifyNestedSubs();
@@ -1571,173 +1735,6 @@ function subscribeUpdates(
 }
 
 
-
-
-
-
-
-
-// REVIEW - connect函数内部————最后把被包裹组件的属性复制到包裹组件上面
-
-
-
-
-
-
-
-function hoistStatics(targetComponent, sourceComponent, blacklist) {
-  hoistNonReactStatics(targetComponent, sourceComponent, blacklist)
-}
-
-function hoistNonReactStatics(targetComponent, sourceComponent, blacklist) {
-  // 入参：
-  // targetComponent需要把东西（props和dispatch）包裹到里面的memo组件（虚拟DOM）————静态属性将被复制到该组件
-  // sourceComponent被包裹的组件，一般是类组件（大类对象），或者是function的原型，或者是Object的原型————静态属性将从此组件复制
-  // blacklist没有传递，为undefined
-
-  // !本函数的最终目的是让这个memo的虚拟DOM，变成一个具有函数原型/通用类组件/自定义类组件的所有属性的对象！
-  // 注意：对于后两者，props不是类的属性，是类的实例的属性，比如对于Component，他的属性只有['length', 'name', 'prototype']
-
-  if (typeof sourceComponent !== 'string') {
-    // !1. 递归入口，目的是：
-    // !将sourceComponent所有父类的属性复制到targetComponent目标组件上面
-    if (objectPrototype) {
-      // 拿到这个类组件继承的Component大组件
-      var inheritedComponent = getPrototypeOf(sourceComponent);
-
-      // 大Component组件肯定不等于Object的prototype，那么重新用大Component组件再次进入这个函数
-      // 接着大Component组件的原型是函数的原型，也不等于Object的prototype，再次进入这个函数
-      // 接着当sourceComponent为函数的原型（即他的原型是Object的原型），这里就进不去了！
-      if (inheritedComponent && inheritedComponent !== objectPrototype) {
-        hoistNonReactStatics(targetComponent, inheritedComponent, blacklist);
-      }
-    }
-
-    // 2. 拿到这个对象所有的属性的名字数组（包括不可枚举属性），并把symbols上面的属性名字也整合到keys数组里面
-    // 情况一：当sourceComponent为函数的原型时，他的对象的属性名字有如下这些
-    // 0: "length"
-    // 1: "name"
-    // 2: "arguments"
-    // 3: "caller"
-    // 4: "constructor"
-    // 5: "apply"
-    // 6: "bind"
-    // 7: "call"
-    // 8: "toString"
-    var keys = getOwnPropertyNames(sourceComponent);
-
-    // 情况一：当sourceComponent为函数的原型时，
-    // keys数组在原基础上加东西：9: Symbol(Symbol.hasInstance)
-    if (getOwnPropertySymbols) {
-      keys = keys.concat(getOwnPropertySymbols(sourceComponent));
-    }
-
-    // 3. 获取需要排除的目标/源组件的静态属性
-    // 拿到两个组件的 不同类型对应的 必备属性集合对象！（需要排除的相关静态属性）
-    // 前者是MEMO_STATICS，后者是REACT_STATICS对象
-    var targetStatics = getStatics(targetComponent);
-    var sourceStatics = getStatics(sourceComponent);
-
-    // 4. 遍历sourceComponent对象（函数原型、大Component、自定义的需要被包裹的类组件）的属性
-    // 需要排除的东西是：
-    // KNOWN_STATICS（已知的属性）（函数、对象和数组的一些基本的属性）、
-    // sourceStatics（源组件的React的静态属性）（REACT_STATICS内容）、
-    // targetStatics（目标组件已存在的属性）（MEMO_STATICS内容）、
-    // blacklist（黑名单中的属性）（为undefined）
-    for (var i = 0; i < keys.length; ++i) {
-      var key = keys[i];
-
-      if (!KNOWN_STATICS[key] && !(blacklist && blacklist[key]) && !(sourceStatics && sourceStatics[key]) && !(targetStatics && targetStatics[key])) {
-        var descriptor = getOwnPropertyDescriptor(sourceComponent, key);
-
-        try {
-          // Avoid failures from read-only properties
-          defineProperty(targetComponent, key, descriptor);
-        } catch (e) {}
-      }
-    }
-  }
-
-  return targetComponent;
-}
-
-
-function getStatics(component) {
-  if (isMemo(component)) {
-    return MEMO_STATICS;
-  }
-  return TYPE_STATICS[component['$$typeof']] || REACT_STATICS;
-}
-
-
-function isMemo(object) {
-  return typeOf(object) === REACT_MEMO_TYPE;
-}
-
-
-function typeOf(object) {
-  // 如果时memo虚拟组件的话，$$typeof就是Symbol(react.memo)
-  if (typeof object === 'object' && object !== null) {
-    var $$typeof = object.$$typeof;
-
-    switch ($$typeof) {
-      case REACT_ELEMENT_TYPE:
-        // 拿到memo组件的函数本身
-        var type = object.type;
-
-        switch (type) {
-          case REACT_ASYNC_MODE_TYPE:
-          case REACT_CONCURRENT_MODE_TYPE:
-          case REACT_FRAGMENT_TYPE:
-          case REACT_PROFILER_TYPE:
-          case REACT_STRICT_MODE_TYPE:
-          case REACT_SUSPENSE_TYPE:
-            return type;
-
-          // 拿到memo组件的函数本身的$$typeof属性，此时为空，返回undefined
-          default:
-            var $$typeofType = type && type.$$typeof;
-
-            switch ($$typeofType) {
-              case REACT_CONTEXT_TYPE:
-              case REACT_FORWARD_REF_TYPE:
-              case REACT_LAZY_TYPE:
-              case REACT_MEMO_TYPE:
-              case REACT_PROVIDER_TYPE:
-                return $$typeofType;
-
-              default:
-                return $$typeof;
-            }
-
-        }
-
-      case REACT_PORTAL_TYPE:
-        return $$typeof;
-    }
-  }
-
-  return undefined;
-}
-
-
-
-function _objectWithoutPropertiesLoose(r, e) {
-  // 入参：
-  // r表示这个memo组件的props，实际上是空
-  // e是一个数组，长这样["reactReduxForwardedRef"]
-
-  if (null == r) return {};
-
-  // 遍历props的属性（不包括原型上面的属性），删除掉数组_exclude里面的属性键值对
-  // 如果数组_exclude里面没有props的属性, 就保存到一个新对象里面
-  var t = {};
-  for (var n in r) if ({}.hasOwnProperty.call(r, n)) {
-    if (e.includes(n)) continue;
-    t[n] = r[n];
-  }
-  return t;
-}
 
 
 

@@ -96,27 +96,56 @@ var utils = {
 
 
 
-// REVIEW - 
+// REVIEW - 初始化
 
 
 
 
-// axios的get函数执行进来的是第二个return里面的函数
-// thisArg是一个对象，有 defaults、interceptors 两个属性
+// 提供的对外出口
+function createInstance(defaultConfig) {
+  var context = new Axios(defaultConfig);
+  var instance = bind(Axios.prototype.request, context);
+  utils.extend(instance, Axios.prototype, context);
+  utils.extend(instance, context);
+  return instance;
+}
+var axios = createInstance(defaults);
 
-function bind(fn, thisArg) {
-  return function wrap() {
-    return fn.apply(thisArg, arguments);
-  };
+
+// Axios的大类构造函数（里面有request和_request两个方法（脱离出来写在下面了））
+class Axios {
+  constructor(instanceConfig) {
+    this.defaults = instanceConfig;
+    this.interceptors = {
+      request: new InterceptorManager(),
+      response: new InterceptorManager()
+    };
+  }
 }
 
-// 上面的fn进来就是下面函数的return的函数
+// 拦截器的构造对象
+function InterceptorManager() {
+  this.handlers = []
+}
+InterceptorManager.prototype.use = function use(fulfilled, rejected) {
+  this.handlers.push({
+    fulfilled: fulfilled,
+    rejected: rejected
+  });
+  return this.handlers.length - 1;
+};
+
+
+
+
+// get方法进入下面函数的return的函数
 utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
   // 针对这些【xxx】的方法，给axios类的原型加上一个方法
-  Axios.prototype[method] = function(url, config) {
 
+  Axios.prototype[method] = function(url, config) {
     // this指的是Axios的实例，这里直接看下面的request函数
     // 返回的是一个promise
+
     return this.request(mergeConfig(config || {}, {
       method,
       url,
@@ -124,6 +153,26 @@ utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData
     }));
   };
 });
+
+
+
+utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+  function generateHTTPMethod(isForm) {
+    return function httpMethod(url, data, config) {
+      return this.request(mergeConfig(config || {}, {
+        method,
+        headers: isForm ? {
+          'Content-Type': 'multipart/form-data'
+        } : {},
+        url,
+        data
+      }));
+    };
+  }
+  Axios.prototype[method] = generateHTTPMethod();
+  Axios.prototype[method + 'Form'] = generateHTTPMethod(true);
+});
+
 
 
 
@@ -323,15 +372,16 @@ function _request(configOrUrl, config) {
   //   silentJSONParsing: true
   // }
   if (transitional !== undefined) {
-    // assertOptions实际上在遍历，
-    // validators.transitional实际上在执行validators.validator函数
+    // assertOptions实际上在遍历，看一参的 属性的值 是否和二参里面 对应的属性的验证函数 是否对上
+    // validators.transitional实际上在执行validators.boolean函数
+    // 也就是检测 一参 里面的属性值是否是boolean的格式
     validator.assertOptions(transitional, {
       silentJSONParsing: validators.transitional(validators.boolean),
       forcedJSONParsing: validators.transitional(validators.boolean),
       clarifyTimeoutError: validators.transitional(validators.boolean)
     }, false);
   }
-  // 2）参数序列化器paramsSerializer
+  // 2）封装参数序列器（参数规范器），检验格式
   if (paramsSerializer != null) {
     if (utils.isFunction(paramsSerializer)) {
       config.paramsSerializer = {
@@ -386,16 +436,16 @@ function _request(configOrUrl, config) {
     if (typeof interceptor.runWhen === 'function' && interceptor.runWhen(config) === false) {
       return;
     }
-    // 存在异步拦截器时，整体标记为异步
+    // 存在一个异步拦截器时，整体标记为异步
     synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
-    // 从头加入拦截器的完成/失败函数（先进后出）
+    // 从头加入请求拦截器的完成/失败函数（先进后出）
     requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
   });
 
   // 2）响应拦截器
   const responseInterceptorChain = [];
   this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
-    // 从尾加入拦截器的完成/失败函数（先进先出）
+    // 从尾加入响应拦截器的完成/失败函数（先进先出）
     responseInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
   });
 
@@ -419,9 +469,11 @@ function _request(configOrUrl, config) {
     promise = Promise.resolve(config);
     while (i < len) {
       // 将返回的新promise一直替换原本的promise
+      // 相当于promise0.then().then().then()
+      // (promise0就是一开始就resolve的这个外部promise）
       promise = promise.then(chain[i++], chain[i++]);
     }
-    // 返回这个promise链条
+    // 返回最后的promise对象，外部在开发者写代码那边再手动套一个then，就拿到最后的结果
     return promise;
   }
 
@@ -459,7 +511,7 @@ function _request(configOrUrl, config) {
     promise = promise.then(responseInterceptorChain[i++], responseInterceptorChain[i++]);
   }
 
-  // 最后返回这个promise链
+  // 最后返回这个promise对象
   return promise;
 }
 
@@ -508,7 +560,7 @@ validators.transitional = function transitional(validator, version, message) {
     }
 
     // 直接去执行validator函数(也就是validators.boolean的方法，实际上就是‘boolean’函数)
-    // 可是'boolean'并等于typeof value的返回值（布尔类型），那么直接返回true
+    // 'boolean'等于typeof value的返回值（布尔类型），那么直接返回true
     return validator ? validator(value, opt, opts) : true;
   };
 };
@@ -595,7 +647,7 @@ function dispatchRequest(config) {
   config.headers = AxiosHeaders.from(config.headers);
 
   // 2. 请求数据转化（格式化data数据）
-  // 按顺序执行 config.transformRequest 数组中的一个函数，将对象转为 JSON 字符串
+  // 执行 config.transformRequest 数组中的一个函数，将对象转为 JSON 字符串
   config.data = transformData.call(
     config,
     config.transformRequest
@@ -612,7 +664,9 @@ function dispatchRequest(config) {
   // config.adapter是一个数组，里面是[xhr,http,fetch]，都是浏览器本身的底层API，直接调用是发出网络请求
   const adapter = adapters.getAdapter(config.adapter || defaults.adapter);
 
-  // 2）调用这个适配器（相当于借用xhr的API发出网络请求）——去看xhr部分
+  // 2）调用这个适配器（相当于借用xhr的API发出网络请求）——>去看xhr部分
+  // adapter(config)返回的是一个promise
+  // .then()返回的是第二个promise
   return adapter(config).then(function onAdapterResolution(response) {
     // 成功回调
     throwIfCancellationRequested(config);
@@ -626,6 +680,9 @@ function dispatchRequest(config) {
     // 转化响应头为内部统一的 AxiosHeaders 实例（赋予很多方法）
     response.headers = AxiosHeaders.from(response.headers);
 
+    // then里面的函数有return值，这个值会直接被resolve
+    // （把他保存到本then的promise实例，并把本then的promise实例的任务队列放到微任务里面）
+    // 传递给外部的then方法
     return response;
   }, function onAdapterRejection(reason) {
     // 失败回调
@@ -692,6 +749,15 @@ function transformData(fns, response) {
 }
 
 const defaults = {
+  adapter: getDefaultAdapter(),
+  
+  timeout: 0,
+
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+
+  maxContentLength: -1,
+
 
   // 这里的transitional就是默认值，就是下面这个
   // {
@@ -1221,7 +1287,18 @@ const renderReason = (reason) => `- ${reason}`;
 const isResolvedHandle = (adapter) => utils.isFunction(adapter) || adapter === null || adapter === false;
 
 
-
+// 构造默认的defaultConfig
+function getDefaultAdapter() {
+  var adapter;
+  if (typeof XMLHttpRequest !== 'undefined') {
+    // 环境为浏览器
+    adapter = require('./adapters/xhr');
+  } else if (typeof process !== 'undefined' && Object.prototype.toString.call(process) === '[object process]') {
+    // 环境为nodeJS
+    adapter = require('./adapters/http');
+  }
+  return adapter;
+}
 
 
 
@@ -1241,7 +1318,7 @@ isXHRAdapterSupported && function xhr(config) {
     // 初始化promise对象，同步执行这个里面的函数
     // 这里的入参config就是处理好的大总配置对象
 
-    // 1. 做一些鉴权、XSRF（同源才要设置）、设置跨端（非浏览器环境）请求头等事情
+    // 1. 做一些请求头相关的事：鉴权、XSRF（同源才要设置）、设置跨端（非浏览器环境）请求头等
     // （重新复制（新内存）一个config对象出来）
     const _config = resolveConfig(config);
     let requestData = _config.data;
@@ -1443,7 +1520,7 @@ function resolveConfig(config) {
 
   let contentType;
 
-  // 4. 请求头中跨端的Content-Type设置（这里仅仅防止app端设置不了！）
+  // 4. 【】跨端的Content-Type设置（这里仅仅防止app端设置不了！）
   // 进到这里，data是合规的类型（在dispatchRequest这个链条的中间那边处理好了）
   if (utils.isFormData(data)) {
     if (platform.hasStandardBrowserEnv || platform.hasStandardBrowserWebWorkerEnv) {
@@ -1622,230 +1699,6 @@ function settle(resolve, reject, response) {
     ));
   }
 }
-
-
-
-
-
-
-
-
-// REVIEW - 【备份】下面为Axios大类的原始函数！
-
-
-
-
-
-
-class Axios {
-  constructor(instanceConfig) {
-    this.defaults = instanceConfig;
-    this.interceptors = {
-      request: new InterceptorManager(),
-      response: new InterceptorManager()
-    };
-  }
-
-  async request(configOrUrl, config) {
-    try {
-      return await this._request(configOrUrl, config);
-    } catch (err) {
-      if (err instanceof Error) {
-        let dummy = {};
-
-        Error.captureStackTrace ? Error.captureStackTrace(dummy) : (dummy = new Error());
-
-        // slice off the Error: ... line
-        const stack = dummy.stack ? dummy.stack.replace(/^.+\n/, '') : '';
-        try {
-          if (!err.stack) {
-            err.stack = stack;
-            // match without the 2 top stack lines
-          } else if (stack && !String(err.stack).endsWith(stack.replace(/^.+\n.+\n/, ''))) {
-            err.stack += '\n' + stack
-          }
-        } catch (e) {
-          // ignore the case where "stack" is an un-writable property
-        }
-      }
-
-      throw err;
-    }
-  }
-
-  _request(configOrUrl, config) {
-    if (typeof configOrUrl === 'string') {
-      config = config || {};
-      config.url = configOrUrl;
-    } else {
-      config = configOrUrl || {};
-    }
-
-    config = mergeConfig(this.defaults, config);
-
-    const {transitional, paramsSerializer, headers} = config;
-
-    if (transitional !== undefined) {
-      validator.assertOptions(transitional, {
-        silentJSONParsing: validators.transitional(validators.boolean),
-        forcedJSONParsing: validators.transitional(validators.boolean),
-        clarifyTimeoutError: validators.transitional(validators.boolean)
-      }, false);
-    }
-
-    if (paramsSerializer != null) {
-      if (utils.isFunction(paramsSerializer)) {
-        config.paramsSerializer = {
-          serialize: paramsSerializer
-        }
-      } else {
-        validator.assertOptions(paramsSerializer, {
-          encode: validators.function,
-          serialize: validators.function
-        }, true);
-      }
-    }
-
-    // Set config.allowAbsoluteUrls
-    if (config.allowAbsoluteUrls !== undefined) {
-      // do nothing
-    } else if (this.defaults.allowAbsoluteUrls !== undefined) {
-      config.allowAbsoluteUrls = this.defaults.allowAbsoluteUrls;
-    } else {
-      config.allowAbsoluteUrls = true;
-    }
-
-    validator.assertOptions(config, {
-      baseUrl: validators.spelling('baseURL'),
-      withXsrfToken: validators.spelling('withXSRFToken')
-    }, true);
-
-    // Set config.method
-    config.method = (config.method || this.defaults.method || 'get').toLowerCase();
-
-    // Flatten headers
-    let contextHeaders = headers && utils.merge(
-      headers.common,
-      headers[config.method]
-    );
-
-    headers && utils.forEach(
-      ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
-      (method) => {
-        delete headers[method];
-      }
-    );
-
-    config.headers = AxiosHeaders.concat(contextHeaders, headers);
-
-    // filter out skipped interceptors
-    const requestInterceptorChain = [];
-    let synchronousRequestInterceptors = true;
-    this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
-      if (typeof interceptor.runWhen === 'function' && interceptor.runWhen(config) === false) {
-        return;
-      }
-
-      synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
-
-      requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
-    });
-
-    const responseInterceptorChain = [];
-    this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
-      responseInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
-    });
-
-    let promise;
-    let i = 0;
-    let len;
-
-    if (!synchronousRequestInterceptors) {
-      const chain = [dispatchRequest.bind(this), undefined];
-      chain.unshift.apply(chain, requestInterceptorChain);
-      chain.push.apply(chain, responseInterceptorChain);
-      len = chain.length;
-
-      promise = Promise.resolve(config);
-
-      while (i < len) {
-        promise = promise.then(chain[i++], chain[i++]);
-      }
-
-      return promise;
-    }
-
-    len = requestInterceptorChain.length;
-
-    let newConfig = config;
-
-    i = 0;
-
-    while (i < len) {
-      const onFulfilled = requestInterceptorChain[i++];
-      const onRejected = requestInterceptorChain[i++];
-      try {
-        newConfig = onFulfilled(newConfig);
-      } catch (error) {
-        onRejected.call(this, error);
-        break;
-      }
-    }
-
-    try {
-      promise = dispatchRequest.call(this, newConfig);
-    } catch (error) {
-      return Promise.reject(error);
-    }
-
-    i = 0;
-    len = responseInterceptorChain.length;
-
-    while (i < len) {
-      promise = promise.then(responseInterceptorChain[i++], responseInterceptorChain[i++]);
-    }
-
-    return promise;
-  }
-
-  getUri(config) {
-    config = mergeConfig(this.defaults, config);
-    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls);
-    return buildURL(fullPath, config.params, config.paramsSerializer);
-  }
-}
-
-utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
-  /*eslint func-names:0*/
-  Axios.prototype[method] = function(url, config) {
-    return this.request(mergeConfig(config || {}, {
-      method,
-      url,
-      data: (config || {}).data
-    }));
-  };
-});
-
-utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
-  /*eslint func-names:0*/
-
-  function generateHTTPMethod(isForm) {
-    return function httpMethod(url, data, config) {
-      return this.request(mergeConfig(config || {}, {
-        method,
-        headers: isForm ? {
-          'Content-Type': 'multipart/form-data'
-        } : {},
-        url,
-        data
-      }));
-    };
-  }
-
-  Axios.prototype[method] = generateHTTPMethod();
-
-  Axios.prototype[method + 'Form'] = generateHTTPMethod(true);
-});
 
 
 

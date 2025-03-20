@@ -1,10 +1,10 @@
 ## 微任务
 ### promise
-（见promise.js文件）
+（见.js文件）
 
 #### Promise.all
 
-`const p=new Promise([p1,p2,p3])`
+`const p = new Promise([p1, p2, p3])`
 
 p的状态由p1、p2、p3决定，分成两种情况:
 
@@ -12,38 +12,13 @@ p的状态由p1、p2、p3决定，分成两种情况:
 2. 只要p1、p2、p3之中有一个被rejected，p的状态就变成rejected，此时第一个被reject的实例的返回值，会传递给p的回调函数。 
 
 
-- 手写promise.all
-关键是用一个计数器来与入参数组的长度比较，如果相等就可以resolve
-
-```
-function promiseAll(promises) {
-    return new Promise((resolve, reject) => {
-        if (!Array.isArray(promises)) return new Error('not array')
-        let resolveCounter = 0
-        let resolveResult = []
-        for (let i = 0; i < promises.length; i++) {
-            // 这里是借助promise的resolve方法来实现对数组内各个函数的异步化处理，并拿到结果
-            Promise.resolve(promises[i]).then((res) => {
-                resolveCounter++
-                resolveResult[i] = res
-                if (resolveCounter === promises.length) {
-                    // 如果所有结果成功的话，就返回一个resolve，但凡一个不成功都不行
-                    return resolve(resolveResult)
-                }
-            // 第二个参数是error为入参的处理错误的函数
-            }, (error) => {
-                return reject(error)
-            })
-        }
-    })
-}
-```
-
 #### Promise.race
- 
+
 `const p = Promise.race([p1, p2, p3]);`
 
 上面代码中，只要p1、p2、p3之中有一个实例率先改变状态，p的状态就跟着改变。那个率先改变的Promise实例的返回值，就传递给p的回调函数。 
+
+
 
 
 ## 异步例子
