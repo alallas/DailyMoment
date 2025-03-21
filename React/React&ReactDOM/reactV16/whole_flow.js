@@ -8437,9 +8437,11 @@ function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
   }
 
   // 2. 递归整合所有的path（实际上是包装好的对象），放到一个数组里面
+  // 【为什么要递归？】因为有子路由的情况，一个路由下有多个别的路由
   let branches = flattenRoutes(routes);
 
   // 3. 对数组进行原地排序！按照分数从大到小排序
+  // 减少遍历次数！
   rankRouteBranches(branches);
 
   // 4. 遍历自定义的routes，逐一查看其中哪个path和当前页面上的url的path是一样的
@@ -8482,8 +8484,9 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
     let path = joinPaths([parentPath, meta.relativePath]);
     let routesMeta = parentsMeta.concat(meta);
 
-  
+
     // 如果有孩子，继续执行本函数，拿到更多的路由数组
+    // 【注意】因此在外部写的时候route对象里面的 孩子路由 是写children
     if (route.children && route.children.length > 0) {
       flattenRoutes(route.children, branches, routesMeta, path);
     }
@@ -8491,7 +8494,7 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
       return;
     }
 
-    // 把【路径，包装对象，路径得分（优先级的体现）】放到“路由枝条数组”中
+    // 把【路径，包装对象，路径得分（优先级的体现）】放到 “ 路由枝条数组 ” 中
     branches.push({
       path,
       score: computeScore(path, route.index),

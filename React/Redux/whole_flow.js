@@ -265,8 +265,8 @@ function assertReducerShape(reducers) {
 function createStore(reducer, preloadedState, enhancer) {
   // 入参：
   // reducer是一个函数，就上面combineReducer函数的返回值 (相当于包装过的reducer函数, 执行所有reducer的)
-  // preloadedState是applyMiddleware的返回值（一个二重嵌套函数）createStore => (reducer, preState) => {}
-  // enhancer还不知道是什么？？？
+  // preloadedState是自定义的一个初始数据（整个仓库的数据，到时候是）， 或者是enhancer的值（很多时候都只有两个入参）
+  // enhancer是applyMiddleware的返回值（一个二重嵌套函数）createStore => (reducer, preState) => {}
 
 
   // 1. 入参信息检验
@@ -288,13 +288,14 @@ function createStore(reducer, preloadedState, enhancer) {
     )
   }
 
+  // 如果第二个参数是一个函数（也就是增强器，就换一下变量名字）
   // 在这里把二重嵌套函数赋予给enhancer变量，preloadedState恢复为undefined
   if (typeof preloadedState === 'function' && typeof enhancer === 'undefined') {
     enhancer = preloadedState
     preloadedState = undefined
   }
 
-  // 2. 如果入参传入了二重嵌套函数：
+  // 2. 如果入参传入了二重嵌套函数：（enhancer有值）
   if (typeof enhancer !== 'undefined') {
     if (typeof enhancer !== 'function') {
       throw new Error(
@@ -319,6 +320,9 @@ function createStore(reducer, preloadedState, enhancer) {
 
   // (1) 先定义一些中间变量!
   let currentReducer = reducer
+  // 如有传递第二个参数preloadedState的话，就是那个对象
+  // （注意，因为这个参数是外部传入的，所以最好保证他的结构和写在reducer那边的（若有合并则合并后的）对象一致）
+  // （一般是服务器渲染才会有这种情况，从window.context.state拿到JSON化的数据）
   let currentState = preloadedState
   // currentListeners是当前正在使用的监听器列表
   let currentListeners = new Map()
@@ -327,7 +331,7 @@ function createStore(reducer, preloadedState, enhancer) {
   let listenerIdCounter = 0
   let isDispatching = false
 
-  
+
   // (2) 一些关键函数的定义
   function ensureCanMutateNextListeners() {
     // 如果两者是同一个内存(在初始的时候是这样)
@@ -445,7 +449,7 @@ function createStore(reducer, preloadedState, enhancer) {
     // 这个函数遍历所有的reducer函数, 执行之后获得 { home: {}, counter: {} }, 这个变量更新给currentState
     try {
       // 传入的参数是state和action:
-      // 其中state指的是preloadedState,一开始执行是undefined
+      // 其中state指的是preloadedState,一开始执行是undefined或者初始值
       // action来自于dispatch函数的入参
       isDispatching = true
       currentState = currentReducer(currentState, action)
