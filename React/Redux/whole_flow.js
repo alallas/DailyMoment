@@ -543,7 +543,7 @@ function createStore(reducer, preloadedState, enhancer) {
 
 // thunk 中间件
 
-var thunk = createThunkMiddleware();
+
 function createThunkMiddleware(extraArgument) {
   const middleware = ({ dispatch, getState }) => (next) => (action) => {
     if (typeof action === "function") {
@@ -555,7 +555,19 @@ function createThunkMiddleware(extraArgument) {
 }
 
 
+// 在thunk源码的最后导出两个东西
+// export const thunk = createThunkMiddleware()
+// export const withExtraArgument = createThunkMiddleware
 
+// 其中withExtraArgument方法可以通过以下方式调用
+// import { withExtraArgument } from 'redux-thunk'
+// withExtraArgument(clientAxios)
+// 这样相当于自己调用createThunkMiddleware创建了一个带有第三个参数的thunk
+// 这个参数在action函数里面是可以用的！
+
+// 使用场景，某些异步action函数需要不同的一些变量来做出不同的网络调用行为
+// 比如上面的参数clientAxios，就是客户端的axios实例，他的baseURL和服务端是不一样的
+// 客户端访问node服务端，而不是直接访问api服务器
 
 
 function applyMiddleware(...middlewares) {
@@ -651,9 +663,17 @@ function compose(...funcs) {
 // }
 // 我需要自己手动派发（靠useDispatch），而不靠connect的封装，然后拿到改变之后的数据
 // 那么就需要依靠thunk返回 函数式action函数的返回值 这个特点，在action函数中return一些东西，然后在dispatch这边能够拿到
-Home.loadData = function(store) {
-  return store.dispatch(actions.getHomeList())
-}
+// Home.loadData = function(store) {
+//   return store.dispatch(actions.getHomeList())
+// }
+
+
+
+
+
+
+
+
 
 
 
