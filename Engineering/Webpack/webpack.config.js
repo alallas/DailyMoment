@@ -145,6 +145,9 @@ module.exports = {
           },
           {
             loader: 'css-loader2', // 处理css的@import和url()
+            options: {
+              modules: true,
+            }
           },
         ]
       },

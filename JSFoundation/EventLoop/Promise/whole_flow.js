@@ -175,7 +175,7 @@ function PromiseChain(onResolve, onReject) {
     case UNDEFINED:
       throw MakeTypeError('not_a_promise', [this]);
     // pending状态，存入re和rj函数
-    // 注意每个队列分别传入的是两个东西！（【当前的外部手写的处理函数】和【“下一个实例”的三件套对象】）
+    // 注意每个队列分别传入的是两个东西！（【当前的外部手写的处理函数】和【“下一个实例（本then实例）”的三件套对象】）
     case 0:
       GET_PRIVATE(this, promiseOnResolve).push(onResolve, deferred);
       GET_PRIVATE(this, promiseOnReject).push(onReject, deferred);
