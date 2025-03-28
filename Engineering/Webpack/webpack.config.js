@@ -18,7 +18,7 @@ module.exports = {
   // 预设置
   mode: 'development', // 开发模式development，生产模式production（生成的文件会压缩，变量全部变为一个字母）
   devtool: false, // 不生成source-map
-  // devtool: 'source-map', // 生成source-map
+  devtool: 'source-map', // 生成source-map
 
 
   // 根目录
@@ -32,21 +32,21 @@ module.exports = {
   entry: './src/index.js',
 
   // 2. 等价于下面，属性名表示代码块（chunk）的名字
-  // entry: {
-  //   main: './src/index.js'
-  // },
+  entry: {
+    main: './src/index.js'
+  },
 
   // 3. multipal application page  MAP多页面应用
-  // entry: {
-  //   main: './src/index.js',
-  //   content: './src/content.js'
-  // },
+  entry: {
+    main: './src/index.js',
+    content: './src/content.js'
+  },
 
   // 4. hash演示
-  // entry: {
-  //   main: './src/index.js',
-  //   vendor: ['lodash'], // 可以把第三方库写到数组里面，表示一个chunk
-  // },
+  entry: {
+    main: './src/index.js',
+    vendor: ['lodash'], // 可以把第三方库写到数组里面，表示一个chunk
+  },
 
 
   // 出口
@@ -165,12 +165,12 @@ module.exports = {
         use: [
           {
             loader: 'babel-loader', // 相对路径默认去node_modules里面找
-            // loader: babelLoader, // 绝对路径
+            loader: babelLoader, // 绝对路径
             options: {
-              // plugins: [['import', { library: 'lodash' }]]
-              // plugins: [
-              //   [path.resolve(__dirname, 'plugins/babel-plugin-import.js'), { libraries: ['lodash'] }]
-              // ]
+              plugins: [['import', { library: 'lodash' }]],
+              plugins: [
+                [path.resolve(__dirname, 'plugins/babel-plugin-import.js'), { libraries: ['lodash'] }]
+              ],
               presets: [
                 // modules.false告诉babel不要转换模块代码，不能转化为commonJS
                 ['@babel/preset-env', { modules: false }]
@@ -180,6 +180,8 @@ module.exports = {
         ]
       },
       // source-map-loader的作用是，为【被引入的文件】生成一个sourceMap文件使得他可以被解析成源码的样子
+      // 注意，这里只是针对【被引入的文件】，也就是第三方库，比如node_module里面的
+      // （需要确保第三方库本身提供了 Source Map 文件。）
       {
         test: /\.js$/,
         use: [
@@ -206,11 +208,11 @@ module.exports = {
       filename: 'index.html', // 生成的html的名字，路径和出口的path一样
       chunks: ['main'] // 需要装的对应入口js的key（包名即chunk名）【注意这是chunk名字，不是原始的原js文件的名字】
     }),
-    // new HtmlWebpackPlugin({
-    //   template: './src/index.html',
-    //   filename: 'login.html',
-    //   chunks: ['login']
-    // })
+    new HtmlWebpackPlugin({
+      template: './src/index.html',
+      filename: 'login.html',
+      chunks: ['login']
+    }),
 
 
     // 关闭devtool的source-map，用插件的目的是更加精细地控制source-map

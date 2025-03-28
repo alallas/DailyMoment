@@ -1566,7 +1566,15 @@ function getComponentName(type) {
   return null;
 }
 
-// REVIEW - ReactDOM的render方法，主入口，创建root对象，fiber，ReactRoot对象等
+
+
+
+
+// REVIEW - ReactDOM的render方法-第一辑：主入口，创建root对象，fiber，ReactRoot对象等
+
+
+
+
 
 var ReactDOM = {
   render: function (element, container, callback) {
@@ -1579,6 +1587,8 @@ var ReactDOM = {
     );
   },
 };
+
+
 
 function legacyRenderSubtreeIntoContainer(
   parentComponent,
@@ -1650,8 +1660,7 @@ function legacyRenderSubtreeIntoContainer(
 
 function legacyCreateRootFromDOMContainer(container, forceHydrate) {
   // 看是否需要水化
-  var shouldHydrate =
-    forceHydrate || shouldHydrateDueToLegacyHeuristic(container);
+  var shouldHydrate = forceHydrate || shouldHydrateDueToLegacyHeuristic(container);
   if (!shouldHydrate) {
     var warned = false;
     var rootSibling = void 0;
@@ -1902,7 +1911,13 @@ function FiberNode(tag, pendingProps, key, mode) {
   }
 }
 
-// REVIEW - ReactDOM的render方法，主入口后面的unbatchedUpdates更新函数，调用ReactRoot的render方法更新
+
+
+
+// REVIEW - ReactDOM的render方法-第二辑：主入口后面的unbatchedUpdates更新函数，调用ReactRoot的render方法更新
+
+
+
 
 // 创建完root对象之后，进入此函数，这个函数用来调节批量更新
 function unbatchedUpdates(fn, a) {
@@ -1952,6 +1967,12 @@ ReactRoot.prototype.render = function (children, callback) {
   return work;
 };
 
+
+
+
+
+
+
 function ReactWork() {
   this._callbacks = null;
   this._didCommit = false;
@@ -1991,6 +2012,12 @@ ReactWork.prototype._onCommit = function () {
   }
 };
 
+
+
+
+
+
+
 // REVIEW - ReactRoot对象里面的render方法调用的updateContainer函数，是真正的入口！！！开始计算过期时间（优先级）
 // 分两步，首先计算过期时间，然后根据过期时间进行更新
 
@@ -2004,6 +2031,10 @@ function updateContainer(element, container, parentComponent, callback) {
   // 开始更新，根据优先级
   return updateContainerAtExpirationTime(element, container, parentComponent, expirationTime, callback);
 }
+
+
+
+
 
 function requestCurrentTime() {
   // 在一次render中，如果我有一个新的任务进来了，要计算 expirationTime 发现现在处于渲染阶段，这时直接返回上次 render 开始的时间，再去计算 expirationTime
@@ -2032,6 +2063,9 @@ function requestCurrentTime() {
   // 在一个batched更新中，只有第一次创建更新才会重新计算时间，后面的所有更新都会复用第一次创建更新的时候的时间，这个也是为了保证在一个批量更新中产生的同类型的更新只会有相同的过期时间
   return currentSchedulerTime;
 }
+
+
+
 
 function findHighestPriorityRoot() {
   var highestPriorityWork = NoWork;
@@ -2106,6 +2140,9 @@ function recomputeCurrentRendererTime() {
   currentRendererTime = msToExpirationTime(currentTimeMs);
 }
 
+
+
+
 function computeExpirationForFiber(currentTime, fiber) {
   // 拿到当前的优先级，当前的什么的优先级？？？？？fiber的优先级？？？
   const priorityLevel = getCurrentPriorityLevel();
@@ -2173,18 +2210,25 @@ function getCurrentPriorityLevel() {
 }
 
 
+
+
 function computeInteractiveExpiration(currentTime) {
   return computeExpirationBucket(currentTime, HIGH_PRIORITY_EXPIRATION, HIGH_PRIORITY_BATCH_SIZE);
 }
+
+
 
 function computeAsyncExpiration(currentTime) {
   return computeExpirationBucket(currentTime, LOW_PRIORITY_EXPIRATION, LOW_PRIORITY_BATCH_SIZE);
 }
 
 
+
 function computeExpirationBucket(currentTime, expirationInMs, bucketSizeMs) {
   return MAGIC_NUMBER_OFFSET - ceiling(MAGIC_NUMBER_OFFSET - currentTime + expirationInMs / UNIT_SIZE, bucketSizeMs / UNIT_SIZE);
 }
+
+
 
 // ceiling 函数用于将数字 num 四舍五入到指定精度（precision）。
 // 它确保了差值 MAGIC_NUMBER_OFFSET - currentTime + expirationInMs / UNIT_SIZE 能够按批次大小 bucketSizeMs 分割成“桶”（buckets），这些桶用于调整任务的调度粒度。
@@ -2194,6 +2238,7 @@ function ceiling(num, precision) {
 }
 // 按位或0的操作，相当于Math.floor(num/precision)，然后加1再乘以precision，这样就实现了向上取整到precision的倍数。
 // 例如，如果num是12，precision是5，那么结果是15。这样的处理可以让同一时间段内的多个任务具有相同的过期时间
+
 
 
 
@@ -3803,11 +3848,11 @@ function updateHostRoot(current$$1, workInProgress, renderExpirationTime) {
   var root = workInProgress.stateNode;
 
   // current$$1是workInProgress的替身
-  // 这是ssr的逻辑，如果是水化的话，副作用链改为placement，而不是update，也就是dom节点不变
+  // 这是ssr的逻辑，如果是水化的话，副作用链为placement
+  // 相当于不用去reconcileChildren判断，直接进入首渲环节的mountChildFibers
   if ((current$$1 === null || current$$1.child === null) && root.hydrate && enterHydrationState(workInProgress)) {
     workInProgress.effectTag |= Placement;
-    workInProgress.child = mountChildFibers(workInProgress, null, nextChildren, renderExpirationTime
-    );
+    workInProgress.child = mountChildFibers(workInProgress, null, nextChildren, renderExpirationTime);
   } else {
     // 这是正常react的逻辑，开始对孩子进行调度！！！！！！
     // nextChildren指的是当前节点的虚拟DOM对象（在【首次渲染阶段】，这个element就是root的下一个节点的虚拟DOM，要么是函数组件，要么是类组件！！）
@@ -7127,7 +7172,8 @@ function updateHostComponent(current$$1, workInProgress, renderExpirationTime) {
   // 1.更新一下全局的上下文信息
   pushHostContext(workInProgress);
 
-  // 首次渲染的时候，如果是ssr的情况，走下面
+  // 【SSR】首次渲染的时候，如果是ssr的情况，走下面
+  // 给fiber赋予一个parent属性
   if (current$$1 === null) {
     tryToClaimNextHydratableInstance(workInProgress);
   }
@@ -7340,33 +7386,40 @@ function tryToClaimNextHydratableInstance(fiber) {
   if (!isHydrating) {
     return;
   }
+  // 记录下一个要水合的instance
   var nextInstance = nextHydratableInstance;
+
+  // 如果是初始渲染的话，
+  // 将当前 fiber 插入到树中作为一个非水合的实例。
   if (!nextInstance) {
-    // Nothing to hydrate. Make it an insertion.
     insertNonHydratedInstance(hydrationParentFiber, fiber);
+    // 标识水合操作已经完成，更新当前的 hydrationParentFiber 变量，直接退出
     isHydrating = false;
     hydrationParentFiber = fiber;
     return;
   }
+
+  // 非初始渲染的话
   var firstAttemptedInstance = nextInstance;
+  // 尝试对当前的 fiber 和 nextInstance 进行水合。
   if (!tryHydrate(fiber, nextInstance)) {
-    // If we can't hydrate this instance let's try the next one.
-    // We use this as a heuristic. It's based on intuition and not data so it
-    // might be flawed or unnecessary.
+    // 失败
+    // 尝试获取 firstAttemptedInstance 的下一个水合实例，
     nextInstance = getNextHydratableSibling(firstAttemptedInstance);
+
+    // 都不行的话，插入一个新的非水合实例，更新变量之后就直接退出了
     if (!nextInstance || !tryHydrate(fiber, nextInstance)) {
-      // Nothing to hydrate. Make it an insertion.
       insertNonHydratedInstance(hydrationParentFiber, fiber);
       isHydrating = false;
       hydrationParentFiber = fiber;
       return;
     }
-    // We matched the next one, we'll now assume that the first one was
-    // superfluous and we'll delete it. Since we can't eagerly delete it
-    // we'll have to schedule a deletion. To do that, this node needs a dummy
-    // fiber associated with it.
+
+    // 成功则删除多余的实例
     deleteHydratableInstance(hydrationParentFiber, firstAttemptedInstance);
   }
+
+  // 更新当前水合的父实例，获取 nextInstance 的第一个子元素作为下一个待水合的实例
   hydrationParentFiber = fiber;
   nextHydratableInstance = getFirstHydratableChild(nextInstance);
 }
@@ -10697,46 +10750,18 @@ function popHostContext(fiber) {
 }
 
 
+
 function getRootHostContainer() {
   var rootInstance = requiredContext(rootInstanceStackCursor.current);
   return rootInstance;
 }
 
+
+
 function getHostContext() {
   var context = requiredContext(contextStackCursor$1.current);
   return context;
 }
-
-
-
-function popHydrationState(fiber) {
-  if (!supportsHydration) {
-    return false;
-  }
-  if (fiber !== hydrationParentFiber) {
-    return false;
-  }
-  if (!isHydrating) {
-    popToNextHostParent(fiber);
-    isHydrating = true;
-    return false;
-  }
-
-  var type = fiber.type;
-
-  if (fiber.tag !== HostComponent || type !== 'head' && type !== 'body' && !shouldSetTextContent(type, fiber.memoizedProps)) {
-    var nextInstance = nextHydratableInstance;
-    while (nextInstance) {
-      deleteHydratableInstance(fiber, nextInstance);
-      nextInstance = getNextHydratableSibling(nextInstance);
-    }
-  }
-
-  popToNextHostParent(fiber);
-  nextHydratableInstance = hydrationParentFiber ? getNextHydratableSibling(fiber.stateNode) : null;
-  return true;
-}
-
 
 
 
@@ -17945,6 +17970,70 @@ function get(key) {
 
 
 
+
+// REVIEW - 水化走下面
+
+
+// 水化
+// 与正常render的区别就是：
+// 进入legacyRenderSubtreeIntoContainer函数，传入的参数是
+
+
+
+var ReactDOM = {
+  hydrate: function (element, container, callback) {
+    !isValidContainer(container) ? invariant(false, 'Target container is not a DOM element.') : void 0;
+    {
+      !!container._reactHasBeenPassedToCreateRootDEV ? warningWithoutStack$1(false, 'You are calling ReactDOM.hydrate() on a container that was previously ' + 'passed to ReactDOM.%s(). This is not supported. ' + 'Did you mean to call createRoot(container, {hydrate: true}).render(element)?', enableStableConcurrentModeAPIs ? 'createRoot' : 'unstable_createRoot') : void 0;
+    }
+    return legacyRenderSubtreeIntoContainer(null, element, container, true, callback);
+  },
+}
+
+
+
+
+
+function popHydrationState(fiber) {
+  if (!supportsHydration) {
+    return false;
+  }
+  if (fiber !== hydrationParentFiber) {
+    return false;
+  }
+  if (!isHydrating) {
+    popToNextHostParent(fiber);
+    isHydrating = true;
+    return false;
+  }
+
+  // 如果不是原生节点，删除，并找到下一个是原生节点的进行水合
+  var type = fiber.type;
+  if (fiber.tag !== HostComponent || type !== 'head' && type !== 'body' && !shouldSetTextContent(type, fiber.memoizedProps)) {
+    var nextInstance = nextHydratableInstance;
+    while (nextInstance) {
+      deleteHydratableInstance(fiber, nextInstance);
+      nextInstance = getNextHydratableSibling(nextInstance);
+    }
+  }
+
+  // 最后，不管是不是原生节点，都要更新【下一个水合节点】的值
+  // 一直往上找，找到是原生节点为止
+  // 如果上面有原生节点，那么找兄弟！！然后将其作为【下一个水合节点】
+  popToNextHostParent(fiber);
+  nextHydratableInstance = hydrationParentFiber ? getNextHydratableSibling(fiber.stateNode) : null;
+  return true;
+}
+
+
+
+function popToNextHostParent(fiber) {
+  var parent = fiber.return;
+  while (parent !== null && parent.tag !== HostComponent && parent.tag !== HostRoot && parent.tag !== DehydratedSuspenseComponent) {
+    parent = parent.return;
+  }
+  hydrationParentFiber = parent;
+}
 
 
 

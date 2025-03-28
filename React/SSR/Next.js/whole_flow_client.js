@@ -1,4 +1,7 @@
-// REVIEW - router.js
+// REVIEW - client下面的router.js
+// 打包之后的node_module里面的next下面的dist下面的client文件夹
+
+
 
 var _construct = __webpack_require__("(pages-dir-browser)/./node_modules/next/dist/compiled/@babel/runtime/helpers/construct.js");
 var _s = $RefreshSig$();
@@ -358,7 +361,7 @@ if ((typeof exports["default"] === 'function' || typeof exports["default"] === '
 
 
 // REVIEW - client下面的index.js
-
+// 打包之后的node_module里面的next下面的dist下面的client文件夹
 
 
 

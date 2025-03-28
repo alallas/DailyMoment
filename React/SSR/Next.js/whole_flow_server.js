@@ -9,25 +9,23 @@
 
 
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-
-require("../server/require-hook");
-const _commander = require("next/dist/compiled/commander");
-const _log = require("../build/output/log");
-const _semver = _interop_require_default(require("next/dist/compiled/semver"));
-const _picocolors = require("../lib/picocolors");
-const _formatclihelpoutput = require("../lib/format-cli-help-output");
-const _constants = require("../lib/constants");
-const _utils = require("../server/lib/utils");
-const _nexttest = require("../cli/next-test.js");
-function _interop_require_default(obj) {
-  return obj && obj.__esModule ? obj : {
-    default: obj
-  };
-}
+// Object.defineProperty(exports, "__esModule", {
+//   value: true
+// });
+// require("../server/require-hook");
+// const _commander = require("next/dist/compiled/commander");
+// const _log = require("../build/output/log");
+// const _semver = _interop_require_default(require("next/dist/compiled/semver"));
+// const _picocolors = require("../lib/picocolors");
+// const _formatclihelpoutput = require("../lib/format-cli-help-output");
+// const _constants = require("../lib/constants");
+// const _utils = require("../server/lib/utils");
+// const _nexttest = require("../cli/next-test.js");
+// function _interop_require_default(obj) {
+//   return obj && obj.__esModule ? obj : {
+//     default: obj
+//   };
+// }
 
 
 // 环境检测
@@ -247,38 +245,36 @@ program.parse(process.argv);
 // node inspect ./node_modules/next/dist/cli/next-dev.js命令执行之后进来这里！
 
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-Object.defineProperty(exports, "nextDev", {
-  enumerable: true,
-  get: function () {
-    return nextDev;
-  }
-});
-
-
-require("../server/lib/cpu-profile");
-const _utils = require("../server/lib/utils");
-const _log = /*#__PURE__*/ _interop_require_wildcard(require("../build/output/log"));
-const _getprojectdir = require("../lib/get-project-dir");
-const _constants = require("../shared/lib/constants");
-const _path = /*#__PURE__*/ _interop_require_default(require("path"));
-const _shared = require("../trace/shared");
-const _storage = require("../telemetry/storage");
-const _config = /*#__PURE__*/ _interop_require_default(require("../server/config"));
-const _findpagesdir = require("../lib/find-pages-dir");
-const _fileexists = require("../lib/file-exists");
-const _getnpxcommand = require("../lib/helpers/get-npx-command");
-const _mkcert = require("../lib/mkcert");
-const _uploadtrace = /*#__PURE__*/ _interop_require_default(require("../trace/upload-trace"));
-const _env = require("@next/env");
-const _child_process = require("child_process");
-const _getreservedport = require("../lib/helpers/get-reserved-port");
-const _os = /*#__PURE__*/ _interop_require_default(require("os"));
-const _nodeevents = require("node:events");
-const _timers = require("timers");
-const _trace = require("../trace");
+// Object.defineProperty(exports, "__esModule", {
+//   value: true
+// });
+// Object.defineProperty(exports, "nextDev", {
+//   enumerable: true,
+//   get: function () {
+//     return nextDev;
+//   }
+// });
+// require("../server/lib/cpu-profile");
+// const _utils = require("../server/lib/utils");
+// const _log = /*#__PURE__*/ _interop_require_wildcard(require("../build/output/log"));
+// const _getprojectdir = require("../lib/get-project-dir");
+// const _constants = require("../shared/lib/constants");
+// const _path = /*#__PURE__*/ _interop_require_default(require("path"));
+// const _shared = require("../trace/shared");
+// const _storage = require("../telemetry/storage");
+// const _config = /*#__PURE__*/ _interop_require_default(require("../server/config"));
+// const _findpagesdir = require("../lib/find-pages-dir");
+// const _fileexists = require("../lib/file-exists");
+// const _getnpxcommand = require("../lib/helpers/get-npx-command");
+// const _mkcert = require("../lib/mkcert");
+// const _uploadtrace = /*#__PURE__*/ _interop_require_default(require("../trace/upload-trace"));
+// const _env = require("@next/env");
+// const _child_process = require("child_process");
+// const _getreservedport = require("../lib/helpers/get-reserved-port");
+// const _os = /*#__PURE__*/ _interop_require_default(require("os"));
+// const _nodeevents = require("node:events");
+// const _timers = require("timers");
+// const _trace = require("../trace");
 
 function _interop_require_default(obj) {
   return obj && obj.__esModule ? obj : {
