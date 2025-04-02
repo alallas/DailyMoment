@@ -8895,13 +8895,13 @@ function completeWork(current, workInProgress, renderExpirationTime) {
           // 这里拿到的上下文不是之前那个fiber节点的上下文吗，因为在前面已经pop出去了
           var currentHostContext = getHostContext();
 
-          // 根据是否水化来看要新建dom还是挂dom？
+          // 根据是否水化来看要新建dom还是根据已经有的dom更新属性？？
           var wasHydrated = popHydrationState(workInProgress);
           if (wasHydrated) {
             // 水化走下面
 
-            // 开始水化，水化完之后，做标记
-            // 就不构建DOM节点了！！
+            // 开始水化（其实就是在对比服和客的属性值，然后选择一个进行处理（监听函数/类名确认/孩子内容等），然后收集变化的孩子内容的信息）
+            // 如果孩子内容变化了，标注更新，不变的话就跳过了就不构建DOM节点了！！
             if (prepareToHydrateHostInstance(workInProgress, rootContainerInstance, currentHostContext)) {
               markUpdate(workInProgress);
             }
@@ -16296,10 +16296,14 @@ function get(key) {
 // REVIEW - 水化走下面
 
 
-// 水化
-// 与正常render的区别就是：
-// 进入legacyRenderSubtreeIntoContainer函数，传入的第四个参数是true，也就是forceHydrate为true
+// 简单总结一句话就是：
+// 在beginWork那边照样生成fiber，只不过立刻赋予statNode属性为真实的DOM节点
+// 在completeWork那边不用新建DOM，直接对旧的DOM进行属性处理，
 
+
+
+// 水化入口的render与正常render的区别就是：
+// 进入legacyRenderSubtreeIntoContainer函数，传入的第四个参数是true，也就是forceHydrate为true
 
 // 1. 入口
 var ReactDOM = {
@@ -16518,11 +16522,12 @@ function prepareToHydrateHostInstance(fiber, rootContainerInstance, hostContext)
   var instance = fiber.stateNode;
   var updatePayload = hydrateInstance(instance, fiber.type, fiber.memoizedProps, rootContainerInstance, hostContext, fiber);
   
-  // 
+  // 把要更新的属性放到uQ上面！！！！
   fiber.updateQueue = updatePayload;
   if (updatePayload !== null) {
     return true;
   }
+  // 如果没有要更新的信息，直接返回false
   return false;
 }
 
@@ -16547,7 +16552,7 @@ function hydrateInstance(instance, type, props, rootContainerInstance, hostConte
     parentNamespace = hostContextDev.namespace;
   }
 
-  // 
+  // 处理属性（拿到属性值，对比 + 抉择（采用服or客））
   return diffHydratedProperties(instance, type, props, parentNamespace, rootContainerInstance);
 }
 
@@ -16639,7 +16644,7 @@ function diffHydratedProperties(domElement, tag, rawProps, parentNamespace, root
   }
 
   // 3. 针对客户端，收集属性信息!
-  // 如果服务器端和客户端不一样，那么给出警告，然后以客户端为主
+  // 如果服务器端和客户端不一样，那么给出警告，然后孩子以客户端为主
   var updatePayload = null;
   for (var propKey in rawProps) {
     if (!rawProps.hasOwnProperty(propKey)) {
@@ -16730,7 +16735,7 @@ function diffHydratedProperties(domElement, tag, rawProps, parentNamespace, root
         if (propertyInfo !== null) {
           // 在【额外属性】那边删掉自己本身的属性
           extraAttributeNames.delete(propertyInfo.attributeName);
-          // 
+          // 拿到经过对比处理的属性值！（服与客不同就用服）
           serverValue = getValueForProperty(domElement, propKey, nextProp, propertyInfo);
 
         } else {
@@ -16786,6 +16791,7 @@ function diffHydratedProperties(domElement, tag, rawProps, parentNamespace, root
   }
 
   // 返回收集的信息
+  // 只有在孩子不一样的时候才会收集信息
   return updatePayload;
 }
 
@@ -16868,11 +16874,11 @@ function shouldRemoveAttributeWithWarning(name, value, propertyInfo, isCustomCom
 }
 
 
-// 这是在
+// 这是在拿到经过对比处理的属性值
 function getValueForProperty(node, name, expected, propertyInfo) {
   // node是原生节点
   // name是属性名字
-  // expected是属性值，也就是对应的nextProps，也就是
+  // expected是属性值，也就是对应的nextProps，也就是客户端的属性值！
   // propertyInfo是属性名字信息
 
   {
@@ -16913,14 +16919,20 @@ function getValueForProperty(node, name, expected, propertyInfo) {
         stringValue = node.getAttribute(attributeName);
       }
 
+      // 看这个真实DOM的属性值（服务器）与fiber的nextProps的属性值（客户端）是否一样
       if (shouldRemoveAttribute(name, expected, propertyInfo, false)) {
         return stringValue === null ? expected : stringValue;
       } else if (stringValue === '' + expected) {
         return expected;
       } else {
+        // 两者不一样，使用服务器端的
         return stringValue;
       }
     }
   }
 }
+
+
+
+
 
