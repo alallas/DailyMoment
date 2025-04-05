@@ -29,7 +29,7 @@ import { renderRoutes } from "react-router-config"
 // 要在server那边也要使用StaticRouter，静态路由容器（只有服务端渲染才用到）
 // 服务端先用静态路由容器判断要显示什么，然后来到客户端，也同样判断要显示什么，两者才能对上
 
-
+debugger
 ReactDOM.hydrate(
   <Provider store={getClientStore()}>
     <BrowserRouter>

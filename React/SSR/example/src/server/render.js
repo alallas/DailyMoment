@@ -27,7 +27,7 @@ function render(req, res) {
   // 不需要把所有数据都获取，只获取当前页面下的数据，因为————
   // 第一：服务器渲染一般仅仅是首页渲染，第二：服务器渲染，每次转换页面的时候，都会重新send一遍数据的，所以一次send只构建一个页面的数据就可以了
   
-  // （1）获取要渲染的路由
+  // 3.1 获取要渲染的路由
   // 使用react-router的matchPath的方法，匹配当前的req的path和路由配置的每个对象
   // 或者正则等等的匹配
   // 但是注意，如果routes是一个深度对象，react-router的matchPath的方法没法处理递归情况
@@ -78,45 +78,79 @@ function render(req, res) {
   //   }
   // ]
 
+  // 【补充】5. 状态码方面————不存在的路由
+  // 通过判断路由匹配结果数组中的【每一项是否有path属性】来看当前是否一个404的页面
+  let not404 = matchedRoutes.every(item => item.route.path)
+  if (!not404) {
+    res.status(404)
+  }
 
-  // （2）拿到这些对应路由组件得loadData，然后拿到数据
+  // 3.2 拿到这些对应路由组件的loadData，然后拿到数据
   // 因为不确定matchRoutes数组到底有几个匹配上的路由，也就是有可能有多个组件都匹配上了这个路由（类似主页面 + 弹窗）
   // 因此在这里遍历这个数组，然后执行匹配上的组件的loadData函数，去异步拿数据。
   // 因为返回的是多个promise，因此放入一个数组里面，用all方法解决
-
-  console.log('matchedRoutes', matchedRoutes)
 
   let promises = []
   matchedRoutes.forEach(route => {
     // 为什么要两个route，因为matchRoutes的返回值里面的对象里面的route属性才是匹配上的自己写的属性
     let realRoute = route.route
     if (realRoute.loadData) {
-      let promise = realRoute.loadData(store)
-      promises.push(promise)
+      // !改造all方法，不管每个接口成功还是失败，都变成成功！
+      // 在axios().then()后面加上一个.then()，里面两个入参都填上resolve，
+      // 使得外部自己手动new的promise实例肯定成功，并且外部自己手动new的promise实例保存的数据也是then之后传递过来的数据
+      promises.push(new Promise((resolve, reject) => {
+        realRoute.loadData(store).then(resolve, resolve)
+      }))
     }
   })
 
-  console.log('promises', promises)
+
+  // 2. 路由方面，使用StaticRouter，
+  // 并给props对象传递一个属性location，表明现在的页面上的路由是什么？
+  // 这个location属性其实有点像BrowserRouter的作用，查看当前是什么路由（用的history方法）
+  // 然后下面的routes和route元素，相当于useRoutes的作用，遍历routes的孩子的相关信息，逐个匹配，拿到匹配成功的对象
+
+  let context = {csses: []}
+  // 另外，这里的context与provider类型的上下文相似，但是仅仅【只传递一层】，也就是只传递给下一层，比如App
+  // 第二层往后的staticContext数据需要依靠一步步传递！太麻烦了！！
+  // 拿改的时候使用this.props.staticContext.xxxx
+  // 但是这个上下文仅仅供服务端使用，客户端没有！需要加一个判断！
+
+  // 5. 状态码方面，修改状态码特殊情况的状态码
+  // 5.1 不存在的路由
+  // 注意！如果服务器给到的是一个不存在的路由，他在chrome开发者页面nextwork那边显示的是200，而不是404
+  // 需要判断当前的路由是一个不存在的路由，然后请求进来了就改一下res.statusCode，那怎么判断当前的路由是一个不存在的路由呢？
+  // 1）一个方式是：依靠react router，在路由配置的最后一项，写上一个没有path属性的component，然后如果前面的路由都不匹配，就直接去到那个组件
+  // 完整的流程是：输入一个不存在的url，回车之后，服务端的StaticRouter判断路由，拿到相应组件，转化成字符串传输，调用client.js，复用组件，
+  // 等到那个组件在创造实例，执行构造函数时，给this.props.staticContext加上一个notFound为true的属性，说明是404的意思
+  // 然后在send之前判断this.props.staticContext是不是已经有一个notFound为true的属性，有的话把响应码改为404
+  // 2）另一个方式见上面，通过判断路由匹配结果数组中的【每一项是否有path属性】来看当前是否一个404的页面
+  // if (context.notFound) {
+  //   res.statusCode = 404
+  // }
+
+  // 5.2 重定向的路由
+  // 1）一个方式是：重定向的时候，StaticRouter会给context对象自动加上xx属性
+  let user = store.getState().session.user
+  let needLoginPages = ['profile']
+  if (!user && needLoginPages.some(item => req.path.indexOf(item) > -1)) {
+    res.redirect(302, '/login')
+    // 必须加上return，
+    // 因为这里相当于再一次刷新页面了（node告诉浏览器说要重定向，让浏览器再次进入这个url），不能还去走下面的send
+    return
+  }
+  // 2）另一个方式就是用context，在profile组件那边判断是否有user，没有的话依靠客户端跳转
 
 
-  // （3）等数据全部拿完，send
+  // 3.3 等数据全部拿完，send
   // 因此整个DOM树就在所有的promise完成之后，拿到数据之后构建，用all方法去包裹！
+  // 但是all方法有个缺点就是只有所有请求都成功才会成功！
   Promise.all(promises).then(response => {
 
     // 1. 如果想要服务端渲染，又想要像客户端渲染那样写，那这里多一个工作，把正常的组件转化成字符串
     // 用到的工具就是renderToString
     // !注意！这里只是把类/函数组件的return的树变成字符串了，对于里面的一些hook或函数是不处理的！
     // 绑定事件必须要在客户端渲染！！！
-
-    // 2. 路由方面，使用StaticRouter，
-    // 并给props对象传递一个属性location，表明现在的页面上的路由是什么？
-    // 这个location属性其实有点像BrowserRouter的作用，查看当前是什么路由
-    // 然后下面的routes和route元素，相当于useRoutes的作用，遍历routes的孩子的相关信息，逐个匹配，拿到匹配成功的对象
-
-    let context = {name:'xxxx'}
-    // 另外，这里的context相当于一个provider类型，不仅能传递数据到下面，也能修改这个全局的context对象
-    // 拿改的时候使用this.props.staticContext.xxxx
-    // 但是这个上下文仅仅供服务端使用，客户端没有！需要加一个判断！
 
     let html = renderToString(
       <Provider store={store}>
@@ -125,7 +159,12 @@ function render(req, res) {
         </StaticRouter>
       </Provider>
     )
-    console.log('store.getState()', store.getState())
+
+
+    // 4. css方面
+    // 把css放到顶层的context里面，通过StaticRouter来传递空收集满
+    // csses是一个数组，每个元素都是一个页面的所有css
+    let cssStr = context.csses.join('\n')
 
 
     res.send(
@@ -134,7 +173,8 @@ function render(req, res) {
           <head>
             <title>ssr</title>
             <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/mini.css/3.0.1/mini-default.min.css" />
-          </head>
+            <style>${cssStr}</style>
+            </head>
           <body>
             <div id='root'>${html}</div>
             ${

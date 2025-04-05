@@ -6,6 +6,7 @@ import App from "./containers/App";
 import Login from "./containers/Login";
 import Logout from "./containers/Logout";
 import Profile from "./containers/Profile";
+import NotFound from "./containers/NotFound";
 
 // const AppRoutes = () => (
 //   <Routes>
@@ -97,6 +98,11 @@ const routes = [
         path: '/profile',
         component: Profile,
         key: '/profile',
+      },
+      // 下面是一个404兜底组件，
+      // 需要在路由配置的最后，因为别的匹配不上他就直接显示最后一个
+      {
+        component: NotFound,
       },
     ]
   }

@@ -21,12 +21,17 @@ export default axios.create({
 export default (req) => axios.create({
   baseURL: 'http://localhost:3002',
   headers: {
-    cookie: req.get('cookie')
+    cookie: req.get('cookie') || ''
   }
 })
 
-// 这个函数的执行最好在getServerStore那边，通过给getServerStore传入req来传递
-// 不要在getUsers这种actionCreator函数上面加参数，以此在loadData那边传入req，这样会导致getUsers这种actionCreator函数变得很混乱，按道理他是不能有入参的
+
+
+// 这个函数的执行最好在getServerStore那边，通过给getServerStore传入req来传递req给这个函数本身，
+// 而getServerStore是在服务器的代码执行的，所以可以直接拿到req
+
+// 不要在getUsers这种actionCreator函数上面加参数，以此在loadData那边传入req，
+// 这样会导致getUsers这种actionCreator函数变得很混乱，按道理他是不能有入参的
 
 
 

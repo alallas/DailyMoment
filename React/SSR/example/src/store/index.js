@@ -8,12 +8,12 @@ import serverAxios from "../server/request"
 
 export function getClientStore() {
   let initState = window?.context?.state
-  return createStore(reducers, initState, applyMiddleware(withExtraArgument(clientAxios), createLogger()))
+  return createStore(reducers, initState, applyMiddleware(withExtraArgument(clientAxios)))
 }
 
 
 export function getServerStore(req) {
-  return createStore(reducers, applyMiddleware(withExtraArgument(serverAxios(req)), createLogger()))
+  return createStore(reducers, applyMiddleware(withExtraArgument(serverAxios(req))))
 }
 
 

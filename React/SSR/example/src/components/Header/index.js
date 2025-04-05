@@ -1,7 +1,8 @@
 import React, {Component} from "react";
 import { connect } from "react-redux";
-
 import { Link } from "react-router-dom";
+import styles from "./index.css"
+import withStyles from "../../withStyles";
 
 const headers = [
   {
@@ -35,6 +36,10 @@ const headers = [
 ]
 
 class Header extends Component {
+  constructor(props) {
+    super(props)
+  }
+
   render() {
     return (
       <div className="navbar navbar-inverse navbar-fixed-top">
@@ -64,11 +69,10 @@ class Header extends Component {
               {
                 this.props.user && (
                   <ul className="nav navbar-nav navbar-right">
-                    <li><a>{this.props.user.username}</a></li>
+                    <li><span className={styles.user}><a>{this.props.user.username}</a></span></li>
                   </ul>
                 )
               }
-
             </ul>
           </div>
         </div>
@@ -77,7 +81,7 @@ class Header extends Component {
   }
 }
 
-Header = connect(state => state.session)(Header)
+Header = withStyles(connect(state => state.session)(Header), styles)
 
 
 export default Header
