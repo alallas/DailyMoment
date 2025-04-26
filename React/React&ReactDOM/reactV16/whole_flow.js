@@ -2402,7 +2402,8 @@ function scheduleWork(fiber, expirationTime) {
 
   // 1. 首先先攀岩到根root（对象）上面，无论目前身处哪个fiber
   // 然后期间更新本节点的eT和往上任意节点的childET（包括替身）
-  // 【更新本eT与祖上childET】
+  // 【更新本eT与祖上childET】——————>意味着，如果一个子组件进行了setState，那么祖上的所有父组件的expirationTime都会变得很大，以便更新！
+  // （在beginWork那边，这个父组件就会因为rT很大而进不去bailout函数）
   // 这个root是root对象，而非原生的stateNode
   var root = scheduleWorkToRoot(fiber, expirationTime);
 
@@ -3553,7 +3554,7 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
       // 因为每次在执行函数组件的时候，相当于重新执行了创建虚拟DOM的函数，props重新指向一个新的内存地址
       didReceiveUpdate = true;
     } else if (updateExpirationTime < renderExpirationTime) {
-      // 新旧的props一样，且fiber本身的过期时间小，说明这个fiber已经被处理过了，可以直接退出了
+      // 新旧的props一样，且fiber本身的过期时间（倒计时）小，说明这个fiber已经被处理过了，可以直接退出了
 
       // renderExpirationTime是nextRenderExpirationTime，为Sync的值（若从performWorkSync进来的）
       // 首次渲染时，fiber的eT和入参的eT对比，是一样的，不进入这里
