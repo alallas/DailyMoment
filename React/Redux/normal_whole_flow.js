@@ -593,6 +593,7 @@ function applyMiddleware(...middlewares) {
     }
 
     // 遍历所有的中间件, 执行所有的中间件函数, 得到中间件函数的返回值(也是函数)数组
+    // 中间件数组是[函数1, 函数2, 函数3, 函数4]
     const chain = middlewares.map(middleware => middleware(middlewareAPI))
 
     // 逐渐整合!
