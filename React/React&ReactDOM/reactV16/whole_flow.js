@@ -10258,7 +10258,7 @@ function ensureListeningTo(rootContainerElement, registrationName) {
 
 
 function listenTo(registrationName, mountAt) {
-  // mountAt是根节点的真实DOM
+  // mountAt是根节点的真实DOM，所有的事件都挂载到根节点上，等原生的冒泡到根节点然后执行react的模拟冒泡过程函数
   // registrationName是事件名称
 
 
@@ -10604,6 +10604,7 @@ function batchedUpdates$1(fn, a) {
 
 
 function handleTopLevel(bookKeeping) {
+  // 入参是合成事件对象
 
   // 1. 找到这个事件对象的fiber
   var targetInst = bookKeeping.targetInst;
@@ -10616,8 +10617,10 @@ function handleTopLevel(bookKeeping) {
       bookKeeping.ancestors.push(ancestor);
       break;
     }
-    // 这个root已经是根节点root的真实的DOM了
+    // 情况一：正常的element节点：这个root已经是根节点root的真实的DOM了
+    // 情况二：portal节点（body底部的节点）：root是null
     var root = findRootContainerNode(ancestor);
+    // 情况二：第一次循环的时候就直接退出了，bookKeeping.ancestors里面没有这个【有交互的元素】
     if (!root) {
       break;
     }
@@ -10629,7 +10632,9 @@ function handleTopLevel(bookKeeping) {
     ancestor = getClosestInstanceFromNode(root);
   } while (ancestor);
 
-  // 到这里bookKeeping.ancestors数组只有交互节点本身
+  // 情况一：正常的element：到这里bookKeeping.ancestors数组只有交互节点本身
+  // 情况二：portal：到这里bookKeeping.ancestors数组为空
+
   // 下面这里不是在冒泡
   // 这个数组存的只是自己本身，对自己本身遍历，执行事件函数
   for (var i = 0; i < bookKeeping.ancestors.length; i++) {
@@ -10647,7 +10652,9 @@ function findRootContainerNode(inst) {
     inst = inst.return;
   }
   if (inst.tag !== HostRoot) {
-    // This can happen if we're in a detached tree.
+    // 这种情况什么时候会出现？？
+    // 当inst这个fiber不在id为root的react树下面，而是在body的底部，这里就返回null
+    // （portal类型的节点，antd里面的弹窗经常用到）
     return null;
   }
   // 拿到这个根fiber的root对象的真实DOM节点
