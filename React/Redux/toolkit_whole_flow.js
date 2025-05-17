@@ -1076,6 +1076,9 @@ function createReducer(initialState, mapOrBuilderCallback) {
   }
 
   // !【单独的reducer】这是对外暴露的单独的reducer的真正函数！！dispatch之后在combinedReducer那边执行每个reducer函数就是下面的函数
+
+  // 这个是一个真正的单个reducer函数（对原版的reducer函数的一个增强）
+  // actionsMap是把reducer和extrareducer（里面的fulfilled）两者都结合到一起
   function reducer(state = getInitialState(), action) {
     // 根据actiontype拿到对应的reducer函数
     let caseReducers = [
@@ -1487,21 +1490,26 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
   // 这个函数会在thunk那边或者saga（？）那边执行
   function actionCreator(arg, { signal } = {}) {
     // apiFunc()返回的是一个函数，通过中间件执行
+    // 返回一个函数，用于在thunk那边或者saga那边执行！
     return (dispatch, getState, extra) => {
       const requestId = options?.idGenerator
         ? options.idGenerator(arg)
         : nanoid();
+      // 创建一个取消异步操作的api实例
       const abortController = new AbortController();
       let abortHandler;
       let abortReason;
+      // 定义取消方法
       function abort(reason) {
         abortReason = reason;
         abortController.abort();
       }
+      // 看是不是传入了信号（signal 是 AbortController.signal 的实例，用于通知异步操作取）
       if (signal) {
         if (signal.aborted) {
           abort(externalAbortMessage);
         } else {
+          // 不是暂停的话，监听暂停
           signal.addEventListener("abort", () => abort(externalAbortMessage), {
             once: true,
           });
@@ -1514,6 +1522,7 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
             getState,
             extra,
           });
+          // 如果传入了condition函数，且这个函数是一个异步函数 ，就先等他执行完毕！
           if (isThenable(conditionResult)) {
             conditionResult = await conditionResult;
           }
@@ -1523,6 +1532,8 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
               message: "Aborted due to condition callback returning false.",
             };
           }
+          // condition函数正常执行完毕，或没有传入condition函数，走下面
+          // 实例监听中止操作
           const abortedPromise = new Promise((_, reject) => {
             abortHandler = () => {
               reject({
@@ -1534,6 +1545,10 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
           });
 
           // 执行pending函数，生成一个action，然后dispatch，改变当前执行状态
+          // 执行pending函数，就是createAction工厂（之前存了type是"test/fetchData/pending"）那边返回的action创建者函数
+          // 如果外部API()那边没有传入参数，下面的二三参都是undefined
+          // 然后dispatch一个增强版的action对象，其中的type是"test/fetchData/pending"
+          // 目的是：：通知 Redux store 异步操作已经开始
           dispatch(
             pending(
               requestId,
@@ -1552,9 +1567,13 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
           );
 
           // 等外部的异步函数执行完，就可以返回fulfilled的action，给到finalAction
+          // 这个只要有一个成功，就可以！
+          // 很像那边的request的写法
           finalAction = await Promise.race([
             abortedPromise,
+            // 首先执行外部的异步函数，然后得到一个promise，然后给then挂上回调函数
             Promise.resolve(
+              // 执行外部的第二个参数（回调函数），入参是dispatch(API(入参))传入的
               payloadCreator(arg, {
                 dispatch,
                 getState,
@@ -1576,6 +1595,8 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
               if (result instanceof FulfillWithMeta) {
                 return fulfilled(result.payload, requestId, arg, result.meta);
               }
+              // 执行fulfill函数，把第一入参（目标结果）保存到action对象的payload里面
+              // 返回一个action对象
               return fulfilled(result, requestId, arg);
             }),
           ]);
@@ -1597,6 +1618,10 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
           finalAction.meta.condition;
 
         // !!【核心！】在这里去dispatch一个最后的fulfilled状态的action
+
+        // 如果不是跳过dispatch的话，就dispatch这个最后的action
+        // 如果成功的话就是fulfilled的action，这个时候的type就是"test/fetchData/fulfilled"，
+        // 在actionMap那边是有保存这个的normalReducer函数的，到时候会把payload的值存到state里面，也就是仓库里面
         if (!skipDispatch) {
           dispatch(finalAction);
         }
@@ -1606,6 +1631,7 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
       })();
 
       // 中间件执行这个函数之后，返回一个对象
+      // 返回这个finalAction对象
       return Object.assign(promise, {
         abort,
         requestId,
@@ -1637,8 +1663,9 @@ var nanoid = (size = 21) => {
   }
   return id;
 };
-
-
+function isThenable(value) {
+  return value !== null && typeof value === "object" && typeof value.then === "function";
+}
 
 
 
@@ -1655,10 +1682,22 @@ function createAction(type, prepareAction) {
   function actionCreator(...args) {
     // dispatch一个action的时候，首先执行的是对应的type（reducer函数）的action创建函数
     if (prepareAction) {
+      // 这里的prepare函数长这样，其中的属性是通过createAsyncThunk函数的第三个参数从外部传入的
+      // (requestId, arg, meta) => ({
+      //   payload: void 0,
+      //   meta: {
+      //     ...(meta || {}),
+      //     arg,
+      //     requestId,
+      //     requestStatus: "pending",
+      //   },
+      // })
+      // 在执行本函数的时候把本函数的入参给到这个外部的函数，相当于是action对象的属性增强
       let prepared = prepareAction(...args);
       if (!prepared) {
         throw new Error(false ? 0 : "prepareAction did not return an object");
       }
+      // 返回一个增强后的action对象
       return {
         type,
         payload: prepared.payload,

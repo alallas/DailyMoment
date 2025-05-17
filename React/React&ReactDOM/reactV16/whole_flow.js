@@ -4324,6 +4324,7 @@ function ChildReconciler(shouldTrackSideEffects) {
           // 最后返回fiber！
           return placeSingleChild(reconcileSingleElement(returnFiber, currentFirstChild, newChild, expirationTime));
         case REACT_PORTAL_TYPE:
+          // 指定容器的节点
           return placeSingleChild(reconcileSinglePortal(returnFiber, currentFirstChild, newChild, expirationTime));
       }
     }
@@ -4445,6 +4446,39 @@ function ChildReconciler(shouldTrackSideEffects) {
     }
   }
 
+  function reconcileSinglePortal(returnFiber, currentFirstChild, portal, lanes) {
+    // currentFirstChild就是父亲fiber节点的替身的大儿子fiber，也就是当前在页面显示出来的还没有更新的节点！！
+    // portal就是父亲节点的大儿子，是最新的虚拟DOM，也就是接下来要处理的节点！！
+    var key = portal.key;
+    var child = currentFirstChild;
+
+    // 在首次渲染的时候，currentFirstChild是null
+    // 如果有替身，就用替身，不用再新建一个fiber
+    while (child !== null) {
+      if (child.key === key) {
+        if (child.tag === HostPortal && child.stateNode.containerInfo === portal.containerInfo && child.stateNode.implementation === portal.implementation) {
+          // 使用旧fiber
+          deleteRemainingChildren(returnFiber, child.sibling);
+          var existing = useFiber(child, portal.children || []);
+          existing.return = returnFiber;
+          // 直接return出去，不走下面的sibling
+          return existing;
+        } else {
+          deleteRemainingChildren(returnFiber, child);
+          break;
+        }
+      } else {
+        deleteChild(returnFiber, child);
+      }
+
+      child = child.sibling;
+    }
+    // 创建一个新的fiber
+    var created = createFiberFromPortal(portal, returnFiber.mode, lanes);
+    created.return = returnFiber;
+    return created;
+  }
+
   function createFiberFromElement(element, mode, expirationTime) {
     var owner = null;
     {
@@ -4558,6 +4592,20 @@ function ChildReconciler(shouldTrackSideEffects) {
     fiber.type = resolvedType;
     fiber.expirationTime = expirationTime;
 
+    return fiber;
+  }
+
+  function createFiberFromPortal(portal, mode, lanes) {
+    var pendingProps = portal.children !== null ? portal.children : [];
+    var fiber = createFiber(HostPortal, pendingProps, portal.key, mode);
+    fiber.lanes = lanes;
+
+    // 在这里改这个fiber的真实的DOM容器
+    fiber.stateNode = {
+      containerInfo: portal.containerInfo,
+      pendingChildren: null,
+      implementation: portal.implementation
+    };
     return fiber;
   }
 
@@ -5064,6 +5112,7 @@ function ChildReconciler(shouldTrackSideEffects) {
         case REACT_PORTAL_TYPE:
           {
             if (newChild.key === key) {
+              // 如果新旧节点的key是一样的，尝试复用
               return updatePortal(returnFiber, oldFiber, newChild, expirationTime);
             } else {
               return null;
@@ -5131,6 +5180,20 @@ function ChildReconciler(shouldTrackSideEffects) {
     } else {
       // 有替身
       var existing = useFiber(current$$1, fragment, expirationTime);
+      existing.return = returnFiber;
+      return existing;
+    }
+  }
+
+  function updatePortal(returnFiber, current, portal, lanes) {
+    if (current === null || current.tag !== HostPortal || current.stateNode.containerInfo !== portal.containerInfo || current.stateNode.implementation !== portal.implementation) {
+      // Insert
+      var created = createFiberFromPortal(portal, returnFiber.mode, lanes);
+      created.return = returnFiber;
+      return created;
+    } else {
+      // Update
+      var existing = useFiber(current, portal.children || []);
       existing.return = returnFiber;
       return existing;
     }
@@ -10195,7 +10258,7 @@ function ensureListeningTo(rootContainerElement, registrationName) {
 
 
 function listenTo(registrationName, mountAt) {
-  // mountAt是根节点的真实DOM
+  // mountAt是根节点的真实DOM，所有的事件都挂载到根节点上，等原生的冒泡到根节点然后执行react的模拟冒泡过程函数
   // registrationName是事件名称
 
 
@@ -10541,6 +10604,7 @@ function batchedUpdates$1(fn, a) {
 
 
 function handleTopLevel(bookKeeping) {
+  // 入参是合成事件对象
 
   // 1. 找到这个事件对象的fiber
   var targetInst = bookKeeping.targetInst;
@@ -10553,8 +10617,10 @@ function handleTopLevel(bookKeeping) {
       bookKeeping.ancestors.push(ancestor);
       break;
     }
-    // 这个root已经是根节点root的真实的DOM了
+    // 情况一：正常的element节点：这个root已经是根节点root的真实的DOM了
+    // 情况二：portal节点（body底部的节点）：root是null
     var root = findRootContainerNode(ancestor);
+    // 情况二：第一次循环的时候就直接退出了，bookKeeping.ancestors里面没有这个【有交互的元素】
     if (!root) {
       break;
     }
@@ -10566,7 +10632,9 @@ function handleTopLevel(bookKeeping) {
     ancestor = getClosestInstanceFromNode(root);
   } while (ancestor);
 
-  // 到这里bookKeeping.ancestors数组只有交互节点本身
+  // 情况一：正常的element：到这里bookKeeping.ancestors数组只有交互节点本身
+  // 情况二：portal：到这里bookKeeping.ancestors数组为空
+
   // 下面这里不是在冒泡
   // 这个数组存的只是自己本身，对自己本身遍历，执行事件函数
   for (var i = 0; i < bookKeeping.ancestors.length; i++) {
@@ -10584,7 +10652,9 @@ function findRootContainerNode(inst) {
     inst = inst.return;
   }
   if (inst.tag !== HostRoot) {
-    // This can happen if we're in a detached tree.
+    // 这种情况什么时候会出现？？
+    // 当inst这个fiber不在id为root的react树下面，而是在body的底部，这里就返回null
+    // （portal类型的节点，antd里面的弹窗经常用到）
     return null;
   }
   // 拿到这个根fiber的root对象的真实DOM节点
@@ -11971,7 +12041,109 @@ function releaseTopLevelCallbackBookKeeping(instance) {
 
 
 
+function createSyntheticEvent(Interface) {
+  /**
+   * Synthetic events are dispatched by event plugins, typically in response to a
+   * top-level event delegation handler.
+   *
+   * These systems should generally use pooling to reduce the frequency of garbage
+   * collection. The system should check `isPersistent` to determine whether the
+   * event should be released into the pool after being dispatched. Users that
+   * need a persisted event should invoke `persist`.
+   *
+   * Synthetic events (and subclasses) implement the DOM Level 3 Events API by
+   * normalizing browser quirks. Subclasses do not necessarily have to implement a
+   * DOM interface; custom application-specific events can also subclass this.
+   */
+  function SyntheticBaseEvent(reactName, reactEventType, targetInst, nativeEvent, nativeEventTarget) {
+    this._reactName = reactName;
+    this._targetInst = targetInst;
+    this.type = reactEventType;
+    this.nativeEvent = nativeEvent;
+    this.target = nativeEventTarget;
+    this.currentTarget = null;
 
+    for (var _propName in Interface) {
+      if (!Interface.hasOwnProperty(_propName)) {
+        continue;
+      }
+
+      var normalize = Interface[_propName];
+
+      if (normalize) {
+        this[_propName] = normalize(nativeEvent);
+      } else {
+        this[_propName] = nativeEvent[_propName];
+      }
+    }
+
+    var defaultPrevented = nativeEvent.defaultPrevented != null ? nativeEvent.defaultPrevented : nativeEvent.returnValue === false;
+
+    if (defaultPrevented) {
+      this.isDefaultPrevented = functionThatReturnsTrue;
+    } else {
+      this.isDefaultPrevented = functionThatReturnsFalse;
+    }
+
+    this.isPropagationStopped = functionThatReturnsFalse;
+    return this;
+  }
+
+  assign(SyntheticBaseEvent.prototype, {
+    preventDefault: function () {
+      this.defaultPrevented = true;
+      var event = this.nativeEvent;
+
+      if (!event) {
+        return;
+      }
+
+      if (event.preventDefault) {
+        event.preventDefault(); // $FlowFixMe - flow is not aware of `unknown` in IE
+      } else if (typeof event.returnValue !== 'unknown') {
+        event.returnValue = false;
+      }
+
+      this.isDefaultPrevented = functionThatReturnsTrue;
+    },
+    stopPropagation: function () {
+      var event = this.nativeEvent;
+
+      if (!event) {
+        return;
+      }
+
+      if (event.stopPropagation) {
+        event.stopPropagation(); // $FlowFixMe - flow is not aware of `unknown` in IE
+      } else if (typeof event.cancelBubble !== 'unknown') {
+        // The ChangeEventPlugin registers a "propertychange" event for
+        // IE. This event does not support bubbling or cancelling, and
+        // any references to cancelBubble throw "Member not found".  A
+        // typeof check of "unknown" circumvents this issue (and is also
+        // IE specific).
+        event.cancelBubble = true;
+      }
+
+      this.isPropagationStopped = functionThatReturnsTrue;
+    },
+
+    /**
+     * We release all dispatched `SyntheticEvent`s after each event loop, adding
+     * them back into the pool. This allows a way to hold onto a reference that
+     * won't be added back into the pool.
+     */
+    persist: function () {// Modern event system doesn't use pooling.
+    },
+
+    /**
+     * Checks if this event should be released back into the pool.
+     *
+     * @return {boolean} True if this should not be released, false otherwise.
+     */
+    isPersistent: functionThatReturnsTrue
+  });
+  return SyntheticBaseEvent;
+}
 
 
 
@@ -16932,3 +17104,27 @@ function getValueForProperty(node, name, expected, propertyInfo) {
     }
   }
 }
+
+
+
+// 额外
+// 这个函数的作用是把children（一个react虚拟DOM）放到containerInfo（一个真实的DOM节点）里面
+// 在antd-mobile的弹窗类型的组件中（popup）一般弹窗类型的组件都被放到了body的最下面
+// 注意portal组件的冒泡还是遵循react树（在root节点里面）而不是dom树（在body的最后）
+function createPortal(children, containerInfo, implementation) {
+  var key = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : null;
+
+  {
+    checkKeyStringCoercion(key);
+  }
+
+  return {
+    $$typeof: REACT_PORTAL_TYPE,
+    key: key == null ? null : '' + key,
+    children: children,
+    containerInfo: containerInfo,
+    implementation: implementation
+  };
+}
+
+
