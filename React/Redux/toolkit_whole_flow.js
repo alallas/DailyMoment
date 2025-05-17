@@ -1079,6 +1079,7 @@ function createReducer(initialState, mapOrBuilderCallback) {
   function reducer(state = getInitialState(), action) {
     // 根据actiontype拿到对应的reducer函数
     let caseReducers = [
+      // 这里相当于在 “筛选” 了
       actionsMap[action.type],
       ...finalActionMatchers
         .filter(({ matcher }) => matcher(action))
@@ -1588,16 +1589,19 @@ function createAsyncThunk(typePrefix, payloadCreator, options) {
             abortController.signal.removeEventListener("abort", abortHandler);
           }
         }
+
         const skipDispatch =
           options &&
           !options.dispatchConditionRejection &&
           rejected.match(finalAction) &&
           finalAction.meta.condition;
+
+        // !!【核心！】在这里去dispatch一个最后的fulfilled状态的action
         if (!skipDispatch) {
           dispatch(finalAction);
         }
 
-        // 返回这个fulfilled的action对象
+        // 返回这个fulfilled的action对象（好像没有什么用！）
         return finalAction;
       })();
 
@@ -1645,6 +1649,9 @@ var nanoid = (size = 21) => {
 function createAction(type, prepareAction) {
   // type是reducer的唯一标识
   // prepareAction是reducer的prepare方法
+
+  // 这里闭包的目的是分层：外层保存type，增强器等信息
+  // 内层保存payload里面的data
   function actionCreator(...args) {
     // dispatch一个action的时候，首先执行的是对应的type（reducer函数）的action创建函数
     if (prepareAction) {
