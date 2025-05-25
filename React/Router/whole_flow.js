@@ -744,7 +744,7 @@ function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
     return null;
   }
 
-  // 2. 递归整合所有的path（实际上是包装好的对象），放到一个数组里面
+  // 2. 递归整合所有的path（实际上是包装好的对象），放到一个数组里面（把深层次的对象扁平化）
   // 【为什么要递归？】因为有子路由的情况，一个路由下有多个别的路由
   let branches = flattenRoutes(routes);
 
@@ -778,6 +778,7 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
 
     // 针对routes再次包装一个对象
     let meta = {
+      // 假设一个对象里面没有path属性，就设置为空字符串（这种没有设置path属性的一般是设置了index属性）
       relativePath: relativePath === undefined ? route.path || "" : relativePath,
       caseSensitive: route.caseSensitive === true,
       childrenIndex: index,
@@ -789,6 +790,8 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
     if (meta.relativePath.startsWith("/")) {
       meta.relativePath = meta.relativePath.slice(parentPath.length);
     }
+    // 当meta.relativePath为空字符串的时候，path就是parentPath
+    // （当前情况是已经写了index属性的路由对象）
     let path = joinPaths([parentPath, meta.relativePath]);
     let routesMeta = parentsMeta.concat(meta);
 
@@ -845,6 +848,7 @@ function computeScore(path, index) {
   }
 
   // 如果routes数组里面的元素有index属性的话，分数再加2
+  // 外部可以手动设置的属性，用于在孩子元素中设置优先级，有什么用？
   if (index) {
     initialScore += indexRouteValue;
   }
@@ -870,8 +874,9 @@ var isSplat = (s) => s === "*";
 
 
 // 从大到小排序
-// 如果分数一样，且childrenIndex不一样，没有排序可言
-// childrenIndex一样，排在routes前面的路由（索引更小）有更高的优先权
+// 分数不一样，按照分数排序，分数大的在前面
+// 如果分数一样，childrenIndex不一样，不需要排序
+// 如果分数一样，childrenIndex一样，排在routes前面的路由（索引更小）有更高的优先权
 function rankRouteBranches(branches) {
   branches.sort((a, b) =>
     a.score !== b.score
