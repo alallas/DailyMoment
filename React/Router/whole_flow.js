@@ -585,6 +585,44 @@ function stripBasename(pathname, basename) {
 // ]
 
 
+// 【注意！】这里需要注意的是：
+// 不可以这么写
+// function App() {
+//   return (
+//     <Provider store={store}>
+//       <BrowserRouter>
+//         {useRoutes(routes)}
+//       </BrowserRouter>
+//     </Provider>
+//   );
+// }
+
+// 一个角度：
+// 因为在执行<>这种标签的时候，仅仅只是创造了虚拟DOM对象，没有真正去执行BrowserRouter函数，因此RouteContext是没有上下文的_currentValue值的
+// 而useRoutes是依赖这个上下文的，因此会报错
+
+// 另一个角度：
+// useRoutes本身是一个hook，必须写在函数组件里面，而不是写在return那边的dom树里面
+
+// 正确的写法是另起一个函数组件：
+// root.render(
+//   <Provider store={store}>
+//     <BrowserRouter>
+//       <App/>
+//     </BrowserRouter>
+//   </Provider>
+// );
+
+// function App() {
+//   return (
+//     <>
+//       {useRoutes(routes)}
+//     </>
+//   );
+// }
+
+
+
 
 
 function useRoutes(routes, locationArg) {
@@ -594,6 +632,8 @@ function useRoutes(routes, locationArg) {
 
 
 function useRoutesImpl(routes, locationArg, dataRouterState, future) {
+
+  // 检验是否存在RouteContext是否存在_currentValue
 
   // 从上下文种拿到工具箱
   let { navigator, static: isStatic } = React.useContext(NavigationContext);
@@ -638,6 +678,7 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
   // 4. 拿到【当前url的路径部分】和【routes数组里面任意一个path】对应上的匹配结果
   // 第一次执行的时候，这个时候的路由有可能是/，然后去到navigate组件，在其useEffect函数内部直接改了url
   // 第二次执行的时候，再次匹配url，就能拿到匹配好的结果了
+  // 【注意】拿到的matches数组有可能有两个匹配的组件（孩子route对象没有path只有index时）
   let matches =
     !isStatic &&
     dataRouterState &&
@@ -753,6 +794,8 @@ function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
   rankRouteBranches(branches);
 
   // 4. 遍历自定义的routes，逐一查看其中哪个path和当前页面上的url的path是一样的
+  // 【注意！】因为branches数组里面有可能是有path相同的路由对象（孩子route对象没有path只有index时）
+  // 这里是遍历到底，收集所有的匹配的对象，组成matches数组
   let matches = null;
   for (let i = 0; matches == null && i < branches.length; ++i) {
     let decoded = decodePath(pathname);
@@ -764,7 +807,7 @@ function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
   //   params: 参数对象（key是参数名字，value是参数的实际值）
   //   pathname: 完整的路径
   //   pathnameBase: 基础部分的路径（与 完整的路径 差不多）
-  //   route: routes里面的每一个route对象
+  //   route: 匹配到路径的route对象
   // }
 
   return matches;
@@ -778,6 +821,7 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
 
     // 针对routes再次包装一个对象
     let meta = {
+      // 当一个route对象没有path属性，直接用空字符串
       relativePath: relativePath === undefined ? route.path || "" : relativePath,
       caseSensitive: route.caseSensitive === true,
       childrenIndex: index,
@@ -790,12 +834,16 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
       meta.relativePath = meta.relativePath.slice(parentPath.length);
     }
     let path = joinPaths([parentPath, meta.relativePath]);
+
+    // routesMeta为parentsMeta数组加上自己的这个meta
+    // 【注意！】routesMeta存着一个父级路由下的所有子路由
     let routesMeta = parentsMeta.concat(meta);
 
 
     // 如果有孩子，继续执行本函数，拿到更多的路由数组
     // 【注意】因此在外部写的时候route对象里面的 孩子路由 是写children
     if (route.children && route.children.length > 0) {
+      // 把当前的数组透传给孩子路由
       flattenRoutes(route.children, branches, routesMeta, path);
     }
     if (route.path == null && !route.index) {
@@ -803,6 +851,13 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
     }
 
     // 把【路径，包装对象，路径得分（优先级的体现）】放到 “ 路由枝条数组 ” 中
+    // 等到当前的路由对象没有孩子的时候加入branches---->到底层了
+    // 等到父路由执行完所有的children路由并返回到这里时，也会把自己这个只有一个对象的routesMeta数组（包裹的对象）放到branches数组---->往回往上走
+    
+    // 也就是：！！【branches数组里面保存这个路由树的每一条从头到底的路径】
+    // 每个最底层的孩子路由都会平级地放到branches数组 + 每个中间层的路由也会被平级地放到branches数组
+    // 【注意】出现的问题：当有些route对象没有path，只有index为true，那么她的path就和父路由是一样的
+    // （区别是底层的对象里面的routesMeta有多个，而父路由的routesMeta有一个）
     branches.push({
       path,
       score: computeScore(path, route.index),
@@ -917,13 +972,17 @@ function matchRouteBranch(branch, pathname, allowPartial = false) {
   let matchedPathname = "/";
   let matches = [];
 
-  // routesMeta只有一个元素，长这样：
+  // routesMeta是一个数组，里面的每个对象长这样：
+  // 对于底层的路由，routesMeta包含了路径上的所有route对象。对于中间层，只有他及其往上祖先的route对象
   // {
   //   relativePath: relativePath === undefined ? route.path || "" : relativePath,
   //   caseSensitive: route.caseSensitive === true,
   //   childrenIndex: index,
   //   route,
   // }
+
+  // 这里遍历routesMeta数组，目的是在当前的branch对象的path之下，找到里面对应的每一个element
+  // 【顺序问题】routesMeta是从顶层到底层的顺序！！
   for (let i = 0; i < routesMeta.length; ++i) {
     let meta = routesMeta[i];
     let end = i === routesMeta.length - 1;
@@ -938,8 +997,11 @@ function matchRouteBranch(branch, pathname, allowPartial = false) {
       remainingPathname
     );
 
-    // 如果匹配不到，且当前的route对象没有index属性，又允许allowPartial
+    // 【如果匹配到！！！】
+    // 拿到这个具体的meta对象上面的route属性，记录的是对应的route对象
     let route = meta.route;
+
+    // 如果匹配不到，且当前的route对象没有index属性，又允许allowPartial
     if (!match && end && allowPartial && !routesMeta[routesMeta.length - 1].route.index) {
       match = matchPath(
         {
@@ -958,6 +1020,7 @@ function matchRouteBranch(branch, pathname, allowPartial = false) {
 
     Object.assign(matchedParams, match.params);
 
+    // 【匹配到】才把对象放入matches数组，顺序按照从顶层到底层的顺序
     // 最后把匹配上的信息组合到一起，放入一个数组里面
     matches.push({
       // 参数对象（key是参数名字，value是参数的实际值）
@@ -1138,7 +1201,8 @@ function createPath({pathname = "/", search = "", hash = ""}) {
 function _renderMatches(matches, parentMatches = [], dataRouterState = null, future = null) {
 
   // 入参：
-  // matches长这样，是一个数组，且一般来说只有一个匹配上的路由对象
+  // matches长这样，是一个数组，通常只有一个匹配上的路由对象，但是也有多个匹配上的route对象的情况（孩子route对象没有path只有index时）
+  // 【排序】从 顶层的路由对象 到 底层的路由对象
   //   params = {}
   //   pathname = '/'
   //   pathnameBase = '/'
@@ -1209,7 +1273,8 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
   }
 
   // reduceRight 与reduce类似，是从数组的 右端（即从最后一个元素）开始 进行累积操作的
-  // 但是一般renderedMatches也就是matches数组只有一个匹配上的对象
+  // 一般renderedMatches也就是matches数组只有一个匹配上的对象，也有情况是matches数组有多个匹配上的对象！！！！！
+  // 当matches数组有多个的时候，从底层往顶层开始处理！！！！（因为matches数组的排序是顶层到底层）
   return renderedMatches.reduceRight((outlet, match, index) => {
     let error;
     let shouldRenderHydrateFallback = false;
@@ -1232,9 +1297,11 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
       }
     }
 
+    // 初始时，index从右边的最后一个index开始
+    // 每执行一次，matches的长度就减一
     let matches = parentMatches.concat(renderedMatches.slice(0, index + 1));
 
-    // 最终return的是这个函数的返回值
+    // 执行下面的函数，她的返回值被外部的reduce函数return，也就是下一次的outlet的值
     let getChildren = () => {
       let children;
       if (error) {
@@ -1246,15 +1313,18 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
 
       } else if (match.route.element) {
       // 一般来说走这里，直接让大孩子等于这个route的element！！！
+      // 【注意！】因为本函数会执行多次，因此如果匹配上路由的route对象都有element，会利用outlet嵌套处理
         children = match.route.element;
 
       } else {
         children = outlet;
       }
+
       return (
         <RenderedRoute
           match={match}
           routeContext={{
+            // 传入的outlet是上一次的返回的这个RenderedRoute（顺序是：顶层路由外部-->底层路由内部）
             outlet,
             matches,
             isDataRoute: dataRouterState != null,
@@ -1277,6 +1347,37 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
       : (getChildren());
   }, null);
 }
+// 上面的函数举例，假设matches有三个匹配上的对象（[match1, match2, match3]），最后reduceRight返回得到的结果是：
+// 底层的element在内部，顶层的element在外部
+// 比如<Layout/>在外部，<Login/>在内部
+// !【!!】相当于一个父路由组件被所有的子路由组件给共享！！！！
+// 那么上下文routeContext里面的outlet如何才能被渲染呢？在外部的组件显式地使用<Outlet>组件
+// 这个组件内部去拿上下文里面的Outlet属性，然后渲染
+<RenderedRoute
+  match={match1}
+  routeContext={{
+    outlet: <RenderedRoute
+      match={match2}
+      routeContext={{
+        outlet: <RenderedRoute
+          match={match3}
+          routeContext={{
+            outlet: null,
+            matches: [match1, match2, match3],
+            isDataRoute: false,
+          }}
+          children={match3.route.element}
+        />,
+        matches: [match1, match2],
+        isDataRoute: false,
+      }}
+      children={match2.route.element}
+    />,
+    matches: [match1],
+    isDataRoute: false,
+  }}
+  children={match1.route.element}
+/>
 
 
 
@@ -1287,7 +1388,7 @@ function RenderedRoute({ routeContext, match, children }) {
   // match就是match对象
   // routeContext就是当前的路由的一些信息
   // {
-  //   outlet：是null
+  //   outlet：是底层路由的RenderedRoute函数组件【！！！】
   //   matches：是match对象包裹了一个[]（是一个数组）
   //   isDataRoute: dataRouterState != null ：是false
   // }
@@ -1635,5 +1736,35 @@ function resolvePathname(relativePath, fromPathname) {
 }
 
 
+
+
+
+
+
+
+
+// REVIEW - 下面是<Outlet>组件
+
+
+export function Outlet(props) {
+  return useOutlet(props.context);
+}
+
+const OutletContext = React.createContext<unknown>(null);
+
+export function useOutlet(context) {
+  // 拿到上下文的outlet属性
+  // 之前存的就是RenderedRoute函数组件，其中children属性就是孩子路由的element
+  let outlet = React.useContext(RouteContext).outlet;
+  // 把这个新的RenderedRoute函数组件作为孩子，放入OutletContext这个上下文
+  // 这个上下文可以存储Outlet组件的props，从而传递给下面的组件
+
+  if (outlet) {
+    return (
+      <OutletContext.Provider value={context}>{outlet}</OutletContext.Provider>
+    );
+  }
+  return outlet;
+}
 
 
