@@ -1,5 +1,3 @@
-
-
 // 17.router相关
 
 // 对url栈的动作定义
@@ -7,17 +5,16 @@ var Action = {
   Pop: "POP",
   Push: "PUSH",
   Replace: "REPLACE",
-}
+};
 
 // 路由相关信息
 var locationProp = {
-  hash: '',
-  key: 'default',
-  pathname: '/',
-  search: '',
+  hash: "",
+  key: "default",
+  pathname: "/",
+  search: "",
   state: null,
-}
-
+};
 
 // 历史栈工具箱和路由的provider
 let NavigationContext = React.createContext({
@@ -33,7 +30,7 @@ let NavigationContext = React.createContext({
   future: {
     v7_relativeSplatPath: boolean,
   },
-})
+});
 
 let LocationContext = React.createContext({
   location: {
@@ -41,14 +38,13 @@ let LocationContext = React.createContext({
     key,
   },
   navigationType: NavigationType,
-})
+});
 
 let RouteContext = React.createContext({
   outlet: React.ReactElement,
   matches: RouteMatch,
   isDataRoute: boolean,
-})
-
+});
 
 // 处理routes数组的时候，需要给路由设置优先级
 const paramRe = /^:[\w-]+$/;
@@ -58,26 +54,17 @@ const emptySegmentValue = 1;
 const staticSegmentValue = 10;
 const splatPenalty = -2;
 
-
-
 // renderedRoute里面用到的一个上下文，有点像一个工具集
 var DataRouterContext = React.createContext({
   router,
   staticContext,
-})
-
-
+});
 
 // <navigate>组件用到的
 // 在使用工具箱的listen函数时，监听这个事件
 const PopStateEventType = "popstate";
 
-
-
-
 // REVIEW - 下面是经过beginWork分发后来到router相关的【BrowserRouters组件】的更新函数
-
-
 
 // 使用例子：
 // 不用useRoutes(routes)，就用routes包裹着route
@@ -90,13 +77,10 @@ const PopStateEventType = "popstate";
 // }
 // 如果用useRoutes(routes)，相当于用一个钩子实现routes及其内部包裹的元素树
 
-
-
 // BrowserRouters是一个函数组件
 // 下面是BrowserRouters的renderWithHooks里面执行Component()函数之后来到的地方
 
-function BrowserRouter({ basename, children, future, window, }) {
-
+function BrowserRouter({ basename, children, future, window }) {
   // 1. 拿出历史栈相关的工具箱
   // 使用ref来记录东西，把关于历史栈的一些工具放到historyRef.current里面，相当于historyRef就是一个工具箱
   let historyRef = React.useRef();
@@ -115,10 +99,8 @@ function BrowserRouter({ basename, children, future, window, }) {
     location: history.location,
   });
 
-
   // 从renderWithHooks进来的参数是props和refOrContext，但是BrowserRouter没有props（除了孩子），也就是没有参数的，这里是undefined
   let { v7_startTransition } = future || {};
-
 
   // 3. 用useCallback把setState的函数缓存起来！
   let setState = React.useCallback(
@@ -151,7 +133,6 @@ function BrowserRouter({ basename, children, future, window, }) {
   );
 }
 
-
 function createBrowserHistory(options) {
   function createBrowserLocation(window, globalHistory) {
     // window.location是浏览器的全局对象
@@ -179,13 +160,15 @@ function createBrowserHistory(options) {
     return typeof to === "string" ? to : createPath(to);
   }
 
-  return getUrlBasedHistory(createBrowserLocation, createBrowserHref, null, options);
+  return getUrlBasedHistory(
+    createBrowserLocation,
+    createBrowserHref,
+    null,
+    options
+  );
 }
 
-
-
-
-function createPath({pathname = "/", search = "", hash = ""}) {
+function createPath({ pathname = "/", search = "", hash = "" }) {
   if (search && search !== "?")
     pathname += search.charAt(0) === "?" ? search : "?" + search;
   if (hash && hash !== "#")
@@ -193,11 +176,12 @@ function createPath({pathname = "/", search = "", hash = ""}) {
   return pathname;
 }
 
-
-
-
-function getUrlBasedHistory(getLocation, createHref, validateLocation, options) {
-
+function getUrlBasedHistory(
+  getLocation,
+  createHref,
+  validateLocation,
+  options
+) {
   // 入参长这样
   // getLocation就是createBrowserLocation: (window: Window, globalHistory: Window["history"]) => Location,
   // createHref就是createBrowserHref: (window: Window, to: To) => string,
@@ -208,7 +192,6 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
   let globalHistory = window.history;
   let action = Action.Pop;
   let listener = null;
-
 
   // （一）：初始化历史栈的索引
   // 拿到当前历史栈里面的state（也就是索引）
@@ -225,7 +208,6 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     let state = globalHistory.state || { idx: null };
     return state.idx;
   }
-
 
   // （二）设置监听页面变化的函数，更新当前在BrowserRouter函数组件里面维护的当前的url相关信息
   // 处理浏览器历史记录的 popstate 事件
@@ -260,7 +242,6 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     // 监听器根据 delta 更新 UI（如回退到上一个页面）。
   }
 
-
   // （三）不刷新页面，改变url的工具！
   // 从navigate组件的useEffect函数进来的
   function push(to, state) {
@@ -289,12 +270,10 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     index = getIndex() + 1;
     let historyState = getHistoryState(location, index);
 
-
     // 3. 创建一个url（目标路径的url），例如'/users/login'，就是和在routes数组里面写的url是一样的
     // 就是去createBrowserHref函数
     let url = history.createHref(location);
 
-    
     // 4. 更新当前页面的实际状态和url：
     // 把当前的状态（历史栈的何处的相关信息）与目标路径的url放入栈里面，不会触发页面刷新，仅更新 URL 和状态（State）
     // 第三个参数的 URL需符合同源策略，不传则使用当前 URL。
@@ -329,7 +308,6 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     // 回答：因为这个函数是通过commitPassiveEffects进来的，而这个时候在里面把renderding改为了true
   }
 
-
   // （四）
   function replace(to, state) {
     action = Action.Replace;
@@ -346,18 +324,17 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
     }
   }
 
-
   function createURL(to) {
     // 拿到基础的host和协议和端口号的地址
     let base =
       window.location.origin !== "null"
         ? window.location.origin // 当前页面的协议、主机名和端口号（https://www.example.com）
         : window.location.href; // 当前页面的完整 URL（https://www.example.com/path/to/page）
-  
+
     // 拿到路径部分
     // 将包含路径信息的对象转换为路径字符串
     let href = typeof to === "string" ? to : createPath(to);
-  
+
     // 把空格换成url的特有的编码模式！
     href = href.replace(/ $/, "%20");
     return new URL(href, base);
@@ -416,14 +393,7 @@ function getUrlBasedHistory(getLocation, createHref, validateLocation, options) 
   return history;
 }
 
-
-
-
-
-
-
 function createLocation(current, to, state, key) {
-
   // 从createBrowserLocation过来是
   // 入参：
   // current是‘’
@@ -446,9 +416,6 @@ function createKey() {
   return Math.random().toString(36).substr(2, 8);
 }
 
-
-
-
 function getHistoryState(location, index) {
   return {
     usr: location.state,
@@ -457,11 +424,15 @@ function getHistoryState(location, index) {
   };
 }
 
-
-
-
-function Router({basename: basenameProp = "/", children = null, location: locationProp, navigationType = NavigationType.Pop, navigator, static: staticProp = false, future,}) {
-  
+function Router({
+  basename: basenameProp = "/",
+  children = null,
+  location: locationProp,
+  navigationType = NavigationType.Pop,
+  navigator,
+  static: staticProp = false,
+  future,
+}) {
   // 入参：
   // basename为默认值，即/
   // children为BrowserRouter的children
@@ -478,12 +449,12 @@ function Router({basename: basenameProp = "/", children = null, location: locati
   //   search: '',
   //   state: null,
   // }
-  
 
   // 再包装一下工具箱，用memo缓存
   // 把路径的前面改为只有一个/
   let basename = basenameProp.replace(/^\/*/, "/");
-  let navigationContext = React.useMemo(() => ({
+  let navigationContext = React.useMemo(
+    () => ({
       basename,
       navigator,
       static: staticProp,
@@ -539,7 +510,6 @@ function Router({basename: basenameProp = "/", children = null, location: locati
   );
 }
 
-
 function stripBasename(pathname, basename) {
   if (basename === "/") return pathname;
 
@@ -558,15 +528,7 @@ function stripBasename(pathname, basename) {
   return pathname.slice(startIndex) || "/";
 }
 
-
-
-
-
-
 // REVIEW - 下面是【useRoutes的钩子函数】相关
-
-
-
 
 // 其中的routes数组长下面这样，这个需要自己定义！！！
 // const routes = [
@@ -584,16 +546,48 @@ function stripBasename(pathname, basename) {
 //   }
 // ]
 
+// 【注意！】这里需要注意的是：
+// 不可以这么写
+// function App() {
+//   return (
+//     <Provider store={store}>
+//       <BrowserRouter>
+//         {useRoutes(routes)}
+//       </BrowserRouter>
+//     </Provider>
+//   );
+// }
 
+// 一个角度：
+// 因为在执行<>这种标签的时候，仅仅只是创造了虚拟DOM对象，没有真正去执行BrowserRouter函数，因此RouteContext是没有上下文的_currentValue值的
+// 而useRoutes是依赖这个上下文的，因此会报错
 
+// 另一个角度：
+// useRoutes本身是一个hook，必须写在函数组件里面，而不是写在return那边的dom树里面
+
+// 正确的写法是另起一个函数组件：
+// root.render(
+//   <Provider store={store}>
+//     <BrowserRouter>
+//       <App/>
+//     </BrowserRouter>
+//   </Provider>
+// );
+
+// function App() {
+//   return (
+//     <>
+//       {useRoutes(routes)}
+//     </>
+//   );
+// }
 
 function useRoutes(routes, locationArg) {
   return useRoutesImpl(routes, locationArg);
 }
 
-
-
 function useRoutesImpl(routes, locationArg, dataRouterState, future) {
+  // 检验是否存在RouteContext是否存在_currentValue
 
   // 从上下文种拿到工具箱
   let { navigator, static: isStatic } = React.useContext(NavigationContext);
@@ -618,7 +612,8 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
   let location;
   if (locationArg) {
     // useRoutes没有第二个参数，就不走下面，让location直接等于从上下文拿到的location对象
-    let parsedLocationArg = typeof locationArg === "string" ? parsePath(locationArg) : locationArg;
+    let parsedLocationArg =
+      typeof locationArg === "string" ? parsePath(locationArg) : locationArg;
     location = parsedLocationArg;
   } else {
     location = locationFromContext;
@@ -638,6 +633,7 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
   // 4. 拿到【当前url的路径部分】和【routes数组里面任意一个path】对应上的匹配结果
   // 第一次执行的时候，这个时候的路由有可能是/，然后去到navigate组件，在其useEffect函数内部直接改了url
   // 第二次执行的时候，再次匹配url，就能拿到匹配好的结果了
+  // 【注意】拿到的matches数组有可能有两个匹配的组件（孩子route对象没有path只有index时）
   let matches =
     !isStatic &&
     dataRouterState &&
@@ -649,27 +645,28 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
   // 5. 拿到RenderedRoute的函数组件
   // 这个RenderedRoute函数组件是把匹配上的match对象，以及提取其孩子作为props传递给RouteContent.Provider
   let renderedMatches = _renderMatches(
-    matches && matches.map((match) =>
-      Object.assign({}, match, {
-        params: Object.assign({}, parentParams, match.params),
-        // 下面去到encodeLocation函数
-        pathname: joinPaths([
-          parentPathnameBase,
-          navigator.encodeLocation
-            ? navigator.encodeLocation(match.pathname).pathname
-            : match.pathname,
-        ]),
-        pathnameBase:
-          match.pathnameBase === "/"
-            ? parentPathnameBase
-            : joinPaths([
-                parentPathnameBase,
-                navigator.encodeLocation
-                  ? navigator.encodeLocation(match.pathnameBase).pathname
-                  : match.pathnameBase,
-              ]),
-      })
-    ),
+    matches &&
+      matches.map((match) =>
+        Object.assign({}, match, {
+          params: Object.assign({}, parentParams, match.params),
+          // 下面去到encodeLocation函数
+          pathname: joinPaths([
+            parentPathnameBase,
+            navigator.encodeLocation
+              ? navigator.encodeLocation(match.pathname).pathname
+              : match.pathname,
+          ]),
+          pathnameBase:
+            match.pathnameBase === "/"
+              ? parentPathnameBase
+              : joinPaths([
+                  parentPathnameBase,
+                  navigator.encodeLocation
+                    ? navigator.encodeLocation(match.pathnameBase).pathname
+                    : match.pathnameBase,
+                ]),
+        })
+      ),
     parentMatches,
     dataRouterState,
     future
@@ -700,22 +697,15 @@ function useRoutesImpl(routes, locationArg, dataRouterState, future) {
   return renderedMatches;
 }
 
-
-
 function useLocation() {
   return useContext(LocationContext).location;
 }
-
-
 
 function matchRoutes(routes, locationArg, basename = "/") {
   return matchRoutesImpl(routes, locationArg, basename, false);
 }
 
-
-
 function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
-
   // locationArg是{ pathname: remainingPathname }
   // routes就是自己定义的一个路由管理数组
   // const routes = [
@@ -733,8 +723,8 @@ function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
   //   }
   // ]
 
-
-  let location = typeof locationArg === "string" ? parsePath(locationArg) : locationArg;
+  let location =
+    typeof locationArg === "string" ? parsePath(locationArg) : locationArg;
 
   // 1. 处理当前页面上的url的路径部分
   // pathname，也就是remainingPathname，让他截掉basename的部分
@@ -753,6 +743,8 @@ function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
   rankRouteBranches(branches);
 
   // 4. 遍历自定义的routes，逐一查看其中哪个path和当前页面上的url的path是一样的
+  // 【注意！】因为branches数组里面有可能是有path相同的路由对象（孩子route对象没有path只有index时）
+  // 这里是遍历到底，收集所有的匹配的对象，组成matches数组
   let matches = null;
   for (let i = 0; matches == null && i < branches.length; ++i) {
     let decoded = decodePath(pathname);
@@ -764,22 +756,25 @@ function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
   //   params: 参数对象（key是参数名字，value是参数的实际值）
   //   pathname: 完整的路径
   //   pathnameBase: 基础部分的路径（与 完整的路径 差不多）
-  //   route: routes里面的每一个route对象
+  //   route: 匹配到路径的route对象
   // }
 
   return matches;
 }
 
-
-
-
-function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "") {
+function flattenRoutes(
+  routes,
+  branches = [],
+  parentsMeta = [],
+  parentPath = ""
+) {
   let flattenRoute = (route, index, relativePath) => {
-
     // 针对routes再次包装一个对象
     let meta = {
       // 假设一个对象里面没有path属性，就设置为空字符串（这种没有设置path属性的一般是设置了index属性）
-      relativePath: relativePath === undefined ? route.path || "" : relativePath,
+      // 当一个route对象没有path属性，直接用空字符串
+      relativePath:
+        relativePath === undefined ? route.path || "" : relativePath,
       caseSensitive: route.caseSensitive === true,
       childrenIndex: index,
       route,
@@ -793,12 +788,15 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
     // 当meta.relativePath为空字符串的时候，path就是parentPath
     // （当前情况是已经写了index属性的路由对象）
     let path = joinPaths([parentPath, meta.relativePath]);
-    let routesMeta = parentsMeta.concat(meta);
 
+    // routesMeta为parentsMeta数组加上自己的这个meta
+    // 【注意！】routesMeta存着一个父级路由下的所有子路由
+    let routesMeta = parentsMeta.concat(meta);
 
     // 如果有孩子，继续执行本函数，拿到更多的路由数组
     // 【注意】因此在外部写的时候route对象里面的 孩子路由 是写children
     if (route.children && route.children.length > 0) {
+      // 把当前的数组透传给孩子路由
       flattenRoutes(route.children, branches, routesMeta, path);
     }
     if (route.path == null && !route.index) {
@@ -806,6 +804,13 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
     }
 
     // 把【路径，包装对象，路径得分（优先级的体现）】放到 “ 路由枝条数组 ” 中
+    // 等到当前的路由对象没有孩子的时候加入branches---->到底层了
+    // 等到父路由执行完所有的children路由并返回到这里时，也会把自己这个只有一个对象的routesMeta数组（包裹的对象）放到branches数组---->往回往上走
+
+    // 也就是：！！【branches数组里面保存这个路由树的每一条从头到底的路径】
+    // 每个最底层的孩子路由都会平级地放到branches数组 + 每个中间层的路由也会被平级地放到branches数组
+    // 【注意】出现的问题：当有些route对象没有path，只有index为true，那么她的path就和父路由是一样的
+    // （区别是底层的对象里面的routesMeta有多个，而父路由的routesMeta有一个）
     branches.push({
       path,
       score: computeScore(path, route.index),
@@ -826,14 +831,10 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "")
   return branches;
 }
 
-
-
-function joinPaths(paths){
+function joinPaths(paths) {
   // 把//变为/
-  paths.join("/").replace(/\/\/+/g, "/")
+  paths.join("/").replace(/\/\/+/g, "/");
 }
-
-
 
 function computeScore(path, index) {
   // 把路径分开
@@ -861,17 +862,18 @@ function computeScore(path, index) {
   return segments
     .filter((s) => !isSplat(s))
     .reduce(
-      (score, segment) => score + (paramRe.test(segment) ? dynamicSegmentValue : segment === "" ? emptySegmentValue : staticSegmentValue),
+      (score, segment) =>
+        score +
+        (paramRe.test(segment)
+          ? dynamicSegmentValue
+          : segment === ""
+          ? emptySegmentValue
+          : staticSegmentValue),
       initialScore
     );
 }
 
-
 var isSplat = (s) => s === "*";
-
-
-
-
 
 // 从大到小排序
 // 分数不一样，按照分数排序，分数大的在前面
@@ -888,14 +890,11 @@ function rankRouteBranches(branches) {
   );
 }
 
-
 function compareIndexes(a, b) {
-  let siblings = a.length === b.length && a.slice(0, -1).every((n, i) => n === b[i]);
+  let siblings =
+    a.length === b.length && a.slice(0, -1).every((n, i) => n === b[i]);
   return siblings ? a[a.length - 1] - b[b.length - 1] : 0;
 }
-
-
-
 
 // 下面函数是处理/这个字符
 // decodeURIComponent("path%2Fto%2Ffile") 会变成 "path/to/file"
@@ -911,7 +910,6 @@ function decodePath(value) {
   }
 }
 
-
 function matchRouteBranch(branch, pathname, allowPartial = false) {
   // 这是一个放在遍历里面的函数，branch指的是自定义routes里面的一个路由对象
   // pathname是当前location对象的当前的路径（没有其他host等）
@@ -922,30 +920,45 @@ function matchRouteBranch(branch, pathname, allowPartial = false) {
   let matchedPathname = "/";
   let matches = [];
 
-  // routesMeta只有一个元素，长这样：
+  // routesMeta是一个数组，里面的每个对象长这样：
+  // 对于底层的路由，routesMeta包含了路径上的所有route对象。对于中间层，只有他及其往上祖先的route对象
   // {
   //   relativePath: relativePath === undefined ? route.path || "" : relativePath,
   //   caseSensitive: route.caseSensitive === true,
   //   childrenIndex: index,
   //   route,
   // }
+
+  // 这里遍历routesMeta数组，目的是在当前的branch对象的path之下，找到里面对应的每一个element
+  // 【顺序问题】routesMeta是从顶层到底层的顺序！！
   for (let i = 0; i < routesMeta.length; ++i) {
     let meta = routesMeta[i];
     let end = i === routesMeta.length - 1;
 
     // 拿到当前页面上的url的路径部分
     // remainingPathname实际上就是当前页面上的url的路径部分
-    let remainingPathname = matchedPathname === "/" ? pathname : pathname.slice(matchedPathname.length) || "/";
-    
+    let remainingPathname =
+      matchedPathname === "/"
+        ? pathname
+        : pathname.slice(matchedPathname.length) || "/";
+
     // 将当前页面上的url的路径部分，和自定义routes里面的一个路由对象的path进行对比，看是否匹配
     let match = matchPath(
       { path: meta.relativePath, caseSensitive: meta.caseSensitive, end },
       remainingPathname
     );
 
-    // 如果匹配不到，且当前的route对象没有index属性，又允许allowPartial
+    // 【如果匹配到！！！】
+    // 拿到这个具体的meta对象上面的route属性，记录的是对应的route对象
     let route = meta.route;
-    if (!match && end && allowPartial && !routesMeta[routesMeta.length - 1].route.index) {
+
+    // 如果匹配不到，且当前的route对象没有index属性，又允许allowPartial
+    if (
+      !match &&
+      end &&
+      allowPartial &&
+      !routesMeta[routesMeta.length - 1].route.index
+    ) {
       match = matchPath(
         {
           path: meta.relativePath,
@@ -963,6 +976,7 @@ function matchRouteBranch(branch, pathname, allowPartial = false) {
 
     Object.assign(matchedParams, match.params);
 
+    // 【匹配到】才把对象放入matches数组，顺序按照从顶层到底层的顺序
     // 最后把匹配上的信息组合到一起，放入一个数组里面
     matches.push({
       // 参数对象（key是参数名字，value是参数的实际值）
@@ -971,7 +985,9 @@ function matchRouteBranch(branch, pathname, allowPartial = false) {
       pathname: joinPaths([matchedPathname, match.pathname]),
       // 基础部分的路径（与 完整的路径 差不多）
       // 规则是 删除路径末尾的所有斜杠，并且匹配路径开头的多个斜杠，并将它们替换为单个斜杠/
-      pathnameBase: normalizePathname(joinPaths([matchedPathname, match.pathnameBase])),
+      pathnameBase: normalizePathname(
+        joinPaths([matchedPathname, match.pathnameBase])
+      ),
       route,
     });
 
@@ -982,8 +998,6 @@ function matchRouteBranch(branch, pathname, allowPartial = false) {
 
   return matches;
 }
-
-
 
 // 将实际的 URL 路径（pathname）与给定的路径模式（pattern）进行匹配，并提取出路径中的参数。
 function matchPath(pattern, pathname) {
@@ -997,7 +1011,11 @@ function matchPath(pattern, pathname) {
   }
 
   // 1. 拿到可以匹配完整path（【合法的规范的path】）的正则表达式，以及记录所有参数的对象
-  let [matcher, compiledParams] = compilePath(pattern.path, pattern.caseSensitive, pattern.end);
+  let [matcher, compiledParams] = compilePath(
+    pattern.path,
+    pattern.caseSensitive,
+    pattern.end
+  );
 
   // 2. 开启匹配
   let match = pathname.match(matcher);
@@ -1017,25 +1035,28 @@ function matchPath(pattern, pathname) {
   let captureGroups = match.slice(1);
 
   // 遍历将每个路径参数的值提取出来
-  let params = compiledParams.reduce((memo, { paramName, isOptional }, index) => {
-    if (paramName === "*") {
-      // 当末尾为*时（之前再末尾为*设置了捕获组）
-      let splatValue = captureGroups[index] || "";
-      // 将路径的基础部分去除末尾的.之后的，再去除头部开始的多余的点
-      pathnameBase = matchedPathname
-        .slice(0, matchedPathname.length - splatValue.length)
-        .replace(/(.)\/+$/, "$1");
-    }
+  let params = compiledParams.reduce(
+    (memo, { paramName, isOptional }, index) => {
+      if (paramName === "*") {
+        // 当末尾为*时（之前再末尾为*设置了捕获组）
+        let splatValue = captureGroups[index] || "";
+        // 将路径的基础部分去除末尾的.之后的，再去除头部开始的多余的点
+        pathnameBase = matchedPathname
+          .slice(0, matchedPathname.length - splatValue.length)
+          .replace(/(.)\/+$/, "$1");
+      }
 
-    // 把参数的实际值和参数名字放到一个对象里面保存起来
-    const value = captureGroups[index];
-    if (isOptional && !value) {
-      memo[paramName] = undefined;
-    } else {
-      memo[paramName] = (value || "").replace(/%2F/g, "/");
-    }
-    return memo;
-  }, {});
+      // 把参数的实际值和参数名字放到一个对象里面保存起来
+      const value = captureGroups[index];
+      if (isOptional && !value) {
+        memo[paramName] = undefined;
+      } else {
+        memo[paramName] = (value || "").replace(/%2F/g, "/");
+      }
+      return memo;
+    },
+    {}
+  );
 
   return {
     // 参数
@@ -1049,11 +1070,7 @@ function matchPath(pattern, pathname) {
   };
 }
 
-
-
-
 function compilePath(path, caseSensitive = false, end = true) {
-
   // 入参：
   // path: 路径模式（例如 /user/:id）。
   // caseSensitive: 是否区分大小写，默认为 false。
@@ -1065,7 +1082,6 @@ function compilePath(path, caseSensitive = false, end = true) {
   // regexpSource为^/users/home\\/*$ ，matcher为/^\/users\/home\/*$/i（两侧加上//表示这是一个正则表达式）
   // regexpSource为^/\\/*$，matcher为/^\/\/*$/i
 
-
   // 数组用于存储路径中的参数信息
   let params = [];
   // 开始逐渐构造一个正则表达式
@@ -1073,21 +1089,18 @@ function compilePath(path, caseSensitive = false, end = true) {
     "^" +
     path
       // 移除路径末尾的一个或多个/（有*也去掉），因为会单独处理通配符部分
-      .replace(/\/*\*?$/, "") 
+      .replace(/\/*\*?$/, "")
       // 确保路径以斜杠 / 开头
-      .replace(/^\/*/, "/") 
+      .replace(/^\/*/, "/")
       // 转义路径中的正则特殊字符，例如：[、 ]、 *、 + 等，防止它们被误解为正则表达式的操作符
       // 全部变为\或者$或者&
-      .replace(/[\\.*+^${}|()[\]]/g, "\\$&") 
+      .replace(/[\\.*+^${}|()[\]]/g, "\\$&")
       // 查找路径中的动态参数，形式为 /:paramName。
       // 保存参数，且全部变为 /([^/]+)，也就是把:的匹配去掉，因为已经保存起来了
-      .replace(
-        /\/:([\w-]+)(\?)?/g,
-        (_, paramName, isOptional) => {
-          params.push({ paramName, isOptional: isOptional != null });
-          return isOptional ? "/?([^\\/]+)?" : "/([^\\/]+)";
-        }
-      );
+      .replace(/\/:([\w-]+)(\?)?/g, (_, paramName, isOptional) => {
+        params.push({ paramName, isOptional: isOptional != null });
+        return isOptional ? "/?([^\\/]+)?" : "/([^\\/]+)";
+      });
 
   // 如果路径以 * 结尾，则会把它转化为匹配任意字符的正则表达式：
   // (.*)$ 表示匹配末尾的0个或多个.
@@ -1096,9 +1109,7 @@ function compilePath(path, caseSensitive = false, end = true) {
   if (path.endsWith("*")) {
     params.push({ paramName: "*" });
     regexpSource +=
-      path === "*" || path === "/*"
-        ? "(.*)$"
-        : "(?:\\/(.+)|\\/*)$";
+      path === "*" || path === "/*" ? "(.*)$" : "(?:\\/(.+)|\\/*)$";
   } else if (end) {
     // 如果 end 为 true，表示路径必须精确匹配
     // 在末尾添加 \\/*$，表示匹配零个或多个斜杠
@@ -1115,15 +1126,11 @@ function compilePath(path, caseSensitive = false, end = true) {
   return [matcher, params];
 }
 
-
-
 // 删除路径末尾的所有斜杠，并且匹配路径开头的多个斜杠，并将它们替换为单个斜杠 /
-var normalizePathname = (pathname) => pathname.replace(/\/+$/, "").replace(/^\/*/, "/");
+var normalizePathname = (pathname) =>
+  pathname.replace(/\/+$/, "").replace(/^\/*/, "/");
 
-
-
-
-function createPath({pathname = "/", search = "", hash = ""}) {
+function createPath({ pathname = "/", search = "", hash = "" }) {
   if (search && search !== "?")
     pathname += search.charAt(0) === "?" ? search : "?" + search;
   if (hash && hash !== "#")
@@ -1131,19 +1138,20 @@ function createPath({pathname = "/", search = "", hash = ""}) {
   return pathname;
 }
 
-
-
 // params = {}
 // pathname = '/'
 // pathnameBase = '/'
 // route = {path: '/', element: {…}}
 
-
-
-function _renderMatches(matches, parentMatches = [], dataRouterState = null, future = null) {
-
+function _renderMatches(
+  matches,
+  parentMatches = [],
+  dataRouterState = null,
+  future = null
+) {
   // 入参：
-  // matches长这样，是一个数组，且一般来说只有一个匹配上的路由对象
+  // matches长这样，是一个数组，通常只有一个匹配上的路由对象，但是也有多个匹配上的route对象的情况（孩子route对象没有path只有index时）
+  // 【排序】从 顶层的路由对象 到 底层的路由对象
   //   params = {}
   //   pathname = '/'
   //   pathnameBase = '/'
@@ -1180,7 +1188,10 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
     let errorIndex = renderedMatches.findIndex(
       (m) => m.route.id && errors?.[m.route.id] !== undefined
     );
-    renderedMatches = renderedMatches.slice(0, Math.min(renderedMatches.length, errorIndex + 1));
+    renderedMatches = renderedMatches.slice(
+      0,
+      Math.min(renderedMatches.length, errorIndex + 1)
+    );
   }
 
   let renderFallback = false;
@@ -1214,7 +1225,8 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
   }
 
   // reduceRight 与reduce类似，是从数组的 右端（即从最后一个元素）开始 进行累积操作的
-  // 但是一般renderedMatches也就是matches数组只有一个匹配上的对象
+  // 一般renderedMatches也就是matches数组只有一个匹配上的对象，也有情况是matches数组有多个匹配上的对象！！！！！
+  // 当matches数组有多个的时候，从底层往顶层开始处理！！！！（因为matches数组的排序是顶层到底层）
   return renderedMatches.reduceRight((outlet, match, index) => {
     let error;
     let shouldRenderHydrateFallback = false;
@@ -1237,9 +1249,11 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
       }
     }
 
+    // 初始时，index从右边的最后一个index开始
+    // 每执行一次，matches的长度就减一
     let matches = parentMatches.concat(renderedMatches.slice(0, index + 1));
 
-    // 最终return的是这个函数的返回值
+    // 执行下面的函数，她的返回值被外部的reduce函数return，也就是下一次的outlet的值
     let getChildren = () => {
       let children;
       if (error) {
@@ -1248,18 +1262,19 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
         children = hydrateFallbackElement;
       } else if (match.route.Component) {
         children = <match.route.Component />;
-
       } else if (match.route.element) {
-      // 一般来说走这里，直接让大孩子等于这个route的element！！！
+        // 一般来说走这里，直接让大孩子等于这个route的element！！！
+        // 【注意！】因为本函数会执行多次，因此如果匹配上路由的route对象都有element，会利用outlet嵌套处理
         children = match.route.element;
-
       } else {
         children = outlet;
       }
+
       return (
         <RenderedRoute
           match={match}
           routeContext={{
+            // 传入的outlet是上一次的返回的这个RenderedRoute（顺序是：顶层路由外部-->底层路由内部）
             outlet,
             matches,
             isDataRoute: dataRouterState != null,
@@ -1270,29 +1285,63 @@ function _renderMatches(matches, parentMatches = [], dataRouterState = null, fut
     };
 
     // dataRouterState为默认值null，直接执行getChildren函数
-    return dataRouterState && (match.route.ErrorBoundary || match.route.errorElement || index === 0)
-      ? (<RenderErrorBoundary
-          location={dataRouterState.location}
-          revalidation={dataRouterState.revalidation}
-          component={errorElement}
-          error={error}
-          children={getChildren()}
-          routeContext={{ outlet: null, matches, isDataRoute: true }}
-        />)
-      : (getChildren());
+    return dataRouterState &&
+      (match.route.ErrorBoundary || match.route.errorElement || index === 0) ? (
+      <RenderErrorBoundary
+        location={dataRouterState.location}
+        revalidation={dataRouterState.revalidation}
+        component={errorElement}
+        error={error}
+        children={getChildren()}
+        routeContext={{ outlet: null, matches, isDataRoute: true }}
+      />
+    ) : (
+      getChildren()
+    );
   }, null);
 }
-
-
-
+// 上面的函数举例，假设matches有三个匹配上的对象（[match1, match2, match3]），最后reduceRight返回得到的结果是：
+// 底层的element在内部，顶层的element在外部
+// 比如<Layout/>在外部，<Login/>在内部
+// !【!!】相当于一个父路由组件被所有的子路由组件给共享！！！！
+// 那么上下文routeContext里面的outlet如何才能被渲染呢？在外部的组件显式地使用<Outlet>组件
+// 这个组件内部去拿上下文里面的Outlet属性，然后渲染
+<RenderedRoute
+  match={match1}
+  routeContext={{
+    outlet: (
+      <RenderedRoute
+        match={match2}
+        routeContext={{
+          outlet: (
+            <RenderedRoute
+              match={match3}
+              routeContext={{
+                outlet: null,
+                matches: [match1, match2, match3],
+                isDataRoute: false,
+              }}
+              children={match3.route.element}
+            />
+          ),
+          matches: [match1, match2],
+          isDataRoute: false,
+        }}
+        children={match2.route.element}
+      />
+    ),
+    matches: [match1],
+    isDataRoute: false,
+  }}
+  children={match1.route.element}
+/>;
 
 function RenderedRoute({ routeContext, match, children }) {
-
   // 入参：
   // match就是match对象
   // routeContext就是当前的路由的一些信息
   // {
-  //   outlet：是null
+  //   outlet：是底层路由的RenderedRoute函数组件【！！！】
   //   matches：是match对象包裹了一个[]（是一个数组）
   //   isDataRoute: dataRouterState != null ：是false
   // }
@@ -1316,23 +1365,13 @@ function RenderedRoute({ routeContext, match, children }) {
   );
 }
 
-
-
-
-
-
-
 // REVIEW - 下面是<Navigate>组件
-
-
-
 
 // 如果上面的路由刚好匹配到 /
 // 那么就来到<Navigate to="/users/login" />
 // 这是一个函数组件
 
-function Navigate({to, replace, state, relative}) {
-
+function Navigate({ to, replace, state, relative }) {
   // 入参：
   // to是目标路由："/users/login"
 
@@ -1360,17 +1399,21 @@ function Navigate({to, replace, state, relative}) {
   // 3. 拿到跳转函数（跳转钩子）
   let navigate = useNavigate();
 
-
   // 4. 拿到目标路径的包装对象（三剑客）的字符化结果
   // hash = ''
   // pathname = '/users/login'
   // search = ''
-  let path = resolveTo(to, getResolveToMatches(matches, future.v7_relativeSplatPath), locationPathname, relative === "path");
+  let path = resolveTo(
+    to,
+    getResolveToMatches(matches, future.v7_relativeSplatPath),
+    locationPathname,
+    relative === "path"
+  );
   let jsonPath = JSON.stringify(path);
 
-
   // 5. 在页面显示之后才跳转
-  React.useEffect(() => navigate(JSON.parse(jsonPath), { replace, state, relative }),
+  React.useEffect(
+    () => navigate(JSON.parse(jsonPath), { replace, state, relative }),
     [navigate, jsonPath, relative, replace, state]
   );
 
@@ -1378,18 +1421,13 @@ function Navigate({to, replace, state, relative}) {
   return null;
 }
 
-
-
 function useNavigate() {
   // isDataRoute是false
   let { isDataRoute } = React.useContext(RouteContext);
   return isDataRoute ? useNavigateStable() : useNavigateUnstable();
 }
 
-
-
 function useNavigateUnstable() {
-
   // 这个dataRouterContext是null
   let dataRouterContext = React.useContext(DataRouterContext);
 
@@ -1415,45 +1453,62 @@ function useNavigateUnstable() {
     activeRef.current = true;
   });
 
-  let navigate = React.useCallback((to, options = {}) => {
-    // 在commitHookEffectList里面进来的
-    // 参数：
-    // to对象包括以下属性
+  let navigate = React.useCallback(
+    (to, options = {}) => {
+      // 在commitHookEffectList里面进来的
+      // 参数：
+      // to对象包括以下属性
       // hash = ''
       // pathname = '/users/login'
       // search = ''
 
-    // 确保在页面绘制之后跳转！
-    // activeRef.current在页面绘制之前就已经设置为true了
-    if (!activeRef.current) return;
-    // to如果是页面跳转数之差，就可以直接用浏览器的history属性的go方法去到历史栈里面对应的页面
-    if (typeof to === "number") {
-      navigator.go(to);
-      return;
-    }
+      // 确保在页面绘制之后跳转！
+      // activeRef.current在页面绘制之前就已经设置为true了
+      if (!activeRef.current) return;
+      // to如果是页面跳转数之差，就可以直接用浏览器的history属性的go方法去到历史栈里面对应的页面
+      if (typeof to === "number") {
+        navigator.go(to);
+        return;
+      }
 
-    // 拿到目标路径的包装对象（三剑客），内含以下属性：
-    // hash = ''
-    // pathname = '/users/login'
-    // search = ''
-    let path = resolveTo(to, JSON.parse(routePathnamesJson), locationPathname, options.relative === "path");
+      // 拿到目标路径的包装对象（三剑客），内含以下属性：
+      // hash = ''
+      // pathname = '/users/login'
+      // search = ''
+      let path = resolveTo(
+        to,
+        JSON.parse(routePathnamesJson),
+        locationPathname,
+        options.relative === "path"
+      );
 
-    // 下面不会走，basename为/，dataRouterContext是null
-    if (dataRouterContext == null && basename !== "/") {
-      path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
-    }
+      // 下面不会走，basename为/，dataRouterContext是null
+      if (dataRouterContext == null && basename !== "/") {
+        path.pathname =
+          path.pathname === "/"
+            ? basename
+            : joinPaths([basename, path.pathname]);
+      }
 
-    // options.replace一般来说是不存在的，没有给navigare组件加props的话，执行push方法
-    // push方法是不刷新页面，但是把url改了（历史栈里面对应位置的信息（state和url）），同时更新之前在BrowserRouter维护的信息
-    (!!options.replace ? navigator.replace : navigator.push)(path, options.state, options);
-
-  }, [basename, navigator, routePathnamesJson, locationPathname, dataRouterContext]);
+      // options.replace一般来说是不存在的，没有给navigare组件加props的话，执行push方法
+      // push方法是不刷新页面，但是把url改了（历史栈里面对应位置的信息（state和url）），同时更新之前在BrowserRouter维护的信息
+      (!!options.replace ? navigator.replace : navigator.push)(
+        path,
+        options.state,
+        options
+      );
+    },
+    [
+      basename,
+      navigator,
+      routePathnamesJson,
+      locationPathname,
+      dataRouterContext,
+    ]
+  );
 
   return navigate;
 }
-
-
-
 
 function getResolveToMatches(matches, v7_relativeSplatPath) {
   let pathMatches = getPathContributingMatches(matches);
@@ -1467,13 +1522,12 @@ function getResolveToMatches(matches, v7_relativeSplatPath) {
   return pathMatches.map((match) => match.pathnameBase);
 }
 
-
-
 function getPathContributingMatches(matches) {
-  return matches.filter((match, index) => index === 0 || (match.route.path && match.route.path.length > 0));
+  return matches.filter(
+    (match, index) =>
+      index === 0 || (match.route.path && match.route.path.length > 0)
+  );
 }
-
-
 
 function useIsomorphicLayoutEffect(cb) {
   // 这个默认是false
@@ -1484,12 +1538,12 @@ function useIsomorphicLayoutEffect(cb) {
   }
 }
 
-
-
-
-
-
-function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = false) {
+function resolveTo(
+  toArg,
+  routePathnames,
+  locationPathname,
+  isPathRelative = false
+) {
   // 参数：
   // toArg是目标路径，
   // routePathnames是匹配上的route里面的base类型的路径，用数组包裹["/"]，
@@ -1510,7 +1564,6 @@ function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = fal
 
   if (toPathname == null) {
     from = locationPathname;
-
   } else {
     // toPathname不为空走下面
     let routePathnameIndex = routePathnames.length - 1;
@@ -1538,25 +1591,26 @@ function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = fal
   let path = resolvePath(to, from);
 
   // 目标路径 toPathname 不是根路径且以斜杠 / 结尾，则标记为有显式的尾部斜杠。
-  let hasExplicitTrailingSlash = toPathname && toPathname !== "/" && toPathname.endsWith("/");
+  let hasExplicitTrailingSlash =
+    toPathname && toPathname !== "/" && toPathname.endsWith("/");
 
   // 目标路径为空或 toPathname 是 "."（表示当前路径），
   // 且当前路径 locationPathname 以斜杠结尾，则标记为当前路径有尾部斜杠
-  let hasCurrentTrailingSlash = (isEmptyPath || toPathname === ".") && locationPathname.endsWith("/");
-  
+  let hasCurrentTrailingSlash =
+    (isEmptyPath || toPathname === ".") && locationPathname.endsWith("/");
+
   // 如果目标路径的最终 pathname 没有尾部斜杠，且目标路径或当前路径有尾部斜杠的要求，
   // 则在 path.pathname 上添加尾部斜杠。
-  if (!path.pathname.endsWith("/") && (hasExplicitTrailingSlash || hasCurrentTrailingSlash)) {
+  if (
+    !path.pathname.endsWith("/") &&
+    (hasExplicitTrailingSlash || hasCurrentTrailingSlash)
+  ) {
     path.pathname += "/";
   }
 
   // 返回to路径的包装对象
   return path;
 }
-
-
-
-
 
 function parsePath(path) {
   let parsedPath = {};
@@ -1582,11 +1636,8 @@ function parsePath(path) {
   return parsedPath;
 }
 
-
-
-
 function resolvePath(to, fromPathname = "/") {
-// 拿到to对象的三剑客
+  // 拿到to对象的三剑客
   let {
     pathname: toPathname,
     search = "",
@@ -1606,7 +1657,6 @@ function resolvePath(to, fromPathname = "/") {
     hash: normalizeHash(hash),
   };
 }
-
 
 function resolvePathname(relativePath, fromPathname) {
   // 目标路径不是/开头，说明是一个相对的路径，相对form的路径
@@ -1639,6 +1689,25 @@ function resolvePathname(relativePath, fromPathname) {
   return segments.length > 1 ? segments.join("/") : "/";
 }
 
+// REVIEW - 下面是<Outlet>组件
 
+export function Outlet(props) {
+  return useOutlet(props.context);
+}
 
+const OutletContext = React.createContext < unknown > null;
 
+export function useOutlet(context) {
+  // 拿到上下文的outlet属性
+  // 之前存的就是RenderedRoute函数组件，其中children属性就是孩子路由的element
+  let outlet = React.useContext(RouteContext).outlet;
+  // 把这个新的RenderedRoute函数组件作为孩子，放入OutletContext这个上下文
+  // 这个上下文可以存储Outlet组件的props，从而传递给下面的组件
+
+  if (outlet) {
+    return (
+      <OutletContext.Provider value={context}>{outlet}</OutletContext.Provider>
+    );
+  }
+  return outlet;
+}

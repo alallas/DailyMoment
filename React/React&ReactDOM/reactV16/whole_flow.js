@@ -1191,6 +1191,35 @@ var normalizeHTML = void 0;
 
 
 
+// 19.react18的交互回调事件绑定相关
+
+
+var TotalLanes = 31;
+var NoLanes = 0;
+var NoLane = 0;
+var SyncLane = 1;
+var InputContinuousHydrationLane = 2;
+var InputContinuousLane = 4;
+var DefaultHydrationLane = 8;
+var DefaultLane = 16;
+var TransitionHydrationLane = 32;
+var TransitionLanes = 4194240;
+var SelectiveHydrationLane = 134217728;
+var NonIdleLanes = 268435455;
+var IdleHydrationLane = 268435456;
+var IdleLane = 536870912;
+var OffscreenLane = 1073741824;
+
+
+var DiscreteEventPriority = SyncLane;
+var ContinuousEventPriority = InputContinuousLane;
+var DefaultEventPriority = DefaultLane;
+var IdleEventPriority = IdleLane;
+var currentUpdatePriority = NoLane;
+
+
+
+
 
 
 
@@ -1819,6 +1848,7 @@ function FiberNode(tag, pendingProps, key, mode) {
 
   this.ref = null;
 
+  // 当前fiber所对应的虚拟DOM（也就是<>节点上面的props对象）
   this.pendingProps = pendingProps;
   this.memoizedProps = null;
   this.updateQueue = null;
@@ -3848,7 +3878,8 @@ function push(cursor, value, fiber) {
 }
 
 function pushHostContainer(fiber, nextRootInstance) {
-  // 首次渲染阶段，保存root的原生DOM到rootInstanceStackCursor的current里面，再保存到valueStack
+  // nextRootInstance为：root的原生DOM 或者 body的原生DOM（portal的情况）
+  // 首次渲染阶段，保存【root的原生DOM 或者 body的原生DOM】到rootInstanceStackCursor的current里面，再保存到valueStack
   push(rootInstanceStackCursor, nextRootInstance, fiber);
   // 保存fiber到contextFiberStackCursor的current里面，再保存到valueStack
   push(contextFiberStackCursor, fiber, fiber);
@@ -4449,6 +4480,16 @@ function ChildReconciler(shouldTrackSideEffects) {
   function reconcileSinglePortal(returnFiber, currentFirstChild, portal, lanes) {
     // currentFirstChild就是父亲fiber节点的替身的大儿子fiber，也就是当前在页面显示出来的还没有更新的节点！！
     // portal就是父亲节点的大儿子，是最新的虚拟DOM，也就是接下来要处理的节点！！
+    // 这个portal的虚拟DOM的形式如下：【没有props属性】
+    // {
+    //   $$typeof: REACT_PORTAL_TYPE,
+    //   key: key == null ? null : '' + key,
+    //   children: children,
+    //   containerInfo: containerInfo,
+    //   implementation: implementation
+    // }
+
+
     var key = portal.key;
     var child = currentFirstChild;
 
@@ -4596,11 +4637,13 @@ function ChildReconciler(shouldTrackSideEffects) {
   }
 
   function createFiberFromPortal(portal, mode, lanes) {
+    // portal的pendingProps不是普通的虚拟DOM的pendingProps，就是children本身！
+    // 因此在以portal为父节点进入reconciliationChildren的函数的时候，传入的nextChild参数就是pendingProps本身
     var pendingProps = portal.children !== null ? portal.children : [];
     var fiber = createFiber(HostPortal, pendingProps, portal.key, mode);
     fiber.lanes = lanes;
 
-    // 在这里改这个fiber的真实的DOM容器
+    // portal的fiber的stateNode不是原生dom本身，而是一个对象，里面的containerInfo是dom树真正的父节点！
     fiber.stateNode = {
       containerInfo: portal.containerInfo,
       pendingChildren: null,
@@ -7238,6 +7281,7 @@ function updateHostComponent(current$$1, workInProgress, renderExpirationTime) {
 
 function pushHostContext(fiber) {
 
+  // 拿到目前的根节点真实DOM（要么是id为root的节点，要么是body）
   var rootInstance = requiredContext(rootInstanceStackCursor.current);
   // 拿到目前在栈中的指针对应的上下文对象
   var context = requiredContext(contextStackCursor$1.current);
@@ -8688,6 +8732,36 @@ function resolveDefaultProps(Component, baseProps) {
 
 
 
+// REVIEW - 下面是portal组件经过beginWork分发后来到的更新函数
+
+
+function updatePortalComponent(current, workInProgress, renderLanes) {
+
+  // 【注意】这里推入的上下文是body（workInProgress.stateNode.containerInfo一般是body）
+  pushHostContainer(workInProgress, workInProgress.stateNode.containerInfo);
+
+  // 拿到WIP的pendingProps，实际上是children属性
+  // （在createFiberFromPortal函数那边将pendingProps设置为虚拟DOM的children属性）
+  var nextChildren = workInProgress.pendingProps;
+
+  if (current === null) {
+    workInProgress.child = reconcileChildFibers(workInProgress, null, nextChildren, renderLanes);
+  } else {
+    reconcileChildren(current, workInProgress, nextChildren, renderLanes);
+  }
+
+  return workInProgress.child;
+}
+
+
+
+
+
+
+
+
+
+
 
 
 // REVIEW - 下面是当WIP的大儿子为null的时候，开始向右遍历，进入completeUnitOfWork（从performUnitOfWork函数进来）
@@ -8910,7 +8984,7 @@ function completeWork(current, workInProgress, renderExpirationTime) {
     case HostRoot:
       // 如果是顶部的root节点
       {
-        // 把上下文从栈中弹出
+        // 把上下文从栈中弹出，恢复XXcursor的current属性
         popHostContainer(workInProgress);
 
         // 把最顶层的上下文也弹出
@@ -8940,7 +9014,10 @@ function completeWork(current, workInProgress, renderExpirationTime) {
         // 首先弹出栈里面的上下文，保证下一层不受干扰
         popHostContext(workInProgress);
 
-        // 拿到根节点的root原生DOM节点
+        // 情况一：普通的element：拿到根节点的root原生DOM节点
+        // 情况二：portal节点下面的子节点：拿到documen.body
+        // 【补充】Q：什么时候会pushHostContainer？
+        // A：只有在beginWork分发后处理根节点（updateHostRoot函数），和处理portal节点（updatePortalComponent函数）里面会pushHostContainer
         var rootContainerInstance = getRootHostContainer();
         var type = workInProgress.type;
 
@@ -8993,6 +9070,11 @@ function completeWork(current, workInProgress, renderExpirationTime) {
             markRef$1(workInProgress);
           }
         }
+
+        // 【react18版本】
+        bubbleProperties(workInProgress);
+
+        // 【react16版本】
         break;
       }
     case HostText:
@@ -9078,8 +9160,21 @@ function completeWork(current, workInProgress, renderExpirationTime) {
     case Profiler:
       break;
     case HostPortal:
+      // portal节点本身走下面
+      // 把body的hostContainers从栈中弹出 + 把上下文也弹出
+      // 恢复XXcursor的current的属性（其中rootInstanceStackCursor恢复为root的DOM节点）
       popHostContainer(workInProgress);
+      // 下面的函数啥也不干
       updateHostContainer(workInProgress);
+
+      // 【react18版本】
+      if (current === null) {
+        // 【portal事件绑定的关键函数】监听所有事件到body上面，注意是所有！
+        preparePortalMount(workInProgress.stateNode.containerInfo);
+      }
+      bubbleProperties(workInProgress);
+
+      // 【react16版本】（16版本没有上面两个函数）
       break;
     case ContextProvider:
       // 如果是上下文的provider，
@@ -9730,6 +9825,9 @@ function setInitialProperties(domElement, tag, rawProps, rootContainerElement) {
   }
 }
 
+function trapClickOnNonInteractiveElement(node) {
+  node.onclick = function(){};
+}
 
 function getHostProps(element, props) {
   var node = element;
@@ -9816,9 +9914,17 @@ function setInitialDOMProperties(tag, domElement, rootContainerElement, nextProp
         if (true && typeof nextProp !== 'function') {
           warnForInvalidEventListener(propKey, nextProp);
         }
+        // 【react16版本】
         // 这个时候propKey是一个函数
         // 如果是一个事件，开启监听！
         ensureListeningTo(rootContainerElement, propKey);
+
+        // 【react18版本】
+        // 到时候在completeWork那边的分发函数里面各自执行bubbleProperties
+        // 20250517为止，仅仅补充了portal和hostComponent的分发函数的逻辑
+        if (propKey === 'onScroll') {
+          listenToNonDelegatedEvent('scroll', domElement);
+        }
       }
     } else if (nextProp != null) {
       // 其他的属性
@@ -10238,6 +10344,374 @@ function shouldAutoFocusHostComponent(type, props) {
 
 
 
+// !!【react18版本】的处理completeWork分发之后的portal的预备函数
+// !!【这个函数是portal节点处理交互回调函数的关键，把所有的事件都绑定到了body上面】
+
+function preparePortalMount(portalInstance) {
+  // 入参：
+  // portalInstance是body的dom
+  listenToAllSupportedEvents(portalInstance);
+}
+
+var listeningMarker = '_reactListening' + Math.random().toString(36).slice(2);
+function listenToAllSupportedEvents(rootContainerElement) {
+  // 入参：
+  // rootContainerElement是body的dom
+
+  if (!rootContainerElement[listeningMarker]) {
+    // 给body赋予一个属性
+    rootContainerElement[listeningMarker] = true;
+    allNativeEvents.forEach(function (domEventName) {
+      // 对原生的非selectionchange的所有事件进行处理
+      if (domEventName !== 'selectionchange') {
+        // 冒泡阶段：对非委托的事件进行处理
+        // nonDelegatedEvents 集合存储了必须使用捕获阶段监听的事件（如 focus/blur），不能用冒泡，跳过冒泡
+        if (!nonDelegatedEvents.has(domEventName)) {
+          listenToNativeEvent(domEventName, false, rootContainerElement);
+        }
+        // 捕获阶段：对所有的事件进行处理，全部事件包装之后，绑定到顶层父级节点
+        listenToNativeEvent(domEventName, true, rootContainerElement);
+      }
+    });
+
+    // 找到document
+    var ownerDocument = rootContainerElement.nodeType === DOCUMENT_NODE ? rootContainerElement : rootContainerElement.ownerDocument;
+
+    // 给document加上特殊的监听函数
+    if (ownerDocument !== null) {
+      if (!ownerDocument[listeningMarker]) {
+        ownerDocument[listeningMarker] = true;
+        listenToNativeEvent('selectionchange', false, ownerDocument);
+      }
+    }
+  }
+}
+
+function listenToNativeEvent(domEventName, isCapturePhaseListener, target) {
+  // 入参：
+  // domEventName事件名称
+  // isCapturePhaseListener表示是否捕获阶段，false表示冒泡
+  // target是顶层父级节点的DOM（要么body，要么root）
+
+  var eventSystemFlags = 0;
+
+  if (isCapturePhaseListener) {
+    eventSystemFlags |= IS_CAPTURE_PHASE;
+  }
+
+  // 给顶层的父级节点绑定本fiber的事件监听函数
+  addTrappedEventListener(target, domEventName, eventSystemFlags, isCapturePhaseListener);
+}
+
+function addTrappedEventListener(targetContainer, domEventName, eventSystemFlags, isCapturePhaseListener, isDeferredListenerForLegacyFBSupport) {
+  // 入参：
+  // targetContainer是顶层父级节点的DOM（要么body，要么root）
+  // domEventName事件名称
+  // eventSystemFlags表示捕获还是冒泡，用二进制数字表示
+  // isCapturePhaseListener表示捕获还是冒泡，用boolean表示
+
+  // 1. 拿到事件对应的dispatchEvent_v18函数
+  var listener = createEventListenerWrapperWithPriority(targetContainer, domEventName, eventSystemFlags);
+
+  // 对高频事件启用 passive 模式优化性能
+  var isPassiveListener = undefined;
+  if (passiveBrowserEventsSupported) {
+    if (domEventName === 'touchstart' || domEventName === 'touchmove' || domEventName === 'wheel') {
+      isPassiveListener = true;
+    }
+  }
+
+  targetContainer =  targetContainer;
+  var unsubscribeListener;
+
+  // 2. 给顶层的父级节点绑定dispatchEvent_18的监听函数
+  if (isCapturePhaseListener) {
+    // 捕获阶段
+    if (isPassiveListener !== undefined) {
+      unsubscribeListener = addEventCaptureListenerWithPassiveFlag(targetContainer, domEventName, listener, isPassiveListener);
+    } else {
+      unsubscribeListener = addEventCaptureListener(targetContainer, domEventName, listener);
+    }
+  } else {
+    // 冒泡阶段
+    if (isPassiveListener !== undefined) {
+      unsubscribeListener = addEventBubbleListenerWithPassiveFlag(targetContainer, domEventName, listener, isPassiveListener);
+    } else {
+      unsubscribeListener = addEventBubbleListener(targetContainer, domEventName, listener);
+    }
+  }
+}
+
+function createEventListenerWrapperWithPriority(targetContainer, domEventName, eventSystemFlags) {
+  // 入参：
+  // targetContainer是父级节点的DOM（要么body，要么root）
+  // domEventName事件名称
+  // eventSystemFlags表示捕获还是冒泡，用二进制数字表示
+
+  // 拿到事件的优先级
+  var eventPriority = getEventPriority(domEventName);
+  var listenerWrapper;
+
+  // 根据不同的优先级赋予不同的dispatchEvent_v18函数
+  switch (eventPriority) {
+    case DiscreteEventPriority:
+      listenerWrapper = dispatchDiscreteEvent;
+      break;
+
+    case ContinuousEventPriority:
+      listenerWrapper = dispatchContinuousEvent;
+      break;
+
+    case DefaultEventPriority:
+    default:
+      listenerWrapper = dispatchEvent_v18;
+      break;
+  }
+
+  // 返回绑定了入参的dispatchEvent_v18函数
+  return listenerWrapper.bind(null, domEventName, eventSystemFlags, targetContainer);
+}
+
+function getEventPriority(domEventName) {
+  switch (domEventName) {
+    // Used by SimpleEventPlugin:
+    case 'cancel':
+    case 'click':
+    case 'close':
+    case 'contextmenu':
+    case 'copy':
+    case 'cut':
+    case 'auxclick':
+    case 'dblclick':
+    case 'dragend':
+    case 'dragstart':
+    case 'drop':
+    case 'focusin':
+    case 'focusout':
+    case 'input':
+    case 'invalid':
+    case 'keydown':
+    case 'keypress':
+    case 'keyup':
+    case 'mousedown':
+    case 'mouseup':
+    case 'paste':
+    case 'pause':
+    case 'play':
+    case 'pointercancel':
+    case 'pointerdown':
+    case 'pointerup':
+    case 'ratechange':
+    case 'reset':
+    case 'resize':
+    case 'seeked':
+    case 'submit':
+    case 'touchcancel':
+    case 'touchend':
+    case 'touchstart':
+    case 'volumechange': // Used by polyfills:
+    // eslint-disable-next-line no-fallthrough
+
+    case 'change':
+    case 'selectionchange':
+    case 'textInput':
+    case 'compositionstart':
+    case 'compositionend':
+    case 'compositionupdate': // Only enableCreateEventHandleAPI:
+    // eslint-disable-next-line no-fallthrough
+
+    case 'beforeblur':
+    case 'afterblur': // Not used by React but could be by user code:
+    // eslint-disable-next-line no-fallthrough
+
+    case 'beforeinput':
+    case 'blur':
+    case 'fullscreenchange':
+    case 'focus':
+    case 'hashchange':
+    case 'popstate':
+    case 'select':
+    case 'selectstart':
+      return DiscreteEventPriority;
+
+    case 'drag':
+    case 'dragenter':
+    case 'dragexit':
+    case 'dragleave':
+    case 'dragover':
+    case 'mousemove':
+    case 'mouseout':
+    case 'mouseover':
+    case 'pointermove':
+    case 'pointerout':
+    case 'pointerover':
+    case 'scroll':
+    case 'toggle':
+    case 'touchmove':
+    case 'wheel': 
+
+    case 'mouseenter':
+    case 'mouseleave':
+    case 'pointerenter':
+    case 'pointerleave':
+      return ContinuousEventPriority;
+
+    case 'message':
+      {
+        var schedulerPriority = getCurrentPriorityLevel();
+
+        switch (schedulerPriority) {
+          case ImmediatePriority:
+            return DiscreteEventPriority;
+
+          case UserBlockingPriority:
+            return ContinuousEventPriority;
+
+          case NormalPriority:
+          case LowPriority:
+            return DefaultEventPriority;
+
+          case IdlePriority:
+            return IdleEventPriority;
+
+          default:
+            return DefaultEventPriority;
+        }
+      }
+
+    default:
+      return DefaultEventPriority;
+  }
+}
+
+function addEventCaptureListener(target, eventType, listener) {
+  // 入参：
+  // target是顶层父级节点的DOM（要么body，要么root）
+  // eventType事件名称
+  // listener是对应的dispatchEvent_v18函数
+  
+  // 下面的true表示是捕获
+  // 因此所有节点都放到顶层父级（要么body，要么root）上面监听事件
+  target.addEventListener(eventType, listener, true);
+  return listener;
+}
+
+function addEventBubbleListener(target, eventType, listener) {
+  // 入参：
+  // target是顶层父级节点的DOM（要么body，要么root）
+  // eventType事件名称
+  // listener是对应的dispatchEvent_v18函数
+
+  // 下面的false表示是捕获
+  // 因此所有节点都放到顶层父级（要么body，要么root）上面监听事件
+  target.addEventListener(eventType, listener, false);
+  return listener;
+}
+
+
+
+
+
+
+
+
+
+// !!【react18版本】的处理交互回调函数的函数
+
+function bubbleProperties(completedWork) {
+  // 入参：
+  // completedWork是WIP
+
+  // 看孩子是否有变化（内存地址）
+  var didBailout = completedWork.alternate !== null && completedWork.alternate.child === completedWork.child;
+  var newChildLanes = NoLanes;
+  var subtreeFlags = NoFlags;
+
+  if (!didBailout) {
+    // 没变化走下面：
+    if ( (completedWork.mode & ProfileMode) !== NoMode) {
+      // 性能分析模式走下面
+      // 拿 统计时间 相关数据
+      var actualDuration = completedWork.actualDuration;
+      var treeBaseDuration = completedWork.selfBaseDuration;
+      var child = completedWork.child;
+
+      // 有孩子节点走下面
+      while (child !== null) {
+        // 合并子节点及其子树的优先级车道
+        newChildLanes = mergeLanes(newChildLanes, mergeLanes(child.lanes, child.childLanes));
+        
+        // 合并子树标记
+        subtreeFlags |= child.subtreeFlags;
+        subtreeFlags |= child.flags;
+
+        // 累加时间统计
+        actualDuration += child.actualDuration;
+        treeBaseDuration += child.treeBaseDuration;
+        child = child.sibling;
+      }
+
+      completedWork.actualDuration = actualDuration;
+      completedWork.treeBaseDuration = treeBaseDuration;
+    } else {
+      // 普通模式走下面
+      var _child = completedWork.child;
+
+      while (_child !== null) {
+        newChildLanes = mergeLanes(newChildLanes, mergeLanes(_child.lanes, _child.childLanes));
+        subtreeFlags |= _child.subtreeFlags;
+        subtreeFlags |= _child.flags;
+
+        // 更新子节点的 return 指针（指向当前父节点）
+        _child.return = completedWork;
+        _child = _child.sibling;
+      }
+    }
+
+    completedWork.subtreeFlags |= subtreeFlags;
+  } else {
+    // 发生 bailout 时的处理（复用子节点）
+    if ( (completedWork.mode & ProfileMode) !== NoMode) {
+
+      var _treeBaseDuration = completedWork.selfBaseDuration;
+      var _child2 = completedWork.child;
+
+      while (_child2 !== null) {
+        newChildLanes = mergeLanes(newChildLanes, mergeLanes(_child2.lanes, _child2.childLanes));
+        
+        // 只合并静态标记（生命周期与 Fiber 节点一致）
+        subtreeFlags |= _child2.subtreeFlags & StaticMask;
+        subtreeFlags |= _child2.flags & StaticMask;
+        _treeBaseDuration += _child2.treeBaseDuration;
+        _child2 = _child2.sibling;
+      }
+
+      completedWork.treeBaseDuration = _treeBaseDuration;
+    } else {
+      var _child3 = completedWork.child;
+
+      while (_child3 !== null) {
+        newChildLanes = mergeLanes(newChildLanes, mergeLanes(_child3.lanes, _child3.childLanes));
+
+        subtreeFlags |= _child3.subtreeFlags & StaticMask;
+        subtreeFlags |= _child3.flags & StaticMask;
+
+        _child3.return = completedWork;
+        _child3 = _child3.sibling;
+      }
+    }
+
+    completedWork.subtreeFlags |= subtreeFlags;
+  }
+
+  // 更新父节点的子优先级车道
+  completedWork.childLanes = newChildLanes;
+  return didBailout;
+}
+
+
+
+
 
 
 
@@ -10618,7 +11092,7 @@ function handleTopLevel(bookKeeping) {
       break;
     }
     // 情况一：正常的element节点：这个root已经是根节点root的真实的DOM了
-    // 情况二：portal节点（body底部的节点）：root是null
+    // 情况二：portal节点及下面的子节点（body底部的节点）：root是null
     var root = findRootContainerNode(ancestor);
     // 情况二：第一次循环的时候就直接退出了，bookKeeping.ancestors里面没有这个【有交互的元素】
     if (!root) {
@@ -10633,7 +11107,7 @@ function handleTopLevel(bookKeeping) {
   } while (ancestor);
 
   // 情况一：正常的element：到这里bookKeeping.ancestors数组只有交互节点本身
-  // 情况二：portal：到这里bookKeeping.ancestors数组为空
+  // 情况二：portal节点及下面的子节点：到这里bookKeeping.ancestors数组为空
 
   // 下面这里不是在冒泡
   // 这个数组存的只是自己本身，对自己本身遍历，执行事件函数
@@ -10971,7 +11445,6 @@ function getListener(inst, registrationName) {
 
   // 拿到真实的DOM
   var stateNode = inst.stateNode;
-
   if (!stateNode) {
     return null;
   }
@@ -11796,6 +12269,11 @@ function validateEventDispatches(event) {
 
 
 function executeDispatch(event, listener, inst) {
+  // 入参：
+  // event合成事件对象
+  // listener是回调函数
+  // inst是被交互元素的fiber
+
   var type = event.type || 'unknown-event';
   // 通过fiber拿到原生DOM，赋予给合成对象的currentTarget
   event.currentTarget = getNodeFromInstance(inst);
@@ -12041,20 +12519,891 @@ function releaseTopLevelCallbackBookKeeping(instance) {
 
 
 
+
+
+
+
+
+// REVIEW - react18版本的事件触发相关函数
+
+
+function dispatchContinuousEvent(domEventName, eventSystemFlags, container, nativeEvent) {
+  // pointover-->mouseover-->pointmove-->mousemove
+  // pointout-->mouseout
+
+  // 入参：
+  // container是顶层父级节点的DOM（要么body，要么root）
+  // domEventName事件名称
+  // eventSystemFlags表示捕获还是冒泡，用二进制数字表示
+  // nativeEvent是原生的事件对象
+
+  var previousPriority = getCurrentUpdatePriority();
+  var prevTransition = ReactCurrentBatchConfig.transition;
+  ReactCurrentBatchConfig.transition = null;
+
+  try {
+    // 设置当前的事件的优先级！
+    setCurrentUpdatePriority(ContinuousEventPriority);
+
+    // 进入dispatchEvent_v18函数，开始模拟冒泡/捕获
+    dispatchEvent_v18(domEventName, eventSystemFlags, container, nativeEvent);
+  } finally {
+    setCurrentUpdatePriority(previousPriority);
+    ReactCurrentBatchConfig.transition = prevTransition;
+  }
+}
+
+function dispatchDiscreteEvent(domEventName, eventSystemFlags, container, nativeEvent) {
+  // onClick事件会进入这里！！！！
+
+  // 入参：
+  // container是顶层父级节点的DOM（要么body，要么root）
+  // domEventName事件名称
+  // eventSystemFlags表示捕获还是冒泡，用二进制数字表示
+  // nativeEvent是原生的事件对象
+  
+  var previousPriority = getCurrentUpdatePriority();
+  var prevTransition = ReactCurrentBatchConfig.transition;
+  ReactCurrentBatchConfig.transition = null;
+
+  try {
+    setCurrentUpdatePriority(DiscreteEventPriority);
+    dispatchEvent_v18(domEventName, eventSystemFlags, container, nativeEvent);
+  } finally {
+    setCurrentUpdatePriority(previousPriority);
+    ReactCurrentBatchConfig.transition = prevTransition;
+  }
+}
+
+function getCurrentUpdatePriority() {
+  return currentUpdatePriority;
+}
+function setCurrentUpdatePriority(newPriority) {
+  currentUpdatePriority = newPriority;
+}
+
+function dispatchEvent_v18(domEventName, eventSystemFlags, targetContainer, nativeEvent) {
+  if (!_enabled) {
+    return;
+  }
+
+  {
+    dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay(domEventName, eventSystemFlags, targetContainer, nativeEvent);
+  }
+}
+
+
+function dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay(domEventName, eventSystemFlags, targetContainer, nativeEvent) {
+  // 入参：
+  // targetContainer是顶层父级节点的DOM（要么body，要么root）
+  // domEventName事件名称
+  // eventSystemFlags表示捕获还是冒泡，用二进制数字表示
+  // nativeEvent是原生的事件对象
+
+  // 1. 拿到被交互的元素的fiber（就是return_targetInst这个全局变量）
+  var blockedOn = findInstanceBlockingEvent(domEventName, eventSystemFlags, targetContainer, nativeEvent);
+
+  // 当被点击的元素不是root或suspense，则blockedOn一定是null，下面一定会走
+  if (blockedOn === null) {
+    // 2. 真正的dispatchEvent函数
+    dispatchEventForPluginEventSystem(domEventName, eventSystemFlags, nativeEvent, return_targetInst, targetContainer);
+    clearIfContinuousEvent(domEventName, nativeEvent);
+    return;
+  }
+  if (queueIfContinuousEvent(blockedOn, domEventName, eventSystemFlags, targetContainer, nativeEvent)) {
+    nativeEvent.stopPropagation();
+    return;
+  }
+  clearIfContinuousEvent(domEventName, nativeEvent);
+  if (eventSystemFlags & IS_CAPTURE_PHASE && isDiscreteEventThatRequiresHydration(domEventName)) {
+    while (blockedOn !== null) {
+      var fiber = getInstanceFromNode(blockedOn);
+      if (fiber !== null) {
+        attemptSynchronousHydration(fiber);
+      }
+      var nextBlockedOn = findInstanceBlockingEvent(domEventName, eventSystemFlags, targetContainer, nativeEvent);
+      if (nextBlockedOn === null) {
+        dispatchEventForPluginEventSystem(domEventName, eventSystemFlags, nativeEvent, return_targetInst, targetContainer);
+      }
+      if (nextBlockedOn === blockedOn) {
+        break;
+      }
+      blockedOn = nextBlockedOn;
+    }
+    if (blockedOn !== null) {
+      nativeEvent.stopPropagation();
+    }
+    return;
+  }
+  dispatchEventForPluginEventSystem(domEventName, eventSystemFlags, nativeEvent, null, targetContainer);
+}
+
+var return_targetInst = null;
+function findInstanceBlockingEvent(domEventName, eventSystemFlags, targetContainer, nativeEvent) {
+  // 入参：
+  // targetContainer是顶层父级节点的DOM（要么body，要么root）
+  // domEventName事件名称
+  // eventSystemFlags表示捕获还是冒泡，用二进制数字表示
+  // nativeEvent是原生的事件对象
+
+  return_targetInst = null;
+
+  // 1. 通过这个事件对象找到这个原生的DOM对象
+  var nativeEventTarget = getEventTarget(nativeEvent);
+
+  // 2. 从原生的节点里面找到相应的fiber
+  // 之前依靠一个随机key名保存在原生的DOM对象上，可以直接找到fiber
+  var targetInst = getClosestInstanceFromNode(nativeEventTarget);
+
+  if (targetInst !== null) {
+    // 3. 查找距离当前Fiber最近的已插入到 DOM 中的祖先节点
+    // （一般来说点击的时候已经挂载页面了，所以一般是返回这个fiber本身）
+    var nearestMounted = getNearestMountedFiber(targetInst);
+
+    if (nearestMounted === null) {
+      targetInst = null;
+    } else {
+      // 根据当前fiber的类型，拿到对应的fiber（？）
+      var tag = nearestMounted.tag;
+      if (tag === SuspenseComponent) {
+        var instance = getSuspenseInstanceFromFiber(nearestMounted);
+        if (instance !== null) {
+          return instance;
+        }
+        targetInst = null;
+      } else if (tag === HostRoot) {
+
+        var root = nearestMounted.stateNode;
+        if (isRootDehydrated(root)) {
+          return getContainerFromFiber(nearestMounted);
+        }
+        targetInst = null;
+      } else if (nearestMounted !== targetInst) {
+
+        targetInst = null;
+      }
+    }
+  }
+  // 返回这个fiber本身
+  return_targetInst = targetInst;
+
+  return null;
+}
+
+
+function getNearestMountedFiber(fiber) {
+  var node = fiber;
+  var nearestMounted = fiber;
+  if (!fiber.alternate) {
+    var nextNode = node;
+    do {
+      node = nextNode;
+      // 检查是否处于挂载或注水状态（这个情况是此时此刻还没有挂载页面！）
+      if ((node.flags & (Placement | Hydrating)) !== NoFlags) {
+        nearestMounted = node.return;
+      }
+      nextNode = node.return;
+    } while (nextNode);
+  } else {
+    while (node.return) {
+      node = node.return;
+    }
+  }
+  // 最后直到根节点停下来，返回这个fiber本身
+  if (node.tag === HostRoot) {
+    return nearestMounted;
+  }
+  return null;
+}
+
+function dispatchEventForPluginEventSystem(domEventName, eventSystemFlags, nativeEvent, targetInst, targetContainer) {
+  // 入参：
+  // targetContainer是顶层父级节点的DOM（要么body，要么root）
+  // domEventName事件名称
+  // eventSystemFlags表示捕获还是冒泡，用二进制数字表示
+  // nativeEvent是原生的事件对象
+  // targetInst是被交互的元素的fiber
+  
+  var ancestorInst = targetInst;
+
+  // 两个条件：事件需要委托处理，且目标节点是 React 管理的 DOM 元素
+  // 内部在判断当前fiber的顶层父级元素DOM是不是和targetContainer入参一样
+  if ((eventSystemFlags & IS_EVENT_HANDLE_NON_MANAGED_NODE) === 0 && (eventSystemFlags & IS_NON_DELEGATED) === 0) {
+    var targetContainerNode = targetContainer;
+    if (targetInst !== null) {
+      var node = targetInst;
+      mainLoop: while (true) {
+        if (node === null) {
+          return;
+        }
+        var nodeTag = node.tag;
+
+        // 从当前的fiber节点循环一直往上找，必须找到portal或者是root
+        if (nodeTag === HostRoot || nodeTag === HostPortal) {
+          // 拿到顶层的父级真实DOM
+          var container = node.stateNode.containerInfo;
+
+          // 判断这个顶层的父级真实DOM是不是和入参一样，是的话就直接退出循环
+          if (isMatchingRootContainer(container, targetContainerNode)) {
+            break;
+          }
+          if (nodeTag === HostPortal) {
+            var grandNode = node.return;
+            while (grandNode !== null) {
+              var grandTag = grandNode.tag;
+              if (grandTag === HostRoot || grandTag === HostPortal) {
+                var grandContainer = grandNode.stateNode.containerInfo;
+                if (isMatchingRootContainer(grandContainer, targetContainerNode)) {
+                  return;
+                }
+              }
+              grandNode = grandNode.return;
+            }
+          }
+          // 假设和入参不一样，那就找最近的祖上元素DOM
+          while (container !== null) {
+            var parentNode = getClosestInstanceFromNode(container);
+            if (parentNode === null) {
+              return;
+            }
+            var parentTag = parentNode.tag;
+            if (parentTag === HostComponent || parentTag === HostText) {
+              node = ancestorInst = parentNode;
+              continue mainLoop;
+            }
+            container = container.parentNode;
+          }
+        }
+        node = node.return;
+      }
+    }
+  }
+
+  // 一样的话就开始真正的dispatchEvent
+  batchedUpdates(function () {
+    return dispatchEventsForPlugins(domEventName, eventSystemFlags, nativeEvent, ancestorInst);
+  });
+}
+
+function isMatchingRootContainer(grandContainer, targetContainer) {
+  return grandContainer === targetContainer || grandContainer.nodeType === COMMENT_NODE && grandContainer.parentNode === targetContainer;
+}
+
+function dispatchEventsForPlugins(domEventName, eventSystemFlags, nativeEvent, targetInst, targetContainer) {
+  // 通过这个事件对象找到这个原生的DOM对象
+  var nativeEventTarget = getEventTarget(nativeEvent);
+  var dispatchQueue = [];
+  extractEvents$5(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget, eventSystemFlags);
+  // 处理【每个事件对应的所有捕获与冒泡函数】数组
+  processDispatchQueue(dispatchQueue, eventSystemFlags);
+}
+
+function extractEvents$5(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget, eventSystemFlags, targetContainer) {
+  extractEvents$4(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget, eventSystemFlags);
+  
+  // 判断是否需要处理 polyfill 插件
+  var shouldProcessPolyfillPlugins = (eventSystemFlags & SHOULD_NOT_PROCESS_POLYFILL_EVENT_PLUGINS) === 0;
+  if (shouldProcessPolyfillPlugins) {
+    // 按需执行兼容性处理
+    // 处理鼠标/指针的进出事件
+    extractEvents$2(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget);
+    // 选择事件
+    extractEvents$1(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget);
+    // 表单事件
+    extractEvents$3(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget);
+    // 兜底处理
+    extractEvents(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget);
+  }
+}
+
+function extractEvents$4(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget, eventSystemFlags, targetContainer) {
+  // 入参：
+  // dispatchQueue是一个数组
+  // domEventName事件名称
+  // nativeEvent是原生的事件对象
+  // targetInst是被交互的元素的fiber
+  // nativeEventTarget是当前被交互的节点的原生DOM对象
+  // eventSystemFlags表示捕获还是冒泡，用二进制数字表示
+
+  // topLevelEventsToReactNames是一个map，长下面这样
+  // 1: {"canplay" => "onCanPlay"}
+  // 2: {"canplaythrough" => "onCanPlayThrough"}
+  // 3: {"click" => "onClick"}
+  // 4: {"close" => "onClose"}
+
+  var reactName = topLevelEventsToReactNames.get(domEventName);
+
+  if (reactName === undefined) {
+    return;
+  }
+
+  // 1. 初始化合成事件对象
+  var SyntheticEventCtor = SyntheticEvent_v18;
+  var reactEventType = domEventName;
+
+  // 2. 根据不同的事件类型更改合成事件对象
+  switch (domEventName) {
+    case 'keypress':
+      if (getEventCharCode(nativeEvent) === 0) {
+        return;
+      }
+    case 'keydown':
+    case 'keyup':
+      SyntheticEventCtor = SyntheticKeyboardEvent;
+      break;
+    case 'focusin':
+      reactEventType = 'focus';
+      SyntheticEventCtor = SyntheticFocusEvent;
+      break;
+    case 'focusout':
+      reactEventType = 'blur';
+      SyntheticEventCtor = SyntheticFocusEvent;
+      break;
+    case 'beforeblur':
+    case 'afterblur':
+      SyntheticEventCtor = SyntheticFocusEvent;
+      break;
+    case 'click':
+      if (nativeEvent.button === 2) {
+        return;
+      }
+    case 'auxclick':
+    case 'dblclick':
+    case 'mousedown':
+    case 'mousemove':
+    case 'mouseup': 
+    case 'mouseout':
+    case 'mouseover':
+    case 'contextmenu':
+      SyntheticEventCtor = SyntheticMouseEvent;
+      break;
+    case 'drag':
+    case 'dragend':
+    case 'dragenter':
+    case 'dragexit':
+    case 'dragleave':
+    case 'dragover':
+    case 'dragstart':
+    case 'drop':
+      SyntheticEventCtor = SyntheticDragEvent;
+      break;
+    case 'touchcancel':
+    case 'touchend':
+    case 'touchmove':
+    case 'touchstart':
+      SyntheticEventCtor = SyntheticTouchEvent;
+      break;
+    case ANIMATION_END:
+    case ANIMATION_ITERATION:
+    case ANIMATION_START:
+      SyntheticEventCtor = SyntheticAnimationEvent;
+      break;
+    case TRANSITION_END:
+      SyntheticEventCtor = SyntheticTransitionEvent;
+      break;
+    case 'scroll':
+      SyntheticEventCtor = SyntheticUIEvent;
+      break;
+    case 'wheel':
+      SyntheticEventCtor = SyntheticWheelEvent;
+      break;
+    case 'copy':
+    case 'cut':
+    case 'paste':
+      SyntheticEventCtor = SyntheticClipboardEvent;
+      break;
+    case 'gotpointercapture':
+    case 'lostpointercapture':
+    case 'pointercancel':
+    case 'pointerdown':
+    case 'pointermove':
+    case 'pointerout':
+    case 'pointerover':
+    case 'pointerup':
+      // 点击事件（pointerover）来到这里
+      SyntheticEventCtor = SyntheticPointerEvent;
+      break;
+  }
+  // 当前是捕获还是冒泡？？
+  var inCapturePhase = (eventSystemFlags & IS_CAPTURE_PHASE) !== 0;
+  var accumulateTargetOnly = !inCapturePhase && domEventName === 'scroll';
+
+  // 3. 拿到当前的事件的祖上元素所有事件合集数组
+  var _listeners = accumulateSinglePhaseListeners(targetInst, reactName, nativeEvent.type, inCapturePhase, accumulateTargetOnly);
+
+  // 4. 新建合成事件对象实例，放入dispatchQueue数组
+  if (_listeners.length > 0) {
+    var _event = new SyntheticEventCtor(reactName, reactEventType, null, nativeEvent, nativeEventTarget);
+    // !重要
+    // 相当于dispatchQueue的二级分类是【捕获和冒泡】，三级分类是从交互节点到顶层父节点的所有对应的回调函数
+    // 比如：
+    // click的捕获(listeners是从底层到顶层的顺序)-->click的冒泡(listeners是从底层到顶层的顺序)
+    dispatchQueue.push({
+      event: _event,
+      listeners: _listeners
+    });
+  }
+}
+
+function accumulateSinglePhaseListeners(targetFiber, reactName, nativeEventType, inCapturePhase, accumulateTargetOnly, nativeEvent) {
+  // 入参：
+  // reactName是react类型的事件名称
+  // targetFiber是被交互的元素的fiber
+  // inCapturePhase表示捕获还是冒泡，用boolean表示
+  // accumulateTargetOnly标识当前是否冒泡阶段的滚动事件
+  
+  var captureName = reactName !== null ? reactName + 'Capture' : null;
+  var reactEventName = inCapturePhase ? captureName : reactName;
+  var listeners = [];
+  var instance = targetFiber;
+  var lastHostComponent = null;
+
+  while (instance !== null) {
+    var _instance2 = instance,
+        stateNode = _instance2.stateNode,
+        tag = _instance2.tag;
+
+    if (tag === HostComponent && stateNode !== null) {
+      lastHostComponent = stateNode;
+      if (reactEventName !== null) {
+        // 拿到这个fiber上的对应事件的回调函数
+        // 【按道理，捕获的事件都拿不到】
+        var listener = getListener(instance, reactEventName);
+        // 经过包装的回调函数放入数组里面
+        if (listener != null) {
+          listeners.push(createDispatchListener(instance, listener, lastHostComponent));
+        }
+      }
+    }
+    if (accumulateTargetOnly) {
+      break;
+    }
+    // 一个事件就要往上遍历，收集祖上所有的冒泡和捕获的同一个事件
+    // 对于有一个事件首先肯定是捕获，从本节点开始往上，形成的数组为：[底层节点捕获、中间层节点捕获、顶层节点捕获]
+    // 然后是冒泡，从本节点开始往上，形成的数组为：[底层节点冒泡、中间层节点冒泡、顶层节点冒泡]
+    instance = instance.return;
+  }
+  return listeners;
+}
+
+function createDispatchListener(instance, listener, currentTarget) {
+  // instance是被交互的元素的fiber
+  // currentTarget是被交互元素的真实的DOM
+  return {
+    instance: instance,
+    listener: listener,
+    currentTarget: currentTarget
+  };
+}
+
+
+
+
+
+
+// 下面函数仅处理鼠标/指针的进出事件
+function extractEvents$2(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget, eventSystemFlags, targetContainer) {
+  // 入参：
+  // dispatchQueue是一个数组
+  // domEventName事件名称
+  // nativeEvent是原生的事件对象
+  // targetInst是被交互的元素的fiber
+  // nativeEventTarget是当前被交互的节点的原生DOM对象
+
+  var isOverEvent = domEventName === 'mouseover' || domEventName === 'pointerover';
+  var isOutEvent = domEventName === 'mouseout' || domEventName === 'pointerout';
+
+  // 已处理则跳过
+  if (isOverEvent && !isReplayingEvent(nativeEvent)) {
+    var related = nativeEvent.relatedTarget || nativeEvent.fromElement;
+    if (related) {
+      if (getClosestInstanceFromNode(related) || isContainerMarkedAsRoot(related)) {
+        return;
+      }
+    }
+  }
+  if (!isOutEvent && !isOverEvent) {
+    return;
+  }
+
+  // 确定窗口对象
+  // 确保事件能正确关联到窗口上下文，处理跨窗口或 iframe 场景。
+  var win;
+  if (nativeEventTarget.window === nativeEventTarget) {
+    win = nativeEventTarget;
+  } else {
+    // 拿到document
+    var doc = nativeEventTarget.ownerDocument;
+    if (doc) {
+      // 拿到window
+      win = doc.defaultView || doc.parentWindow;
+    } else {
+      win = window;
+    }
+  }
+
+  // 定义来去的fiber
+  var from;
+  var to;
+  // 处理鼠标移出事件
+  if (isOutEvent) {
+    var _related = nativeEvent.relatedTarget || nativeEvent.toElement;
+
+    from = targetInst;
+    to = _related ? getClosestInstanceFromNode(_related) : null;
+
+    if (to !== null) {
+      var nearestMounted = getNearestMountedFiber(to);
+
+      if (to !== nearestMounted || to.tag !== HostComponent && to.tag !== HostText) {
+        to = null;
+      }
+    }
+  } else {
+    // 处理鼠标移入事件
+    from = null;
+    to = targetInst;
+  }
+
+  if (from === to) {
+    return;
+  }
+
+  // 初始化默认的鼠标类型的合成事件对象
+  var SyntheticEventCtor = SyntheticMouseEvent;
+  var leaveEventType = 'onMouseLeave';
+  var enterEventType = 'onMouseEnter';
+  var eventTypePrefix = 'mouse';
+
+  if (domEventName === 'pointerout' || domEventName === 'pointerover') {
+    SyntheticEventCtor = SyntheticPointerEvent;
+    leaveEventType = 'onPointerLeave';
+    enterEventType = 'onPointerEnter';
+    eventTypePrefix = 'pointer';
+  }
+
+  // 创建离开事件
+  // 拿到来去fiber的原生DOM
+  var fromNode = from == null ? win : getNodeFromInstance(from);
+  var toNode = to == null ? win : getNodeFromInstance(to);
+  // 新建事件对象的实例
+  var leave = new SyntheticEventCtor(leaveEventType, eventTypePrefix + 'leave', from, nativeEvent, nativeEventTarget);
+  leave.target = fromNode;
+  leave.relatedTarget = toNode;
+
+  // 创建进入事件（仅当目标实例匹配时）
+  var enter = null;
+  var nativeTargetInst = getClosestInstanceFromNode(nativeEventTarget);
+  if (nativeTargetInst === targetInst) {
+    var enterEvent = new SyntheticEventCtor(enterEventType, eventTypePrefix + 'enter', to, nativeEvent, nativeEventTarget);
+    enterEvent.target = toNode;
+    enterEvent.relatedTarget = fromNode;
+    enter = enterEvent;
+  }
+
+  // 收集这个事件的祖上相关元素的所有回调函数数组！
+  accumulateEnterLeaveTwoPhaseListeners(dispatchQueue, leave, enter, from, to);
+}
+
+
+function accumulateEnterLeaveTwoPhaseListeners(dispatchQueue, leaveEvent, enterEvent, from, to) {
+  // 入参：
+  // dispatchQueue是一个数组
+  // leaveEvent/enterEvent是离开或进入的事件对象
+  // from/to是来去的fiber
+
+  var common = from && to ? getLowestCommonAncestor(from, to) : null;
+  if (from !== null) {
+    accumulateEnterLeaveListenersForEvent(dispatchQueue, leaveEvent, from, common, false);
+  }
+  if (to !== null && enterEvent !== null) {
+    accumulateEnterLeaveListenersForEvent(dispatchQueue, enterEvent, to, common, true);
+  }
+}
+
+function accumulateEnterLeaveListenersForEvent(dispatchQueue, event, target, common, inCapturePhase) {
+  // 入参：
+  // dispatchQueue是一个数组
+  // event是离开或进入的事件对象
+  // target是来或去的fiber
+  // common是来fiber和去fiber的共同的祖先
+  // inCapturePhase标识冒泡还是捕获（to有值的时候是捕获阶段，from有值的时候是冒泡阶段）
+  
+  var registrationName = event._reactName;
+  var listeners = [];
+  var instance = target;
+
+  while (instance !== null) {
+    if (instance === common) {
+      break;
+    }
+
+    var _instance4 = instance,
+        alternate = _instance4.alternate,
+        stateNode = _instance4.stateNode,
+        tag = _instance4.tag;
+
+    if (alternate !== null && alternate === common) {
+      break;
+    }
+
+    if (tag === HostComponent && stateNode !== null) {
+      var currentTarget = stateNode;
+
+      if (inCapturePhase) {
+        var captureListener = getListener(instance, registrationName);
+
+        if (captureListener != null) {
+          listeners.unshift(createDispatchListener(instance, captureListener, currentTarget));
+        }
+      } else if (!inCapturePhase) {
+        var bubbleListener = getListener(instance, registrationName);
+
+        if (bubbleListener != null) {
+          listeners.push(createDispatchListener(instance, bubbleListener, currentTarget));
+        }
+      }
+    }
+
+    instance = instance.return;
+  }
+
+  if (listeners.length !== 0) {
+    dispatchQueue.push({
+      event: event,
+      listeners: listeners
+    });
+  }
+}
+
+
+
+function extractEvents$1(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget, eventSystemFlags, targetContainer) {
+  var targetNode = targetInst ? getNodeFromInstance(targetInst) : window;
+  var getTargetInstFunc, handleEventFunc;
+
+  if (shouldUseChangeEvent(targetNode)) {
+    getTargetInstFunc = getTargetInstForChangeEvent;
+  } else if (isTextInputElement(targetNode)) {
+    if (isInputEventSupported) {
+      getTargetInstFunc = getTargetInstForInputOrChangeEvent;
+    } else {
+      getTargetInstFunc = getTargetInstForInputEventPolyfill;
+      handleEventFunc = handleEventsForInputEventPolyfill;
+    }
+  } else if (shouldUseClickEvent(targetNode)) {
+    getTargetInstFunc = getTargetInstForClickEvent;
+  }
+
+  if (getTargetInstFunc) {
+    var inst = getTargetInstFunc(domEventName, targetInst);
+
+    if (inst) {
+      createAndAccumulateChangeEvent(dispatchQueue, inst, nativeEvent, nativeEventTarget);
+      return;
+    }
+  }
+
+  if (handleEventFunc) {
+    handleEventFunc(domEventName, targetNode, targetInst);
+  } // When blurring, set the value attribute for number inputs
+
+
+  if (domEventName === 'focusout') {
+    handleControlledInputBlur(targetNode);
+  }
+}
+
+
+function extractEvents$3(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget, eventSystemFlags, targetContainer) {
+  var targetNode = targetInst ? getNodeFromInstance(targetInst) : window;
+  switch (domEventName) {
+    case 'focusin':
+      if (isTextInputElement(targetNode) || targetNode.contentEditable === 'true') {
+        activeElement$1 = targetNode;
+        activeElementInst$1 = targetInst;
+        lastSelection = null;
+      }
+      break;
+    case 'focusout':
+      activeElement$1 = null;
+      activeElementInst$1 = null;
+      lastSelection = null;
+      break;
+    case 'mousedown':
+      mouseDown = true;
+      break;
+    case 'contextmenu':
+    case 'mouseup':
+    case 'dragend':
+      mouseDown = false;
+      constructSelectEvent(dispatchQueue, nativeEvent, nativeEventTarget);
+      break;
+    case 'selectionchange':
+      if (skipSelectionChangeEvent) {
+        break;
+      }
+    case 'keydown':
+    case 'keyup':
+      constructSelectEvent(dispatchQueue, nativeEvent, nativeEventTarget);
+  }
+}
+
+function extractEvents(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget, eventSystemFlags, targetContainer) {
+  // 处理合成事件
+  extractCompositionEvent(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget);
+  // 处理输入事件
+  extractBeforeInputEvent(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget);
+}
+
+function extractCompositionEvent(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget) {
+  var eventType;
+  var fallbackData;
+
+  if (canUseCompositionEvent) {
+    eventType = getCompositionEventType(domEventName);
+  } else if (!isComposing) {
+    if (isFallbackCompositionStart(domEventName, nativeEvent)) {
+      eventType = 'onCompositionStart';
+    }
+  } else if (isFallbackCompositionEnd(domEventName, nativeEvent)) {
+    eventType = 'onCompositionEnd';
+  }
+
+  if (!eventType) {
+    return null;
+  }
+
+  if (useFallbackCompositionData && !isUsingKoreanIME(nativeEvent)) {
+    // The current composition is stored statically and must not be
+    // overwritten while composition continues.
+    if (!isComposing && eventType === 'onCompositionStart') {
+      isComposing = initialize(nativeEventTarget);
+    } else if (eventType === 'onCompositionEnd') {
+      if (isComposing) {
+        fallbackData = getData();
+      }
+    }
+  }
+
+  var listeners = accumulateTwoPhaseListeners(targetInst, eventType);
+
+  if (listeners.length > 0) {
+    var event = new SyntheticCompositionEvent(eventType, domEventName, null, nativeEvent, nativeEventTarget);
+    dispatchQueue.push({
+      event: event,
+      listeners: listeners
+    });
+
+    if (fallbackData) {
+      // Inject data generated from fallback path into the synthetic event.
+      // This matches the property of native CompositionEventInterface.
+      event.data = fallbackData;
+    } else {
+      var customData = getDataFromCustomEvent(nativeEvent);
+
+      if (customData !== null) {
+        event.data = customData;
+      }
+    }
+  }
+}
+
+function extractBeforeInputEvent(dispatchQueue, domEventName, targetInst, nativeEvent, nativeEventTarget) {
+  var chars;
+
+  if (canUseTextInputEvent) {
+    chars = getNativeBeforeInputChars(domEventName, nativeEvent);
+  } else {
+    chars = getFallbackBeforeInputChars(domEventName, nativeEvent);
+  } // If no characters are being inserted, no BeforeInput event should
+  // be fired.
+
+
+  if (!chars) {
+    return null;
+  }
+
+  var listeners = accumulateTwoPhaseListeners(targetInst, 'onBeforeInput');
+
+  if (listeners.length > 0) {
+    var event = new SyntheticInputEvent('onBeforeInput', 'beforeinput', null, nativeEvent, nativeEventTarget);
+    dispatchQueue.push({
+      event: event,
+      listeners: listeners
+    });
+    event.data = chars;
+  }
+}
+
+
+
+
+// !【react18版本】SyntheticEvent类
+
+// 创建出一个默认的合成事件对象
+var EventInterface = {
+  eventPhase: 0,
+  bubbles: 0,
+  cancelable: 0,
+  timeStamp: function (event) {
+    return event.timeStamp || Date.now();
+  },
+  defaultPrevented: 0,
+  isTrusted: 0
+};
+var SyntheticEvent_v18 = createSyntheticEvent(EventInterface);
+
+// 点击类事件的合成事件对象
+var MouseEventInterface = assign({}, UIEventInterface, {
+  screenX: 0,
+  screenY: 0,
+  clientX: 0,
+  clientY: 0,
+  pageX: 0,
+  pageY: 0,
+  ctrlKey: 0,
+  shiftKey: 0,
+  altKey: 0,
+  metaKey: 0,
+  getModifierState: getEventModifierState,
+  button: 0,
+  buttons: 0,
+  relatedTarget: function (event) {
+    if (event.relatedTarget === undefined) return event.fromElement === event.srcElement ? event.toElement : event.fromElement;
+    return event.relatedTarget;
+  },
+  movementX: function (event) {
+    if ('movementX' in event) {
+      return event.movementX;
+    }
+    updateMouseMovementPolyfillState(event);
+    return lastMovementX;
+  },
+  movementY: function (event) {
+    if ('movementY' in event) {
+      return event.movementY;
+    }
+    return lastMovementY;
+  }
+});
+var PointerEventInterface = assign({}, MouseEventInterface, {
+  pointerId: 0,
+  width: 0,
+  height: 0,
+  pressure: 0,
+  tangentialPressure: 0,
+  tiltX: 0,
+  tiltY: 0,
+  twist: 0,
+  pointerType: 0,
+  isPrimary: 0
+});
+var SyntheticPointerEvent = createSyntheticEvent(PointerEventInterface);
+
+
+// 创建合成事件的类的工厂
 function createSyntheticEvent(Interface) {
-  /**
-   * Synthetic events are dispatched by event plugins, typically in response to a
-   * top-level event delegation handler.
-   *
-   * These systems should generally use pooling to reduce the frequency of garbage
-   * collection. The system should check `isPersistent` to determine whether the
-   * event should be released into the pool after being dispatched. Users that
-   * need a persisted event should invoke `persist`.
-   *
-   * Synthetic events (and subclasses) implement the DOM Level 3 Events API by
-   * normalizing browser quirks. Subclasses do not necessarily have to implement a
-   * DOM interface; custom application-specific events can also subclass this.
-   */
   function SyntheticBaseEvent(reactName, reactEventType, targetInst, nativeEvent, nativeEventTarget) {
     this._reactName = reactName;
     this._targetInst = targetInst;
@@ -12093,53 +13442,32 @@ function createSyntheticEvent(Interface) {
     preventDefault: function () {
       this.defaultPrevented = true;
       var event = this.nativeEvent;
-
       if (!event) {
         return;
       }
-
       if (event.preventDefault) {
-        event.preventDefault(); // $FlowFixMe - flow is not aware of `unknown` in IE
+        // 用原生事件去阻止默认事件的发生！
+        event.preventDefault();
       } else if (typeof event.returnValue !== 'unknown') {
         event.returnValue = false;
       }
-
       this.isDefaultPrevented = functionThatReturnsTrue;
     },
     stopPropagation: function () {
       var event = this.nativeEvent;
-
       if (!event) {
         return;
       }
-
       if (event.stopPropagation) {
-        event.stopPropagation(); // $FlowFixMe - flow is not aware of `unknown` in IE
+        // 用原生事件去阻止冒泡！！
+        event.stopPropagation();
       } else if (typeof event.cancelBubble !== 'unknown') {
-        // The ChangeEventPlugin registers a "propertychange" event for
-        // IE. This event does not support bubbling or cancelling, and
-        // any references to cancelBubble throw "Member not found".  A
-        // typeof check of "unknown" circumvents this issue (and is also
-        // IE specific).
         event.cancelBubble = true;
       }
-
       this.isPropagationStopped = functionThatReturnsTrue;
     },
-
-    /**
-     * We release all dispatched `SyntheticEvent`s after each event loop, adding
-     * them back into the pool. This allows a way to hold onto a reference that
-     * won't be added back into the pool.
-     */
-    persist: function () {// Modern event system doesn't use pooling.
+    persist: function () {
     },
-
-    /**
-     * Checks if this event should be released back into the pool.
-     *
-     * @return {boolean} True if this should not be released, false otherwise.
-     */
     isPersistent: functionThatReturnsTrue
   });
   return SyntheticBaseEvent;
@@ -12148,8 +13476,153 @@ function createSyntheticEvent(Interface) {
 
 
 
-// REVIEW - renderRoot里面的workLoop完成之后，开始准备进入commit阶段了
 
+function processDispatchQueue(dispatchQueue, eventSystemFlags) {
+  // 入参：
+  // dispatchQueue汇集所有需要执行的回调函数，格式是
+  // click的捕获(listeners是从底层到顶层的顺序)-->click的冒泡(listeners是从底层到顶层的顺序)
+  // eventSystemFlags是捕获（4）还是冒泡（0）
+
+  var inCapturePhase = (eventSystemFlags & IS_CAPTURE_PHASE) !== 0;
+
+  for (var i = 0; i < dispatchQueue.length; i++) {
+    var _dispatchQueue$i = dispatchQueue[i],
+        event = _dispatchQueue$i.event,
+        listeners = _dispatchQueue$i.listeners;
+    processDispatchQueueItemsInOrder(event, listeners, inCapturePhase);
+  }
+  rethrowCaughtError();
+}
+
+
+function processDispatchQueueItemsInOrder(event, dispatchListeners, inCapturePhase) {
+  // 入参：
+  // event是合成事件对象
+  // dispatchListeners是当前事件所有要执行的回调函数的数组
+
+  var previousInstance;
+
+  if (inCapturePhase) {
+    // 如果是捕获事件，要从顶层节点开始往下执行
+    for (var i = dispatchListeners.length - 1; i >= 0; i--) {
+      var _dispatchListeners$i = dispatchListeners[i],
+          instance = _dispatchListeners$i.instance,
+          currentTarget = _dispatchListeners$i.currentTarget,
+          listener = _dispatchListeners$i.listener;
+
+      if (instance !== previousInstance && event.isPropagationStopped()) {
+        return;
+      }
+
+      executeDispatch_v18(event, listener, currentTarget);
+      previousInstance = instance;
+    }
+  } else {
+    // 如果是冒泡事件，要从底层往上执行
+    for (var _i = 0; _i < dispatchListeners.length; _i++) {
+      var _dispatchListeners$_i = dispatchListeners[_i],
+          // 分别是fiber、原生DOM、监听函数
+          _instance = _dispatchListeners$_i.instance,
+          _currentTarget = _dispatchListeners$_i.currentTarget,
+          _listener = _dispatchListeners$_i.listener;
+
+      // 如果是冒泡阻止，就不执行listener函数
+      if (_instance !== previousInstance && event.isPropagationStopped()) {
+        return;
+      }
+
+      executeDispatch_v18(event, _listener, _currentTarget);
+      previousInstance = _instance;
+    }
+  }
+}
+
+function executeDispatch_v18(event, listener, currentTarget) {
+  // 入参：
+  // event是合成事件对象
+  // listener是回调函数
+  // currentTarget是被交互元素的真实DOM
+  var type = event.type || 'unknown-event';
+  event.currentTarget = currentTarget;
+  invokeGuardedCallbackAndCatchFirstError(type, listener, undefined, event);
+  event.currentTarget = null;
+}
+
+
+function rethrowCaughtError() {
+  if (hasRethrowError) {
+    var error = rethrowError;
+    hasRethrowError = false;
+    rethrowError = null;
+    throw error;
+  }
+}
+
+
+
+// !最后结束了dispatchEventForPluginEventSystem函数，进入到清理函数
+
+function clearIfContinuousEvent(domEventName, nativeEvent) {
+  switch (domEventName) {
+    case 'focusin':
+    case 'focusout':
+      queuedFocus = null;
+      break;
+
+    case 'dragenter':
+    case 'dragleave':
+      queuedDrag = null;
+      break;
+
+    case 'mouseover':
+    case 'mouseout':
+      queuedMouse = null;
+      break;
+
+    case 'pointerover':
+    case 'pointerout':
+      {
+        var pointerId = nativeEvent.pointerId;
+        queuedPointers.delete(pointerId);
+        break;
+      }
+
+    case 'gotpointercapture':
+    case 'lostpointercapture':
+      {
+        var _pointerId = nativeEvent.pointerId;
+        queuedPointerCaptures.delete(_pointerId);
+        break;
+      }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// REVIEW - renderRoot里面的workLoop完成之后，开始准备进入commit阶段了
 
 
 
@@ -17107,11 +18580,13 @@ function getValueForProperty(node, name, expected, propertyInfo) {
 
 
 
-// 额外
+// 【额外】
 // 这个函数的作用是把children（一个react虚拟DOM）放到containerInfo（一个真实的DOM节点）里面
 // 在antd-mobile的弹窗类型的组件中（popup）一般弹窗类型的组件都被放到了body的最下面
 // 注意portal组件的冒泡还是遵循react树（在root节点里面）而不是dom树（在body的最后）
 function createPortal(children, containerInfo, implementation) {
+  // children是一个孩子树，比如(<div></div>)
+  // containerInfo通常是document.body
   var key = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : null;
 
   {
@@ -17126,5 +18601,30 @@ function createPortal(children, containerInfo, implementation) {
     implementation: implementation
   };
 }
+
+
+// 总结一下portal节点和普通节点的事件处理函数
+// 一、portal节点把所有的所有的事件（包括捕获和冒泡）全部挂到body上面
+// 一旦portal节点内部有任何一个节点的事件触发：
+// 1. 捕获阶段：
+//   1.1 body-->组件外部自己设置的body监听先执行（因为是在beginWork阶段挂上去的）（若有对body的addEventListener）
+//   1.2 body-->组件内部设置的dispatchEvent后执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数 倒序 遍历执行
+//   1.3 body下面的所有链路上的元素-->没有元素被addEventListener
+// 2. 冒泡阶段：
+//   2.1 被交互的元素本身往上-->没有元素被addEventListener
+//   2.2 body-->组件外部自己设置的body监听先执行（因为是在beginWork阶段挂上去的）（若有对body的addEventListener）
+//   2.3 body-->组件内部设置的dispatchEvent后执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数遍历执行
+
+// 二、普通节点把onXXX对应的事件挂到root上（一般只监听冒泡）
+// 一旦portal节点外部有任何一个普通节点的事件触发：
+// 1. 捕获阶段：
+//   1.1 body-->组件外部自己设置的body监听执行（若有对body的addEventListener）
+//   1.2 body下面的所有链路上的元素-->没有元素被addEventListener
+// 2. 冒泡阶段：
+//   2.1 被交互的元素本身往上-->没有元素被addEventListener
+//   2.2 root-->组件内部设置的dispatchEvent执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数遍历执行
+//   2.3 body-->组件外部自己设置的body监听执行（若有对body的addEventListener）
+
+
 
 
