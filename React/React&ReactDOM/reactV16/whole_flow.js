@@ -18788,6 +18788,7 @@ const HooksDispatcherOnMountInDEV = {
 
 function mountImperativeHandle(ref, create, deps) {
   // 依赖项加上父亲的ref！父亲的ref变化，那么子组件的useImperativeHandle也会更新
+  // 一般这个钩子的依赖项都不传递东西，所以deps是null
   var effectDeps = deps !== null && deps !== undefined ? deps.concat([ref]) : null;
   var fiberFlags = Update;
 
