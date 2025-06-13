@@ -1225,6 +1225,7 @@ var currentUpdatePriority = NoLane;
 
 // REVIEW - 创建虚拟DOM（jsx等于虚拟DOM）
 
+
 function createElementWithValidation(type, props, children) {
   // 验证第一个参数！
   var validType = isValidElementType(type);
@@ -1834,6 +1835,8 @@ function FiberNode(tag, pendingProps, key, mode) {
   // Instance
   this.tag = tag;
   this.key = key;
+
+  // 【注意！】type就是虚拟DOM本身
   // 下面两个区别？？？？？
   this.elementType = null;
   this.type = null;
@@ -3733,13 +3736,19 @@ function beginWork(current$$1, workInProgress, renderExpirationTime) {
         workInProgress,
         renderExpirationTime
       );
+
+    // 【forwardRef】，ForwardRef的组件走下面这里
     case ForwardRef: {
+      // type是虚拟dom本身
       var type = workInProgress.type;
       var _unresolvedProps2 = workInProgress.pendingProps;
+      // 这个变量一般来说等于props
       var _resolvedProps2 =
         workInProgress.elementType === type
           ? _unresolvedProps2
           : resolveDefaultProps(type, _unresolvedProps2);
+      
+      // 执行函数
       return updateForwardRef(current$$1, workInProgress, type, _resolvedProps2, renderExpirationTime);
     }
     case Fragment:
@@ -4468,10 +4477,13 @@ function ChildReconciler(shouldTrackSideEffects) {
     } else {
       // 单纯的函数组件或类组件走下面的逻辑
 
-      // 给自己创建一个fiber，然后更新ref属性
-      // 给return的属性赋予父亲fiber
+      // 给自己创建一个fiber
       var _created4 = createFiberFromElement(element, returnFiber.mode, expirationTime);
+
+      // 【注意】然后更新ref属性，父元素的ref属性传入给子元素！！！【forwardRef】（父元素肯定有ref，因为是必须要自己写上的！！）
       _created4.ref = coerceRef(returnFiber, currentFirstChild, element);
+
+      // 给return的属性赋予父亲fiber
       _created4.return = returnFiber;
       return _created4;
     }
@@ -4658,8 +4670,14 @@ function ChildReconciler(shouldTrackSideEffects) {
   }
 
   function coerceRef(returnFiber, current$$1, element) {
+    // returnFiber就是父节点
+    // current$$1就是父亲fiber节点的替身的大儿子fiber，也就是当前在页面显示出来的还没有更新的节点！！
+    // element就是父亲节点的大儿子，是最新的虚拟DOM，也就是接下来要处理的节点！！
+
     // 拿到孩子当前的ref
     var mixedRef = element.ref;
+
+    // 处理字符串类型的ref
     if (
       mixedRef !== null &&
       typeof mixedRef !== "function" &&
@@ -4710,6 +4728,8 @@ function ChildReconciler(shouldTrackSideEffects) {
         // 警告信息
       }
     }
+
+    // 对象类型的ref直接返回本身
     return mixedRef;
   }
 
@@ -5586,7 +5606,9 @@ function renderWithHooks(current, workInProgress, Component, props, refOrContext
   // 从mountIndeterminateComponent过来的current为null
   // Component是函数组件的函数本身
   // props是WIPfiber的pendingProps
-  // refOrContext是context对象或者ref，从mountIndeterminateComponent过来的话就是context
+  // refOrContext是context对象或者ref
+    // 从mountIndeterminateComponent过来的话就是context
+    // 从updateForwardRef过来的就是ref【forwardRef】
   // nextRenderExpirationTime是全局的nextRenderET（就是root的nextETToWork）
 
 
@@ -5639,6 +5661,9 @@ function renderWithHooks(current, workInProgress, Component, props, refOrContext
   // 这也是函数组件的返回值必须是一个标签包裹的所有标签的原因
 
   // 期间使用钩子！！！，这里假设使用了reducer和state的钩子
+
+  // 【forwardRef】第二个参数就是ref，这个ref就是当前的workInProgress的父节点的ref
+  // 在reconcileSingleElement那边，子元素的ref被赋予了父元素的ref值，而父元素肯定有ref值，因为这是使用这个功能所必须要写的
   var children = Component(props, refOrContext);
 
 
@@ -8001,7 +8026,12 @@ function updateMemoComponent(current$$1, workInProgress, Component, nextProps, u
 
   // 直接创建一个孩子！不走reconcile那边
   var newChild = createWorkInProgress(currentChild, nextProps, renderExpirationTime);
+  // 父亲的ref确保和孩子的ref一样，为什么？？？
+  // ！！！因为：
+  // memo 组件本身只是一个包装器（wrapper），它不渲染任何实际内容，真正的渲染工作是由其包裹的组件完成的
+  // 需要将这个 ref "穿透"传递到内部的真实组件
   newChild.ref = workInProgress.ref;
+
   newChild.return = workInProgress;
   workInProgress.child = newChild;
   return newChild;
@@ -18625,6 +18655,187 @@ function createPortal(children, containerInfo, implementation) {
 //   2.2 root-->组件内部设置的dispatchEvent执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数遍历执行
 //   2.3 body-->组件外部自己设置的body监听执行（若有对body的addEventListener）
 
+
+
+
+
+
+
+
+// REVIEW - forwardRef的内部逻辑
+// 去beginWork找forwardRef的case，查找关键词：【forwardRef】
+
+function forwardRef(render) {
+  // 入参render是一个函数，接收props和ref两个参数
+  // 这个包裹函数返回的是一个虚拟DOM对象，而不是一个Function组件
+  var elementType = {
+    $$typeof: REACT_FORWARD_REF_TYPE,
+    render: render
+  };
+  {
+    var ownName;
+    Object.defineProperty(elementType, 'displayName', {
+      enumerable: false,
+      configurable: true,
+      get: function () {
+        return ownName;
+      },
+      set: function (name) {
+        ownName = name;
+        if (!render.name && !render.displayName) {
+          render.displayName = name;
+        }
+      }
+    });
+  }
+  return elementType;
+}
+
+
+
+function updateForwardRef(current, workInProgress, Component, nextProps, renderLanes) {
+  // 入参：
+  // current是workInProgress的替身fiber
+  // component是虚拟dom，要么是函数/类组件，要么是forwardRef的返回的虚拟DOM对象
+  // nextProps是pendingProps
+  // renderLanes是当前的渲染优先级（过期时间）
+
+  {
+    if (workInProgress.type !== workInProgress.elementType) {
+      var innerPropTypes = Component.propTypes;
+      if (innerPropTypes) {
+        checkPropTypes(innerPropTypes, nextProps,
+        'prop', getComponentNameFromType(Component));
+      }
+    }
+  }
+
+  // 拿到函数组件本身和ref参数，这里的ref是一个对象，里面是{current: null}，用来保存真实的DOM节点
+  var render = Component.render;
+  var ref = workInProgress.ref;
+
+  var nextChildren;
+  var hasId;
+  prepareToReadContext(workInProgress, renderLanes);
+  markComponentRenderStarted(workInProgress);
+
+  {
+    ReactCurrentOwner$1.current = workInProgress;
+    setIsRendering(true);
+
+    // 开始执行函数组件的函数
+    // 注意，里面的ref是传入到函数组件的第二个参数里面的，也就是Component(props, ref)
+    nextChildren = renderWithHooks(current, workInProgress, render, nextProps, ref, renderLanes);
+    hasId = checkDidRenderIdHook();
+    // 如果是严格模式下的legacy模式，再次执行函数组件
+    if ( workInProgress.mode & StrictLegacyMode) {
+      setIsStrictModeForDevtools(true);
+      try {
+        nextChildren = renderWithHooks(current, workInProgress, render, nextProps, ref, renderLanes);
+        hasId = checkDidRenderIdHook();
+      } finally {
+        setIsStrictModeForDevtools(false);
+      }
+    }
+    setIsRendering(false);
+  }
+
+  {
+    markComponentRenderStopped();
+  }
+
+  if (current !== null && !didReceiveUpdate) {
+    bailoutHooks(current, workInProgress, renderLanes);
+    return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes);
+  }
+
+  if (getIsHydrating() && hasId) {
+    pushMaterializedTreeId(workInProgress);
+  }
+
+  workInProgress.flags |= PerformedWork;
+  reconcileChildren(current, workInProgress, nextChildren, renderLanes);
+  return workInProgress.child;
+}
+
+
+
+
+
+
+// 下面是useImperativeHandle钩子
+
+
+
+function useImperativeHandle(ref, create, deps) {
+  var dispatcher = resolveDispatcher();
+  return dispatcher.useImperativeHandle(ref, create, deps);
+}
+
+
+// 上面的useImperativeHandle方法进入了下面的方法
+const HooksDispatcherOnMountInDEV = {
+  useImperativeHandle: function (ref, create, deps) {
+    currentHookNameInDev = 'useImperativeHandle';
+    mountHookTypesDev();
+    checkDepsAreArrayDev(deps);
+    return mountImperativeHandle(ref, create, deps);
+  }
+}
+
+
+
+function mountImperativeHandle(ref, create, deps) {
+  // 依赖项加上父亲的ref！父亲的ref变化，那么子组件的useImperativeHandle也会更新
+  var effectDeps = deps !== null && deps !== undefined ? deps.concat([ref]) : null;
+  var fiberFlags = Update;
+
+  {
+    fiberFlags |= LayoutStatic;
+  }
+  if ( (currentlyRenderingFiber$1.mode & StrictEffectsMode) !== NoMode) {
+    fiberFlags |= MountLayoutDev;
+  }
+
+  // 下面相当于去调用useEffect调用的函数，内部的callback是imperativeHandleEffect函数
+  // 把包含很多信息的effect对象放到hook.memoizedState里面
+  // 然后在本轮渲染的末尾执行这个imperativeHandleEffect函数（就像useEffect里面的回调函数）
+  return mountEffectImpl(fiberFlags, Layout, imperativeHandleEffect.bind(null, create, ref), effectDeps);
+}
+
+
+
+
+function imperativeHandleEffect(create, ref) {
+  if (typeof ref === 'function') {
+    // ref是一个函数的情况
+    var refCallback = ref;
+    var _inst = create();
+
+    // 里面的对象作为父ref函数的入参
+    refCallback(_inst);
+
+    // 返回一个入参为null的函数，再次执行父亲ref函数，卸载的时候执行
+    return function () {
+      refCallback(null);
+    };
+
+  } else if (ref !== null && ref !== undefined) {
+    // ref是一个对象（useRef的对象）的情况
+    var refObject = ref;
+    // 执行这个函数，没有入参，也就是执行钩子的回调函数
+    // 得到一个对象，这个对象里面有很多方法
+    var _inst2 = create();
+
+    // 把这个对象给到ref的current，父亲就可以拿到子组件提供的方法集合
+    refObject.current = _inst2;
+
+    // 返回一个清除的函数，清除父组件的ref信息，在子组件卸载的时候执行
+    return function () {
+      refObject.current = null;
+    };
+  }
+}
 
 
 

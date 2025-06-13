@@ -340,6 +340,7 @@ function getUrlBasedHistory(
     return new URL(href, base);
   }
 
+  // 原生浏览器的路由工具箱
   let history = {
     get action() {
       return action;
@@ -1506,7 +1507,6 @@ function useNavigateUnstable() {
       dataRouterContext,
     ]
   );
-
   return navigate;
 }
 
@@ -1710,4 +1710,110 @@ export function useOutlet(context) {
     );
   }
   return outlet;
+}
+
+// REVIEW - 下面是useSearchParams钩子
+
+function useSearchParams(defaultInit) {
+  // 保存初始的URLSearchParams对象
+  let defaultSearchParamsRef = React.useRef(createSearchParams(defaultInit));
+  // 状态记录
+  let hasSetSearchParamsRef = React.useRef(false);
+
+  // 拿到当前的location对象，
+  // hash: ""
+  // key: "u9q4xy8p"
+  // pathname: "/confManagement"
+  // search: "?returnTab=structured"
+  // state: null
+  let location = useLocation();
+
+  // 获取当前的search参数，构造一个URLSearchParams对象
+  // 如果没有设置过search参数，则使用默认的search参数
+  let searchParams = React.useMemo(
+    () =>
+      getSearchParamsForLocation(
+        location.search,
+        hasSetSearchParamsRef.current ? null : defaultSearchParamsRef.current
+      ),
+    [location.search]
+  );
+  let navigate = useNavigate();
+
+  // 缓存一个设置参数的函数
+  // 假设传入的nextInit参数是一个urlSearchParams的对象
+  let setSearchParams = React.useCallback(
+    (nextInit, navigateOptions) => {
+      const newSearchParams = createSearchParams(
+        typeof nextInit === "function" ? nextInit(searchParams) : nextInit
+      );
+
+      // 然后设置状态为true
+      hasSetSearchParamsRef.current = true;
+
+      // ！！核心：【改变页面的url参数，不是跳转页面！！】
+      navigate("?" + newSearchParams, navigateOptions);
+    },
+    [navigate, searchParams]
+  );
+
+  // 【核心功能】：前者是拿到当前的参数的urlSearchParams对象，后者是改变页面的url（改变参数部分）
+  return [searchParams, setSearchParams];
+}
+
+function createSearchParams(init) {
+  if (init === void 0) {
+    init = "";
+  }
+  // 下面的方法的入参，字符串的时候长这样："q=URLUtils.searchParams&topic=api"
+  return new URLSearchParams(
+    typeof init === "string" ||
+    Array.isArray(init) ||
+    init instanceof URLSearchParams
+      ? init
+      : Object.keys(init).reduce((memo, key) => {
+          let value = init[key];
+          return memo.concat(
+            Array.isArray(value) ? value.map((v) => [key, v]) : [[key, value]]
+          );
+        }, [])
+  );
+  // 假设传入的 init 是一个对象
+  // const init = {
+  //   a: 1,
+  //   b: [2, 3],
+  //   c: 4,
+  //   d: [5, 6],
+  // };
+  // 返回的 URLSearchParams 的入参是
+  // [
+  //   [ 'a', 1 ],
+  //   [ 'b', 2 ],
+  //   [ 'b', 3 ],
+  //   [ 'c', 4 ],
+  //   [ 'd', 5 ],
+  //   [ 'd', 5 ],
+  //   [ 'd', 6 ]
+  // ]
+}
+
+function getSearchParamsForLocation(locationSearch, defaultSearchParams) {
+  // 入参
+  // locationSearch是当前的路由的参数部分"?returnTab=structured"，是字符串
+  // defaultSearchParams在hasSetSearchParamsRef为false的时候会有值，且是钩子的入参的那个参数（是urlSearchParam的格式）
+
+  // 根据当前的入参的路由，新建一个URLSearchParams对象
+  let searchParams = createSearchParams(locationSearch);
+  // 如果有默认的参数，加入到searchParams中（已经判断过不为重复的）
+  // ！【也就是说，钩子的入参defaultInit是很多页面大家都有的一个公用参数】
+  if (defaultSearchParams) {
+    defaultSearchParams.forEach((_, key) => {
+      if (!searchParams.has(key)) {
+        defaultSearchParams.getAll(key).forEach((value) => {
+          searchParams.append(key, value);
+        });
+      }
+    });
+  }
+  return searchParams;
 }
