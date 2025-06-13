@@ -18637,23 +18637,23 @@ function createPortal(children, containerInfo, implementation) {
 // 一、portal节点把所有的所有的事件（包括捕获和冒泡）全部挂到body上面
 // 一旦portal节点内部有任何一个节点的事件触发：
 // 1. 捕获阶段：
-//   1.1 body-->组件外部自己设置的body监听先执行（因为是在beginWork阶段挂上去的）（若有对body的addEventListener）
-//   1.2 body-->组件内部设置的dispatchEvent后执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数 倒序 遍历执行
+//   1.1 body元素-->组件外部自己设置的body监听先执行（因为是在beginWork阶段挂上去的）（若有对body的addEventListener）
+//   1.2 body元素-->组件内部设置的dispatchEvent后执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数 倒序 遍历执行
 //   1.3 body下面的所有链路上的元素-->没有元素被addEventListener
 // 2. 冒泡阶段：
 //   2.1 被交互的元素本身往上-->没有元素被addEventListener
-//   2.2 body-->组件外部自己设置的body监听先执行（因为是在beginWork阶段挂上去的）（若有对body的addEventListener）
-//   2.3 body-->组件内部设置的dispatchEvent后执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数遍历执行
+//   2.2 body元素-->组件外部自己设置的body监听先执行（因为是在beginWork阶段挂上去的）（若有对body的addEventListener）
+//   2.3 body元素-->组件内部设置的dispatchEvent后执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数遍历执行
 
 // 二、普通节点把onXXX对应的事件挂到root上（一般只监听冒泡）
 // 一旦portal节点外部有任何一个普通节点的事件触发：
 // 1. 捕获阶段：
-//   1.1 body-->组件外部自己设置的body监听执行（若有对body的addEventListener）
+//   1.1 body元素-->组件外部自己设置的body监听执行（若有对body的addEventListener）
 //   1.2 body下面的所有链路上的元素-->没有元素被addEventListener
 // 2. 冒泡阶段：
 //   2.1 被交互的元素本身往上-->没有元素被addEventListener
-//   2.2 root-->组件内部设置的dispatchEvent执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数遍历执行
-//   2.3 body-->组件外部自己设置的body监听执行（若有对body的addEventListener）
+//   2.2 root元素-->组件内部设置的dispatchEvent执行（在completeWork阶段挂上去）-->收集好所有祖上要执行的函数遍历执行
+//   2.3 body元素-->组件外部自己设置的body监听执行（若有对body的addEventListener）
 
 
 
@@ -18710,7 +18710,8 @@ function updateForwardRef(current, workInProgress, Component, nextProps, renderL
     }
   }
 
-  // 拿到函数组件本身和ref参数，这里的ref是一个对象，里面是{current: null}，用来保存真实的DOM节点
+  // 拿到函数组件本身render
+  // 以及ref参数，这里的ref是一个对象，里面是{current: null}，实际上就是父元素的ref
   var render = Component.render;
   var ref = workInProgress.ref;
 
@@ -18805,6 +18806,10 @@ function mountImperativeHandle(ref, create, deps) {
 
 
 
+
+// 【核心】相当于子方法的向上传递只是发生在异步的时候，由钩子实现这个功能
+// 而forwardRef的包裹只是为了给renderWithHook多传递一个ref的参数，别的和普通的函数组件的更新函数没有区别！
+// （forwardRef的包裹的使用有点冗余，我个人感觉！）
 
 function imperativeHandleEffect(create, ref) {
   if (typeof ref === 'function') {
