@@ -2156,7 +2156,7 @@ function createReduxContextHook(context = ReactReduxContext) {
 
 
 
-// 2. 【useDispatch】就是下面createSelectorHook的返回值
+// 2. 【useSelector】就是下面createSelectorHook的返回值
 // 采用闭包是因为createSelectorHook导出的时候直接创建了一个useSelector，注意，只是一个！！
 // 每个组件内部使用这个函数，都指向的同一个内存地址，并且共享同样的上层作用域，也就是useReduxContext这个变量可以随时拿到
 
@@ -2170,7 +2170,7 @@ const useSelector = createSelectorHook();
 function createSelectorHook(context = ReactReduxContext) {
   // 这里在找缓存！
   const useReduxContext = context === ReactReduxContext ? useDefaultReduxContext : createReduxContextHook(context);
-  return function useSelector(selector, equalityFnOrOptions = {}) {
+  return function (selector, equalityFnOrOptions = {}) {
     // selector是一个函数，state是她的参数
 
     // 拿出第二参数的一些属性，一般useSelector不传递第二个参数
@@ -2228,6 +2228,8 @@ function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnaps
   const selectorRef = useMemo(
     function () {
       function memoizedSelector(nextSnapshot) {
+        // !【为什么说useSelector必须要选中某一个state对象，目的是拿到store的切片，在div部分引用了store中的某个state时，在需要更新的时候，只会重渲染与这个state相关的，其他无关的不会重渲染】
+        // !【因为react内部的重渲染永远是“浅对比”，想让一个值不常更新，就需要对比他的实际值，而不是引用，因此需要深对比，而selector就是在内部做了深对比】
         // nextSnapshot是最新的state（完整的state对象）
         // 本函数的目标是先明确是一个纯函数（深度对比完整对象），然后深度对比 经过选择的对象
 
@@ -2238,7 +2240,7 @@ function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnaps
         // 第一次走这个函数的时候，hasMemo是false，走下面的逻辑：inst为null不走内部的if，直接返回最新的提取的state对象，然后以后都不走这个函数了
         // 这个if只有第一次会走（memo会缓存结果，因此不会再进入外部函数，自然外部函数的hasmemo也不会变成!1）
         if (!hasMemo) {
-          hasMemo = !0;
+          hasMemo = !0; // 第一次执行之后就变成true了
           // 这是最新的完整state对象
           memoizedSnapshot = nextSnapshot;
           // 这是最新的提取的state对象
@@ -2261,14 +2263,15 @@ function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnaps
         // 2. 深度对比新旧的 “ 完整 ” 的state对象【按道理肯定是不一样的，因为是纯函数】
         // 第二次走下面的逻辑（因为已经有了有值的memoizedSelection（经过选取的特定对象）和memoizedSnapshot（完整state对象））
         currentSelection = memoizedSelection;
-        // 深度对比！两个完整state对象的内存地址，如果是一样的直接返回之前的那个所选结果
+        // 浅度对比！两个完整state对象的内存地址，如果是一样的直接返回之前的那个所选结果
+        // 什么样的场景下会走到这个if？？也就是什么样的场景，两个store的state完全相同？？===》【应该是没有更新的时候吧】
         if (objectIs(memoizedSnapshot, nextSnapshot))
           return currentSelection;
 
         // 3. 深度对比新旧的选择的state（ “ 自定义 ” 的state对象）数据是否相同
         // 重新执行函数，得到最新的结果
         var nextSelection = selector(nextSnapshot);
-        // 比较新旧的选择的state是否相同，相同的话直接返回过去的结果
+        // 比较新旧的选择的state是否相同，相同的话直接返回过去的结果（浅对比，对比的是内存地址）
         if (void 0 !== isEqual && isEqual(currentSelection, nextSelection))
           return (memoizedSnapshot = nextSnapshot), currentSelection;
           // 上面相当于
@@ -2281,9 +2284,9 @@ function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnaps
       }
 
       // 定义一些变量，通过函数内定义的方式持久化在内存中
-      var hasMemo = !1,
-        memoizedSnapshot,
-        memoizedSelection,
+      var hasMemo = !1, // 初始值是false
+        memoizedSnapshot, // 上一次的完整state对象
+        memoizedSelection, // 上一次的通过useSelector提取的“部分”state对象
         // getServerSnapshot为空时，maybeGetServerSnapshot也为空
         maybeGetServerSnapshot =
           void 0 === getServerSnapshot ? null : getServerSnapshot;

@@ -5816,6 +5816,7 @@ function mountReducer(reducer, initialArg, init) {
   var queue = hook.queue = {
     last: null,
     dispatch: null,
+    // 到时候这个reducer会在dispatchAction函数中被执行
     lastRenderedReducer: reducer,
     lastRenderedState: initialState
   };
